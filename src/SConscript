@@ -4,15 +4,28 @@ env = Environment()
 env['ENV']['TERM'] = os.environ['TERM']
 env['CXX'] = 'clang++'
 env.Append(CCFLAGS='-std=c++11')
-env.Append(LIBS=['boost_filesystem-mt',
-                 'boost_system-mt',
-                 'boost_thread'])
+env.Append(LIBPATH='.')
+
+filesystem_scanner = env.SharedLibrary(
+    target='filesystem-scanner', 
+    source=[
+        'filesystem-scanner.cc',
+        ],
+    LIBS=[
+        'boost_filesystem-mt',
+        'boost_system-mt',
+        'boost_thread'
+        ],
+    )
 
 polar_express = env.Program(
     target='polar-express', 
     source=[
-        'filesystem-scanner.cc',
         'polar-express.cc'
-        ])
+        ],
+    LIBS=[
+        'filesystem-scanner'
+        ],
+    )
 
 Default(polar_express)
