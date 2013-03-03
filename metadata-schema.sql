@@ -31,8 +31,7 @@ create table attributes (
   'group'               TEXT,
   'uid'                 INTEGER,
   'gid'                 INTEGER,
-  'mode'                INTEGER,
-  unique ('owner', 'group', 'uid', 'gid', 'mode');
+  'mode'                INTEGER
 );
 create unique index idx_attributes_all on 
   attributes('owner', 'group', 'uid', 'gid', 'mode');
@@ -50,6 +49,8 @@ create table snapshots (
   'modification_time'   INTEGER NOT NULL,
   'access_time'         INTEGER,
   'extra_attributes'    TEXT,
+  'is_regular'          INTEGER NOT NULL DEFAULT true,
+  'is_deleted'          INTEGER NOT NULL DEFAULT false,
   'hash'                TEXT    NOT NULL,
   'length'              INTEGER NOT NULL,
   'observation_time'    INTEGER NOT NULL
