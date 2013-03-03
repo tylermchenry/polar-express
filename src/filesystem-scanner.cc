@@ -56,6 +56,7 @@ void FilesystemScanner::StopScan() {
     scan_thread_.reset();
   }
   is_scanning_ = false;
+  NotifyForNewFilePaths();
 }
   
 bool FilesystemScanner::is_scanning() const {
@@ -75,6 +76,24 @@ void FilesystemScanner::GetFilePathsAndClear(vector<string>* paths) {
   paths->swap(paths_);
 }
 
+void FilesystemScanner::NotifyOnNewFilePaths(condition_variable* condition) {
+  assert(condition != nullptr);
+  bool notify_immediately = false;
+
+  {
+    unique_lock<shared_mutex> write_lock(mu_);
+    if (paths_.empty()) {
+      new_paths_conditions_.push_back(condition);
+    } else {
+      notify_immediately = true;
+    }
+  }
+
+  if (notify_immediately) {
+    condition->notify_all();
+  }
+}
+
 void FilesystemScanner::SetThreadLauncherForTesting(
     ThreadLauncher* thread_launcher) {
   thread_launcher_.set_override(thread_launcher);
@@ -82,7 +101,15 @@ void FilesystemScanner::SetThreadLauncherForTesting(
 
 void FilesystemScanner::AddFilePaths(const vector<string>& paths) {
   unique_lock<shared_mutex> write_lock(mu_);
-  paths_.insert(paths_.end(), paths.begin(), paths.end()); 
+  paths_.insert(paths_.end(), paths.begin(), paths.end());
+  NotifyForNewFilePaths();
+}
+
+void FilesystemScanner::NotifyForNewFilePaths() {
+  for (auto* condition : new_paths_conditions_) {
+    condition->notify_all();
+  }
+  new_paths_conditions_.clear();
 }
 
 void FilesystemScanner::ScanFinished() {
