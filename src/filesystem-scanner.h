@@ -4,8 +4,8 @@
 #include <vector>
 #include <string>
 
-#include <boost/scoped_ptr.hpp>
-#include <boost/thread/shared_mutex.hpp>
+#include "boost/scoped_ptr.hpp"
+#include "boost/thread/shared_mutex.hpp"
 #include "gtest/gtest_prod.h"
 
 #include "macros.h"

@@ -1,7 +1,7 @@
 #ifndef OVERRIDEABLE_SCOPED_PTR_H
 #define OVERRIDEABLE_SCOPED_PTR_H
 
-#include <boost/scoped_ptr.hpp>
+#include "boost/scoped_ptr.hpp"
 
 #include "macros.h"
 

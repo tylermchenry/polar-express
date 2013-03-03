@@ -3,9 +3,9 @@
 #include <cassert>
 #include <utility>
 
-#include <boost/foreach.hpp>
-#include <boost/filesystem.hpp>
-#include <boost/thread/thread.hpp>
+#include "boost/foreach.hpp"
+#include "boost/filesystem.hpp"
+#include "boost/thread/thread.hpp"
 
 namespace polar_express {
 namespace {

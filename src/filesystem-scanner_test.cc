@@ -1,7 +1,7 @@
 #include <string>
 #include <vector>
 
-#include <boost/assign/list_of.hpp>
+#include "boost/assign/list_of.hpp"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
