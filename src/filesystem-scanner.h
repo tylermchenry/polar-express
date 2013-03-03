@@ -15,28 +15,44 @@ class thread;
 
 namespace polar_express {
 
-// Traverses a filesystem rooted at a particular directory and appends each
-// regular file to a queue.
+// Asynchronously traverses a filesystem rooted at a particular directory and
+// appends each regular file to a queue.
 class FilesystemScanner {
  public:
   FilesystemScanner();
   virtual ~FilesystemScanner();
-  
+
+  // Begins an asynchronous scan rooted at the given root path. Returns true if
+  // the was started successful, false otherwise. You cannot start a new scan
+  // while a scan is already running.
   virtual bool Scan(const string& root);
 
+  // Stops the current scan.
+  virtual void StopScan();
+  
+  // Returns true iff the scanner is currently in the process of scanning.
   virtual bool is_scanning() const;
-
+  
+  // Returns all filepaths retrieved so far during the current scan (or previous
+  // scan if none is currently running).
   virtual void GetFilePaths(vector<string>* paths) const;
 
+  // Returns all filepaths retrieved so far during the current scan (or previous
+  // scan if none is currently running) and clears the list of retrieved file
+  // paths. By calling GetAllFilePathsAndClear you can repeatedly retrieve lists
+  // of file paths found since the last time you called it.
   virtual void GetFilePathsAndClear(vector<string>* paths);
 
  private:
-  bool StartScan();
-
+  // Called by the thread functor to add newly discovered paths.
   void AddFilePaths(const vector<string>& paths);
 
-  void StopScan();
-  
+  // Called by the thread functor to indicate that it is finished.
+  void ScanFinished();
+
+  // A functor class that recursively traverses the filesystem from the given
+  // root path and adds groups of discovered paths to the given
+  // FilesystemScanner object.
   class ScannerThread {
    public:
     ScannerThread(FilesystemScanner* fs_scanner, const string& root);

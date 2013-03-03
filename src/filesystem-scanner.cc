@@ -1,7 +1,6 @@
 #include "filesystem-scanner.h"
 
 #include <cassert>
-#include <iostream>
 #include <utility>
 
 #include <boost/foreach.hpp>
@@ -20,28 +19,42 @@ string PathWithoutPrefix(const filesystem::path& path, const string& prefix) {
   return full_path;
 }
 
-} // namespace
+}  // namespace
 
 FilesystemScanner::FilesystemScanner()
     : is_scanning_(false) {
 }
 
 FilesystemScanner::~FilesystemScanner() {
-  if (scan_thread_.get() != nullptr) {
-    scan_thread_->interrupt();
-    scan_thread_->join();
-  }
+  StopScan();
 }
   
 bool FilesystemScanner::Scan(const string& root) {
-  if (!StartScan()) {
+  unique_lock<shared_mutex> write_lock(mu_);
+  if (is_scanning_) {
     return false;
   }
-
+  if (scan_thread_.get() != nullptr) {
+    scan_thread_->join();
+    scan_thread_.reset();
+  }
+  is_scanning_ = true;
   scan_thread_.reset(new thread(ScannerThread(this, root)));
   return true;
 }
 
+void FilesystemScanner::StopScan() {
+  unique_lock<shared_mutex> write_lock(mu_);
+  if (!is_scanning_) {
+    return;
+  }
+  assert(scan_thread_.get() != nullptr);
+  scan_thread_->interrupt();
+  scan_thread_->join();
+  scan_thread_.reset();
+  is_scanning_ = false;
+}
+  
 bool FilesystemScanner::is_scanning() const {
   shared_lock<shared_mutex> read_lock(mu_);
   return is_scanning_;
@@ -59,26 +72,13 @@ void FilesystemScanner::GetFilePathsAndClear(vector<string>* paths) {
   unique_lock<shared_mutex> write_lock(mu_);
   paths->swap(paths_);
 }
-
-bool FilesystemScanner::StartScan() {
-  unique_lock<shared_mutex> write_lock(mu_);
-  if (is_scanning_) {
-    return false;
-  }
-  if (scan_thread_.get() != nullptr) {
-    scan_thread_->join();
-    scan_thread_.reset();
-  }
-  is_scanning_ = true;
-  return true;
-}
-
+  
 void FilesystemScanner::AddFilePaths(const vector<string>& paths) {
   unique_lock<shared_mutex> write_lock(mu_);
   paths_.insert(paths_.end(), paths.begin(), paths.end()); 
 }
 
-void FilesystemScanner::StopScan() {
+void FilesystemScanner::ScanFinished() {
   unique_lock<shared_mutex> write_lock(mu_);
   assert(is_scanning_);
   is_scanning_ = false;
@@ -106,7 +106,7 @@ void FilesystemScanner::ScannerThread::operator()() {
   }
 
   fs_scanner_->AddFilePaths(tmp_paths);
-  fs_scanner_->StopScan();
+  fs_scanner_->ScanFinished();
 }
   
 }  // namespace polar_express
