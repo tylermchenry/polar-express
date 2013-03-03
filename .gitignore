@@ -12,5 +12,9 @@
 *.la
 *.a
 
+# Cruft from emacs
+*#
+*~
+
 # Cruft from scons
 .scons*
