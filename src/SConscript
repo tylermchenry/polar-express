@@ -6,26 +6,53 @@ env['CXX'] = 'clang++'
 env.Append(CCFLAGS='-std=c++11')
 env.Append(LIBPATH='.')
 
-filesystem_scanner = env.SharedLibrary(
+### Libraries
+
+filesystem_scanner_deplibs = [
+    'boost_filesystem-mt',
+    'boost_system-mt',
+    'boost_thread',
+    ];
+filesystem_scanner = env.Library(
     target='filesystem-scanner', 
     source=[
         'filesystem-scanner.cc',
         ],
-    LIBS=[
-        'boost_filesystem-mt',
-        'boost_system-mt',
-        'boost_thread'
-        ],
+    LIBS=filesystem_scanner_deplibs,
     )
+
+### Binaries
 
 polar_express = env.Program(
     target='polar-express', 
     source=[
-        'polar-express.cc'
+        'polar-express.cc',
         ],
     LIBS=[
-        'filesystem-scanner'
+        filesystem_scanner,
+        filesystem_scanner_deplibs,
         ],
     )
 
 Default(polar_express)
+
+### Unit Tests
+
+testlibs = ['gmock', 'gtest', 'gtest_main']
+
+filesystem_scanner_test = env.Program(
+    target='filesystem-scanner_test',
+    source=[
+        'filesystem-scanner_test.cc',
+        ],
+    LIBS=[
+        filesystem_scanner,
+        filesystem_scanner_deplibs,
+        testlibs,
+        ],
+    )
+run_filesystem_scanner_test = Alias(
+    'run_filesystem_scanner_test', 
+    [filesystem_scanner_test], 
+    filesystem_scanner_test[0].path)
+AlwaysBuild(run_filesystem_scanner_test)
