@@ -5,6 +5,9 @@
   TypeName(const TypeName&);               \
   void operator=(const TypeName&)
 
+#define CHECK_NOTNULL(ptr) \
+  (assert((ptr) != nullptr), (ptr))
+
 using namespace std;
 using namespace boost;
 
