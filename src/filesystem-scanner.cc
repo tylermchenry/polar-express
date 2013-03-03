@@ -95,9 +95,7 @@ void FilesystemScanner::ScannerThread::operator()() {
   filesystem::recursive_directory_iterator itr(root_);
   filesystem::recursive_directory_iterator eod;
   BOOST_FOREACH(const filesystem::path& path, make_pair(itr, eod)) {
-    if (exists(path) && is_regular_file(path)) {
-      tmp_paths.push_back(PathWithoutPrefix(path, root_));
-    }
+    tmp_paths.push_back(PathWithoutPrefix(path, root_));
     if (tmp_paths.size() >= 100) {
       this_thread::interruption_point();
       fs_scanner_->AddFilePaths(tmp_paths);
