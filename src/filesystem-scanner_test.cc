@@ -5,9 +5,13 @@
 
 namespace polar_express {
 
-TEST(FilesystemScanner, InitiallyNotScanning) {
-  FilesystemScanner scanner;
-  EXPECT_FALSE(scanner.is_scanning());
+class FilesystemScannerTest : public testing::Test {
+ protected:
+  FilesystemScanner scanner_;
+};
+
+TEST(FilesystemScannerTest, InitiallyNotScanning) {
+  EXPECT_FALSE(scanner_.is_scanning());
 }
 
 }  // namespace polar_express

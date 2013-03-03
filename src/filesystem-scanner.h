@@ -43,7 +43,7 @@ class FilesystemScanner {
   // paths. By calling GetAllFilePathsAndClear you can repeatedly retrieve lists
   // of file paths found since the last time you called it.
   virtual void GetFilePathsAndClear(vector<string>* paths);
-
+  
  private:
   // Called by the thread functor to add newly discovered paths.
   void AddFilePaths(const vector<string>& paths);
