@@ -8,6 +8,8 @@
 #include <boost/thread/shared_mutex.hpp>
 
 #include "macros.h"
+#include "overrideable-scoped-ptr.h"
+#include "thread-launcher.h"
 
 namespace boost {
 class thread;
@@ -43,6 +45,8 @@ class FilesystemScanner {
   // paths. By calling GetAllFilePathsAndClear you can repeatedly retrieve lists
   // of file paths found since the last time you called it.
   virtual void GetFilePathsAndClear(vector<string>* paths);
+
+  void SetThreadLauncherForTesting(ThreadLauncher* thread_launcher);
   
  private:
   // Called by the thread functor to add newly discovered paths.
@@ -63,7 +67,10 @@ class FilesystemScanner {
     FilesystemScanner* fs_scanner_;
     string root_;
   };
-  
+
+  OverrideableScopedPtr<ThreadLauncher> thread_launcher_;
+
+  // All members below are guarded by the mutex.
   mutable shared_mutex mu_;
   bool is_scanning_;
   scoped_ptr<thread> scan_thread_;

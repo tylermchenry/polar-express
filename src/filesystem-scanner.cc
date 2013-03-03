@@ -22,7 +22,8 @@ string PathWithoutPrefix(const filesystem::path& path, const string& prefix) {
 }  // namespace
 
 FilesystemScanner::FilesystemScanner()
-    : is_scanning_(false) {
+    : thread_launcher_(new ThreadLauncher),
+      is_scanning_(false) {
 }
 
 FilesystemScanner::~FilesystemScanner() {
@@ -40,7 +41,7 @@ bool FilesystemScanner::Scan(const string& root) {
   }
   is_scanning_ = true;
   paths_.clear();
-  scan_thread_.reset(new thread(ScannerThread(this, root)));
+  scan_thread_.reset(thread_launcher_->Launch(ScannerThread(this, root)));
   return true;
 }
 
@@ -49,10 +50,11 @@ void FilesystemScanner::StopScan() {
   if (!is_scanning_) {
     return;
   }
-  CHECK_NOTNULL(scan_thread_.get());
-  scan_thread_->interrupt();
-  scan_thread_->join();
-  scan_thread_.reset();
+  if (scan_thread_.get() != nullptr) {
+    scan_thread_->interrupt();
+    scan_thread_->join();
+    scan_thread_.reset();
+  }
   is_scanning_ = false;
 }
   
@@ -72,7 +74,12 @@ void FilesystemScanner::GetFilePathsAndClear(vector<string>* paths) {
   unique_lock<shared_mutex> write_lock(mu_);
   paths->swap(paths_);
 }
-  
+
+void FilesystemScanner::SetThreadLauncherForTesting(
+    ThreadLauncher* thread_launcher) {
+  thread_launcher_.set_override(thread_launcher);
+}
+
 void FilesystemScanner::AddFilePaths(const vector<string>& paths) {
   unique_lock<shared_mutex> write_lock(mu_);
   paths_.insert(paths_.end(), paths.begin(), paths.end()); 
