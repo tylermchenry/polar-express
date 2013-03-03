@@ -48,7 +48,7 @@ void FilesystemScanner::StopScan() {
   if (!is_scanning_) {
     return;
   }
-  assert(scan_thread_.get() != nullptr);
+  CHECK_NOTNULL(scan_thread_.get());
   scan_thread_->interrupt();
   scan_thread_->join();
   scan_thread_.reset();
@@ -61,9 +61,8 @@ bool FilesystemScanner::is_scanning() const {
 }
 
 void FilesystemScanner::GetFilePaths(vector<string>* paths) const {
-  assert(paths != nullptr);
   shared_lock<shared_mutex> read_lock(mu_);
-  *paths = paths_;
+  *CHECK_NOTNULL(paths) = paths_;
 }
 
 void FilesystemScanner::GetFilePathsAndClear(vector<string>* paths) {
