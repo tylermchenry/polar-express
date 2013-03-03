@@ -1,0 +1,13 @@
+import os
+
+env = Environment()
+env['ENV']['TERM'] = os.environ['TERM']
+env['CXX'] = 'clang++'
+
+polar_express = env.Program(
+    target='polar-express', 
+    source=[
+        'polar-express.cc'
+        ])
+
+Default(polar_express)
