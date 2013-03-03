@@ -32,6 +32,12 @@ class FilesystemScanner {
   // filepaths found.
   virtual bool Scan(const string& root) LOCKS_EXCLUDED(mu_);
 
+  // Version of Scan that simultaneously registers a new condition variable to
+  // be notified when results are available (see NotifyOnNewFilePaths below).
+  virtual bool Scan(
+      const string& root,
+      condition_variable* condition) LOCKS_EXCLUDED(mu_);
+  
   // Stops the current scan.
   virtual void StopScan() LOCKS_EXCLUDED(mu_);
   

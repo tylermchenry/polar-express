@@ -5,6 +5,7 @@
 
 #include "boost/foreach.hpp"
 #include "boost/filesystem.hpp"
+#include "boost/thread/condition_variable.hpp"
 #include "boost/thread/thread.hpp"
 
 namespace polar_express {
@@ -29,8 +30,12 @@ FilesystemScanner::FilesystemScanner()
 FilesystemScanner::~FilesystemScanner() {
   StopScan();
 }
-  
+
 bool FilesystemScanner::Scan(const string& root) {
+  return Scan(root, nullptr);
+}
+
+bool FilesystemScanner::Scan(const string& root, condition_variable* condition) {
   unique_lock<shared_mutex> write_lock(mu_);
   if (is_scanning_) {
     return false;
@@ -39,8 +44,14 @@ bool FilesystemScanner::Scan(const string& root) {
     scan_thread_->join();
     scan_thread_.reset();
   }
+  
   is_scanning_ = true;
   paths_.clear();
+
+  if (condition != nullptr) {
+    new_paths_conditions_.push_back(condition);
+  }
+  
   scan_thread_.reset(thread_launcher_->Launch(ScannerThread(this, root)));
   return true;
 }
@@ -82,7 +93,7 @@ void FilesystemScanner::NotifyOnNewFilePaths(condition_variable* condition) {
 
   {
     unique_lock<shared_mutex> write_lock(mu_);
-    if (paths_.empty()) {
+    if (is_scanning_ && paths_.empty()) {
       new_paths_conditions_.push_back(condition);
     } else {
       notify_immediately = true;
