@@ -6,6 +6,7 @@
 
 #include <boost/scoped_ptr.hpp>
 #include <boost/thread/shared_mutex.hpp>
+#include "gtest/gtest_prod.h"
 
 #include "macros.h"
 #include "overrideable-scoped-ptr.h"
@@ -75,6 +76,9 @@ class FilesystemScanner {
   bool is_scanning_;
   scoped_ptr<thread> scan_thread_;
   vector<string> paths_;
+
+  FRIEND_TEST(FilesystemScannerTest, GetFilePaths);
+  FRIEND_TEST(FilesystemScannerTest, GetFilePathsAndClear);
 
   DISALLOW_COPY_AND_ASSIGN(FilesystemScanner);
 };

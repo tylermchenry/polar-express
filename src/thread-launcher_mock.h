@@ -9,7 +9,7 @@ namespace polar_express {
 
 class ThreadLauncherMock : public ThreadLauncher {
  public:
-  MOCK_METHOD0(ShouldLaunchThread, bool());
+  MOCK_CONST_METHOD0(ShouldLaunchThread, bool());
 };
 
 }  // namespace polar_express

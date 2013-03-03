@@ -1,6 +1,8 @@
 #ifndef THREAD_LAUNCHER_H
 #define THREAD_LAUNCHER_H
 
+#include <iostream>
+
 #include <boost/thread/thread.hpp>
 
 #include "macros.h"
@@ -15,6 +17,8 @@ class ThreadLauncher {
 
   template <typename FunctorT>
   thread* Launch(FunctorT functor) const {
+    // TODO: Is there a way that we can mock boost::thread directly? If so, this
+    // would allow unit tests to exercise thread interrupting/joining calls.
     return ShouldLaunchThread() ? new thread(functor) : nullptr;
   }
 
