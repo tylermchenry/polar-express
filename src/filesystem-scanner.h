@@ -24,7 +24,8 @@ class FilesystemScanner {
 
   // Begins an asynchronous scan rooted at the given root path. Returns true if
   // the was started successful, false otherwise. You cannot start a new scan
-  // while a scan is already running.
+  // while a scan is already running. Starting a new scan clears the list of
+  // filepaths found.
   virtual bool Scan(const string& root);
 
   // Stops the current scan.

@@ -39,6 +39,7 @@ bool FilesystemScanner::Scan(const string& root) {
     scan_thread_.reset();
   }
   is_scanning_ = true;
+  paths_.clear();
   scan_thread_.reset(new thread(ScannerThread(this, root)));
   return true;
 }
