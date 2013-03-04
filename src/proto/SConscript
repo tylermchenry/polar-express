@@ -13,6 +13,7 @@ proto_files = env.Protoc(
     PROTOCPYTHONOUTDIR=None, # set to None to not generate python
     PROTOCOUTDIR = '.', # defaults to same directory as .proto
 )
+Default(proto_files)
 
 ### Libraries
 

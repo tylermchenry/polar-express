@@ -55,30 +55,31 @@ void AnalyzePath(const string& root, const filesystem::path& path) {
   if (canonical_path_str.empty()) {
     return;
   }
-
-  Snapshot snapshot;
-  snapshot.set_id(1);
-  
+ 
   filesystem::file_status file_stat = status(path);
 
   // Unix-specific stuff. TODO: Deal with Windows FS as well
   struct stat unix_stat;
   stat(canonical_path_str.c_str(), &unix_stat);
 
-  unique_lock<mutex> output_lock(output_mutex);
-  cout << canonical_path.string() << endl;
-  cout << "    owner:      " << GetUserNameFromUid(unix_stat.st_uid)
-       << " (" << unix_stat.st_uid << ")" << endl;
-  cout << "    group:      " << GetGroupNameFromGid(unix_stat.st_gid)
-       << " (" << unix_stat.st_gid << ")" << endl;
-  cout << "    mode:       " << std::oct << file_stat.permissions() << endl;
-  cout << "    mod_time:   " << last_write_time(canonical_path) << endl;
-  cout << "    is_regular: " << is_regular_file(canonical_path) << endl;
-  cout << "    is_deleted: " << !exists(canonical_path) << endl;
+  Snapshot snapshot;
+  Attributes* attribs = snapshot.mutable_attributes();
+  attribs->set_owner_user(GetUserNameFromUid(unix_stat.st_uid));
+  attribs->set_owner_group(GetGroupNameFromGid(unix_stat.st_gid));
+  attribs->set_uid(unix_stat.st_uid);
+  attribs->set_gid(unix_stat.st_gid);
+  attribs->set_mode(file_stat.permissions());
+  snapshot.set_modification_time(last_write_time(canonical_path));
+  snapshot.set_is_regular(is_regular_file(canonical_path));
+  snapshot.set_is_deleted(!exists(canonical_path));
   if (is_regular_file(canonical_path)) {
-    cout << "    length:     " << file_size(canonical_path) << endl;
+    snapshot.set_length(file_size(canonical_path));
   }
-  cout << "    obs_time:   " << time(NULL) << endl;
+  snapshot.set_observation_time(time(NULL));
+  
+  unique_lock<mutex> output_lock(output_mutex);
+  cout << canonical_path << endl;
+  cout << snapshot.DebugString();
 }
 
 void AnalyzePaths(

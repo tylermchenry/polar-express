@@ -1,28 +1,36 @@
 package polar_express;
 
+// Next tag: 7
+message Attributes {
+  optional int64 id = 1;
+
+  optional string owner_user = 2;
+  optional string owner_group = 3;
+  optional int32 uid = 4;
+  optional int32 gid = 5;
+  optional int32 mode = 6;
+}
+
 // Next tag: 1
 message ExtraAttributes {
   // TODO: Add Symlink info, Windows ACLs, etc. here.
 }
 
-// Next tag: 6
+// Next tag: 13
 message Snapshot {
   optional int64 id = 1;
+
   optional int64 file_id = 2;
-  optional int64 attributes_id = 3;
+  optional Attributes attributes = 3;
 
-  // Next tag: 9
-  message Metadata {
-    optional int64 creation_time = 1;
-    optional int64 modification_time = 2;
-    optional int64 access_time = 3;
-    optional ExtraAttributes extra_attributes = 4;
-    optional bool is_regular = 5;
-    optional bool is_deleted = 6;
-    optional string hash = 7;
-    optional int64 length = 8;
-  }
-  optional Metadata metadata = 4;
+  optional int64 creation_time = 4;
+  optional int64 modification_time = 5;
+  optional int64 access_time = 6;
+  optional ExtraAttributes extra_attributes = 7;
+  optional bool is_regular = 8;
+  optional bool is_deleted = 9;
+  optional string hash = 10;
+  optional int64 length = 11;
 
-  optional int64 observation_time = 5;
+  optional int64 observation_time = 12;
 }
