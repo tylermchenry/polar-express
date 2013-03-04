@@ -15,7 +15,6 @@
 using namespace polar_express;
 
 void PrintPaths(const vector<string>& paths) {
-  cerr << "Printing paths" << endl;
   for (const auto& path : paths) {
     cout << path << endl;
   }
@@ -33,9 +32,7 @@ void ScanFilesystem(
   FilesystemScanner fs_scanner;
   FilesystemScanner::FilePathsCallback callback =
       boost::bind(&ScanFilesystemCallback, io_service, _1);
-  cerr << "Beginning scan at root " << root << endl;
   fs_scanner.Scan(root, callback);
-  cerr << "Finished scan" << endl;
 }
 
 void DoWork(boost::shared_ptr<asio::io_service> io_service) {
