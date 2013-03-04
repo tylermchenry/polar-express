@@ -63,7 +63,9 @@ void AnalyzePath(const string& root, const filesystem::path& path) {
   stat(canonical_path_str.c_str(), &unix_stat);
 
   Snapshot snapshot;
+  File* file = snapshot.mutable_file();
   Attributes* attribs = snapshot.mutable_attributes();
+  file->set_path(canonical_path_str);
   attribs->set_owner_user(GetUserNameFromUid(unix_stat.st_uid));
   attribs->set_owner_group(GetGroupNameFromGid(unix_stat.st_gid));
   attribs->set_uid(unix_stat.st_uid);
@@ -78,7 +80,6 @@ void AnalyzePath(const string& root, const filesystem::path& path) {
   snapshot.set_observation_time(time(NULL));
   
   unique_lock<mutex> output_lock(output_mutex);
-  cout << canonical_path << endl;
   cout << snapshot.DebugString();
 }
 

@@ -1,0 +1,7 @@
+package polar_express;
+
+// Next tag: 3
+message File {
+  optional int64 id = 1;
+  optional string path = 2;
+}

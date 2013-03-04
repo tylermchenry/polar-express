@@ -1,5 +1,7 @@
 package polar_express;
 
+import "src/proto/file.proto";
+
 // Next tag: 7
 message Attributes {
   optional int64 id = 1;
@@ -20,7 +22,7 @@ message ExtraAttributes {
 message Snapshot {
   optional int64 id = 1;
 
-  optional int64 file_id = 2;
+  optional File file = 2;
   optional Attributes attributes = 3;
 
   optional int64 creation_time = 4;

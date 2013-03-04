@@ -8,7 +8,10 @@ env = Environment(
 
 proto_files = env.Protoc(
     [],
-    "snapshot.proto",
+    [
+      "snapshot.proto",
+      "file.proto",
+    ],
     PROTOCPROTOPATH=['.'],
     PROTOCPYTHONOUTDIR=None, # set to None to not generate python
     PROTOCOUTDIR = '.', # defaults to same directory as .proto
@@ -17,12 +20,24 @@ Default(proto_files)
 
 ### Libraries
 
+file_proto = env.Library(
+    target='file_proto', 
+    source=[
+        'file.pb.cc',
+        ],
+    LIBS=[
+        'protobuf'
+        ],
+    )
+Depends(file_proto, proto_files)
+
 snapshot_proto = env.Library(
     target='snapshot_proto', 
     source=[
         'snapshot.pb.cc',
         ],
     LIBS=[
+        file_proto,
         'protobuf'
         ],
     )
