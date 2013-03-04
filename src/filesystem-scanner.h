@@ -28,7 +28,7 @@ class FilesystemScanner {
   virtual void Scan(
       const string& root,
       FilePathsCallback callback,
-      int callback_interval = 100);
+      int callback_interval = 100) const;
   
  private:
   DISALLOW_COPY_AND_ASSIGN(FilesystemScanner);

@@ -16,7 +16,7 @@ FilesystemScanner::~FilesystemScanner() {
 void FilesystemScanner::Scan(
     const string& root,
     FilePathsCallback callback,
-    int callback_interval) {
+    int callback_interval) const {
   vector<filesystem::path> paths;
   filesystem::recursive_directory_iterator itr(root);
   filesystem::recursive_directory_iterator eod;
