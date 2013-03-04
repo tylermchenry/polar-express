@@ -1,0 +1,18 @@
+import os
+
+env = Environment(
+    ENV = {'PATH' : os.environ['PATH']},
+    CPPFLAGS = ['/EHsc', '/MDd'],
+    tools=['default', 'protoc']
+    )
+
+proto_files = env.Protoc(
+    [],
+    "snapshot.proto",
+    PROTOCPROTOPATH=['.'],
+    PROTOCPYTHONOUTDIR=None, # set to None to not generate python
+    PROTOCOUTDIR = '.', # defaults to same directory as .proto
+)
+Default(proto_files);
+
+

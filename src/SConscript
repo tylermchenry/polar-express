@@ -1,3 +1,5 @@
+SConscript('proto/SConscript')
+
 import os
 
 env = Environment()
@@ -58,3 +60,4 @@ testlibs = ['gmock', 'gtest', 'gtest_main']
 #     [filesystem_scanner_test], 
 #     filesystem_scanner_test[0].path)
 # AlwaysBuild(run_filesystem_scanner_test)
+
