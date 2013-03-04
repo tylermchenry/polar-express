@@ -2,7 +2,7 @@ import os
 
 env = Environment(
     ENV = {'PATH' : os.environ['PATH']},
-    CPPFLAGS = ['/EHsc', '/MDd'],
+    CPPFLAGS = ['-I.'],
     tools=['default', 'protoc']
     )
 
@@ -13,6 +13,20 @@ proto_files = env.Protoc(
     PROTOCPYTHONOUTDIR=None, # set to None to not generate python
     PROTOCOUTDIR = '.', # defaults to same directory as .proto
 )
-Default(proto_files);
+
+### Libraries
+
+snapshot_proto = env.Library(
+    target='snapshot_proto', 
+    source=[
+        'snapshot.pb.cc',
+        ],
+    LIBS=[
+        'protobuf'
+        ],
+    )
+Depends(snapshot_proto, proto_files)
+
+
 
 

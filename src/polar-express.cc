@@ -16,6 +16,7 @@
 
 #include "filesystem-scanner.h"
 #include "macros.h"
+#include "proto/snapshot.pb.h"
 
 using namespace polar_express;
 
@@ -55,6 +56,9 @@ void AnalyzePath(const string& root, const filesystem::path& path) {
     return;
   }
 
+  Snapshot snapshot;
+  snapshot.set_id(1);
+  
   filesystem::file_status file_stat = status(path);
 
   // Unix-specific stuff. TODO: Deal with Windows FS as well

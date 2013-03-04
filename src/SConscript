@@ -7,6 +7,7 @@ env['ENV']['TERM'] = os.environ['TERM']
 env['CXX'] = 'clang++'
 env.Append(CCFLAGS='-std=c++11')
 env.Append(LIBPATH='.')
+env.Append(LIBPATH='./src/proto')
 
 ### Libraries
 
@@ -31,8 +32,13 @@ polar_express = env.Program(
         'polar-express.cc',
         ],
     LIBS=[
+        'boost_filesystem-mt',
+        'boost_system-mt',
+        'boost_thread',
         filesystem_scanner,
         filesystem_scanner_deplibs,
+        'snapshot_proto',
+        'protobuf',
         ],
     )
 
