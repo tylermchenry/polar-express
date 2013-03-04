@@ -11,6 +11,9 @@
 
 namespace polar_express {
 
+// A class that recursively scans a filesystem hierarchy from a specified root
+// directory, and repeatedly invokes a callback with groups of paths found under
+// that root.
 class FilesystemScanner {
  public:
   FilesystemScanner();
@@ -18,7 +21,10 @@ class FilesystemScanner {
 
   typedef boost::function<void(const vector<filesystem::path>&)>
   FilePathsCallback;
-  
+
+  // Begins a scan of the filesystem hierarchy starting at root. Every time
+  // callback_interval distinct paths are found, the callback is invoked with a
+  // vector of those paths. This method blocks until the scan is complete.
   virtual void Scan(
       const string& root,
       FilePathsCallback callback,
