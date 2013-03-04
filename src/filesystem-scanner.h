@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 
+#include "boost/filesystem.hpp"
 #include "boost/function.hpp"
 
 #include "macros.h"
@@ -15,7 +16,8 @@ class FilesystemScanner {
   FilesystemScanner();
   virtual ~FilesystemScanner();
 
-  typedef boost::function<void(const vector<string>&)> FilePathsCallback;
+  typedef boost::function<void(const vector<filesystem::path>&)>
+  FilePathsCallback;
   
   virtual void Scan(
       const string& root,
