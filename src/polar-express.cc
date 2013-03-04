@@ -1,19 +1,15 @@
-#include <grp.h>
 #include <iostream>
-#include <pwd.h>
 #include <string>
-#include <sys/stat.h>
-#include <time.h>
 #include <vector>
 
 #include "boost/asio.hpp"
 #include "boost/bind.hpp"
 #include "boost/filesystem.hpp"
 #include "boost/shared_ptr.hpp"
-#include "boost/thread/condition_variable.hpp"
 #include "boost/thread/mutex.hpp"
 #include "boost/thread/thread.hpp"
 
+#include "candidate-snapshot-generator.h"
 #include "filesystem-scanner.h"
 #include "macros.h"
 #include "proto/snapshot.pb.h"
@@ -22,80 +18,36 @@ using namespace polar_express;
 
 boost::mutex output_mutex;
 
-string GetUserNameFromUid(int uid) {
-  passwd pwd;
-  passwd* tmp_pwdptr;
-  char pwdbuf[256];
-
-  if (getpwuid_r(uid, &pwd, pwdbuf, sizeof(pwdbuf), &tmp_pwdptr) == 0) {
-    return pwd.pw_name;
-  }
-  return "";
-}
-
-string GetGroupNameFromGid(int gid) {
-  group grp;
-  group* tmp_grpptr;
-  char grpbuf[256];
-
-  if (getgrgid_r(gid, &grp, grpbuf, sizeof(grpbuf), &tmp_grpptr) == 0) {
-    return grp.gr_name;
-  }
-  return "";
-}
-
-void AnalyzePath(const string& root, const filesystem::path& path) {
-  system::error_code ec;
-  filesystem::path canonical_path = canonical(path, root, ec);
-  if (ec) {
-    return;
-  }
-  
-  string canonical_path_str = canonical_path.string();
-  if (canonical_path_str.empty()) {
-    return;
-  }
- 
-  filesystem::file_status file_stat = status(path);
-
-  // Unix-specific stuff. TODO: Deal with Windows FS as well
-  struct stat unix_stat;
-  stat(canonical_path_str.c_str(), &unix_stat);
-
-  Snapshot snapshot;
-  File* file = snapshot.mutable_file();
-  Attributes* attribs = snapshot.mutable_attributes();
-  file->set_path(canonical_path_str);
-  attribs->set_owner_user(GetUserNameFromUid(unix_stat.st_uid));
-  attribs->set_owner_group(GetGroupNameFromGid(unix_stat.st_gid));
-  attribs->set_uid(unix_stat.st_uid);
-  attribs->set_gid(unix_stat.st_gid);
-  attribs->set_mode(file_stat.permissions());
-  snapshot.set_modification_time(last_write_time(canonical_path));
-  snapshot.set_is_regular(is_regular_file(canonical_path));
-  snapshot.set_is_deleted(!exists(canonical_path));
-  if (is_regular_file(canonical_path)) {
-    snapshot.set_length(file_size(canonical_path));
-  }
-  snapshot.set_observation_time(time(NULL));
-  
+void PrintCandidateSnapshots(
+    const vector<boost::shared_ptr<Snapshot> >& candidate_snapshots) {
   unique_lock<mutex> output_lock(output_mutex);
-  cout << snapshot.DebugString();
+  for (const auto& snapshot_ptr : candidate_snapshots) {
+    cout << snapshot_ptr->DebugString();
+  }
 }
 
-void AnalyzePaths(
+void GenerateCandidateSnapshotsCallback(
+    boost::shared_ptr<asio::io_service> io_service,
+    const vector<boost::shared_ptr<Snapshot> >& candidate_snapshots) {
+  io_service->post(bind(&PrintCandidateSnapshots, candidate_snapshots));
+}
+
+void GenerateCandidateSnapshots(
+    boost::shared_ptr<asio::io_service> io_service,
     const string& root,
     const vector<filesystem::path>& paths) {
-  for (const auto& path : paths) {
-    AnalyzePath(root, path);
-  }
+  CandidateSnapshotGenerator cs_generator;
+  CandidateSnapshotGenerator::CandidateSnapshotsCallback callback =
+      bind(&GenerateCandidateSnapshotsCallback, io_service, _1);
+  cs_generator.GenerateCandidateSnapshots(root, paths, callback);
 }
 
 void ScanFilesystemCallback(
     boost::shared_ptr<asio::io_service> io_service,
     const string& root,
     const vector<filesystem::path>& paths) {
-  io_service->post(bind(&AnalyzePaths, root, paths));
+  io_service->post(
+      bind(&GenerateCandidateSnapshots, io_service, root, paths));
 }
 
 void ScanFilesystem(
@@ -103,7 +55,7 @@ void ScanFilesystem(
     const string& root) {
   FilesystemScanner fs_scanner;
   FilesystemScanner::FilePathsCallback callback =
-      boost::bind(&ScanFilesystemCallback, io_service, root, _1);
+    bind(&ScanFilesystemCallback, io_service, root, _1);
   fs_scanner.Scan(root, callback);
 }
 

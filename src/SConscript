@@ -12,6 +12,17 @@ env.Append(LIBPATH='./src/proto')
 
 ### Libraries
 
+candidate_snapshot_generator_deplibs = [
+    'boost_filesystem-mt',
+    ];
+candidate_snapshot_generator = env.Library(
+    target='candidate-snapshot-generator', 
+    source=[
+        'candidate-snapshot-generator.cc',
+        ],
+    LIBS=candidate_snapshot_generator_deplibs,
+    )
+
 filesystem_scanner_deplibs = [
     'boost_filesystem-mt',
     'boost_system-mt',
@@ -36,10 +47,13 @@ polar_express = env.Program(
         'boost_filesystem-mt',
         'boost_system-mt',
         'boost_thread',
+        candidate_snapshot_generator,
         filesystem_scanner,
-        filesystem_scanner_deplibs,
         'snapshot_proto',
         'file_proto',
+        
+        candidate_snapshot_generator_deplibs,
+        filesystem_scanner_deplibs,
         'protobuf',
         ],
     )
