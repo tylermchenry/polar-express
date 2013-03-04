@@ -2,41 +2,63 @@
 #include <string>
 #include <vector>
 
+#include "boost/asio.hpp"
+#include "boost/bind.hpp"
+#include "boost/shared_ptr.hpp"
 #include "boost/thread/condition_variable.hpp"
 #include "boost/thread/mutex.hpp"
+#include "boost/thread/thread.hpp"
 
 #include "filesystem-scanner.h"
 #include "macros.h"
 
 using namespace polar_express;
 
-namespace {
-
-void PrintPathsAndClear(FilesystemScanner* scanner) {
-  vector<string> paths;
-  CHECK_NOTNULL(scanner)->GetFilePathsAndClear(&paths);
+void PrintPaths(const vector<string>& paths) {
+  cerr << "Printing paths" << endl;
   for (const auto& path : paths) {
     cout << path << endl;
   }
 }
 
-}  // namespace
+void ScanFilesystemCallback(
+    boost::shared_ptr<asio::io_service> io_service,
+    const vector<string>& paths) {
+  io_service->post(bind(&PrintPaths, paths));
+}
+
+void ScanFilesystem(
+    boost::shared_ptr<asio::io_service> io_service,
+    const string& root) {
+  FilesystemScanner fs_scanner;
+  FilesystemScanner::FilePathsCallback callback =
+      boost::bind(&ScanFilesystemCallback, io_service, _1);
+  cerr << "Beginning scan at root " << root << endl;
+  fs_scanner.Scan(root, callback);
+  cerr << "Finished scan" << endl;
+}
+
+void DoWork(boost::shared_ptr<asio::io_service> io_service) {
+  io_service->run();
+}
 
 int main(int argc, char** argv) {
-  mutex new_data_mutex;
-  condition_variable new_data_condition;
-  FilesystemScanner scanner;
-  if (argc > 1) {
-    if (scanner.Scan(argv[1], &new_data_condition)) {
-      while (scanner.is_scanning()) {
-        unique_lock<mutex> new_data_lock(new_data_mutex);
-        new_data_condition.wait(new_data_lock);
-        PrintPathsAndClear(&scanner);
-        scanner.NotifyOnNewFilePaths(&new_data_condition);
-      } 
-      PrintPathsAndClear(&scanner);
-    }
+  boost::shared_ptr<asio::io_service> io_service(new asio::io_service);
+  boost::shared_ptr<asio::io_service::work> work(
+      new asio::io_service::work(*io_service));
+
+  const int kNumWorkers = 4;
+  thread_group worker_threads;
+  for (int i = 0; i < kNumWorkers; ++i) {
+    worker_threads.create_thread(bind(&DoWork, io_service));
   }
+
+  if (argc > 1) {
+    io_service->post(bind(&ScanFilesystem, io_service, argv[1]));
+  }
+
+  work.reset();
+  worker_threads.join_all();
   
   return 0;
 }

@@ -1,11 +1,9 @@
 #include "filesystem-scanner.h"
 
-#include <cassert>
 #include <utility>
 
 #include "boost/foreach.hpp"
 #include "boost/filesystem.hpp"
-#include "boost/thread/condition_variable.hpp"
 #include "boost/thread/thread.hpp"
 
 namespace polar_express {
@@ -22,134 +20,31 @@ string PathWithoutPrefix(const filesystem::path& path, const string& prefix) {
 
 }  // namespace
 
-FilesystemScanner::FilesystemScanner()
-    : thread_launcher_(new ThreadLauncher),
-      is_scanning_(false) {
+FilesystemScanner::FilesystemScanner() {
 }
 
 FilesystemScanner::~FilesystemScanner() {
-  StopScan();
 }
 
-bool FilesystemScanner::Scan(const string& root) {
-  return Scan(root, nullptr);
-}
-
-bool FilesystemScanner::Scan(const string& root, condition_variable* condition) {
-  unique_lock<shared_mutex> write_lock(mu_);
-  if (is_scanning_) {
-    return false;
-  }
-  if (scan_thread_.get() != nullptr) {
-    scan_thread_->join();
-    scan_thread_.reset();
-  }
-  
-  is_scanning_ = true;
-  paths_.clear();
-
-  if (condition != nullptr) {
-    new_paths_conditions_.push_back(condition);
-  }
-  
-  scan_thread_.reset(thread_launcher_->Launch(ScannerThread(this, root)));
-  return true;
-}
-
-void FilesystemScanner::StopScan() {
-  unique_lock<shared_mutex> write_lock(mu_);
-  if (!is_scanning_) {
-    return;
-  }
-  if (scan_thread_.get() != nullptr) {
-    scan_thread_->interrupt();
-    scan_thread_->join();
-    scan_thread_.reset();
-  }
-  is_scanning_ = false;
-  NotifyForNewFilePaths();
-}
-  
-bool FilesystemScanner::is_scanning() const {
-  shared_lock<shared_mutex> read_lock(mu_);
-  return is_scanning_;
-}
-
-void FilesystemScanner::GetFilePaths(vector<string>* paths) const {
-  shared_lock<shared_mutex> read_lock(mu_);
-  *CHECK_NOTNULL(paths) = paths_;
-}
-
-void FilesystemScanner::GetFilePathsAndClear(vector<string>* paths) {
-  CHECK_NOTNULL(paths)->clear();
-  
-  unique_lock<shared_mutex> write_lock(mu_);
-  paths->swap(paths_);
-}
-
-void FilesystemScanner::NotifyOnNewFilePaths(condition_variable* condition) {
-  assert(condition != nullptr);
-  bool notify_immediately = false;
-
-  {
-    unique_lock<shared_mutex> write_lock(mu_);
-    if (is_scanning_ && paths_.empty()) {
-      new_paths_conditions_.push_back(condition);
-    } else {
-      notify_immediately = true;
-    }
-  }
-
-  if (notify_immediately) {
-    condition->notify_all();
-  }
-}
-
-void FilesystemScanner::SetThreadLauncherForTesting(
-    ThreadLauncher* thread_launcher) {
-  thread_launcher_.set_override(thread_launcher);
-}
-
-void FilesystemScanner::AddFilePaths(const vector<string>& paths) {
-  unique_lock<shared_mutex> write_lock(mu_);
-  paths_.insert(paths_.end(), paths.begin(), paths.end());
-  NotifyForNewFilePaths();
-}
-
-void FilesystemScanner::NotifyForNewFilePaths() {
-  for (auto* condition : new_paths_conditions_) {
-    condition->notify_all();
-  }
-  new_paths_conditions_.clear();
-}
-
-void FilesystemScanner::ScanFinished() {
-  unique_lock<shared_mutex> write_lock(mu_);
-  assert(is_scanning_);
-  is_scanning_ = false;
-}
-
-FilesystemScanner::ScannerThread::ScannerThread(
-    FilesystemScanner* fs_scanner, const string& root)
-    : fs_scanner_(CHECK_NOTNULL(fs_scanner)),
-      root_(root) {
-}
-
-void FilesystemScanner::ScannerThread::operator()() {
-  vector<string> tmp_paths;
-  filesystem::recursive_directory_iterator itr(root_);
+void FilesystemScanner::Scan(
+    const string& root,
+    FilePathsCallback callback,
+    int callback_interval) {
+  vector<string> paths;
+  filesystem::recursive_directory_iterator itr(root);
   filesystem::recursive_directory_iterator eod;
   BOOST_FOREACH(const filesystem::path& path, make_pair(itr, eod)) {
-    tmp_paths.push_back(PathWithoutPrefix(path, root_));
-    if (tmp_paths.size() >= 100) {
+    paths.push_back(PathWithoutPrefix(path, root));
+    if (paths.size() >= callback_interval) {
       this_thread::interruption_point();
-      fs_scanner_->AddFilePaths(tmp_paths);
-      tmp_paths.clear();
+      callback(paths);
+      paths.clear();
     }
   }
 
-  fs_scanner_->AddFilePaths(tmp_paths);
-  fs_scanner_->ScanFinished();
+  if (!paths.empty()) {
+    callback(paths);
+  }
 }
   
 }  // namespace polar_express

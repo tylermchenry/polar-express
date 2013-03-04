@@ -40,19 +40,21 @@ Default(polar_express)
 
 testlibs = ['gmock', 'gtest', 'gtest_main']
 
-filesystem_scanner_test = env.Program(
-    target='filesystem-scanner_test',
-    source=[
-        'filesystem-scanner_test.cc',
-        ],
-    LIBS=[
-        filesystem_scanner,
-        filesystem_scanner_deplibs,
-        testlibs,
-        ],
-    )
-run_filesystem_scanner_test = Alias(
-    'run_filesystem_scanner_test', 
-    [filesystem_scanner_test], 
-    filesystem_scanner_test[0].path)
-AlwaysBuild(run_filesystem_scanner_test)
+# Template for a unit test:
+
+# filesystem_scanner_test = env.Program(
+#     target='filesystem-scanner_test',
+#     source=[
+#         'filesystem-scanner_test.cc',
+#         ],
+#     LIBS=[
+#         filesystem_scanner,
+#         filesystem_scanner_deplibs,
+#         testlibs,
+#         ],
+#     )
+# run_filesystem_scanner_test = Alias(
+#     'run_filesystem_scanner_test', 
+#     [filesystem_scanner_test], 
+#     filesystem_scanner_test[0].path)
+# AlwaysBuild(run_filesystem_scanner_test)
