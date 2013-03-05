@@ -36,6 +36,19 @@ filesystem_scanner = env.Library(
     LIBS=filesystem_scanner_deplibs,
     )
 
+snapshot_state_machine_deplibs = [
+    'boost_msm-mt',
+    candidate_snapshot_generator,
+    candidate_snapshot_generator_deplibs,
+    ];
+snapshot_state_machine = env.Library(
+    target='snapshot-state-machine', 
+    source=[
+        'snapshot-state-machine.cc',
+        ],
+    LIBS=snapshot_state_machine_deplibs,
+    )
+
 ### Binaries
 
 polar_express = env.Program(
@@ -47,13 +60,15 @@ polar_express = env.Program(
         'boost_filesystem-mt',
         'boost_system-mt',
         'boost_thread',
-        candidate_snapshot_generator,
+        snapshot_state_machine,
         filesystem_scanner,
+        candidate_snapshot_generator,
         'snapshot_proto',
         'file_proto',
         
         candidate_snapshot_generator_deplibs,
         filesystem_scanner_deplibs,
+        snapshot_state_machine_deplibs,
         'protobuf',
         ],
     )
