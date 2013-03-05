@@ -17,6 +17,16 @@ CandidateSnapshotGenerator::CandidateSnapshotGenerator() {
 CandidateSnapshotGenerator::~CandidateSnapshotGenerator() {
 }
 
+void CandidateSnapshotGenerator::GenerateCandidateSnapshot(
+    const string& root,
+    const filesystem::path& path,
+    CandidateSnapshotCallback callback) const {
+  boost::shared_ptr<Snapshot> candidate_snapshot(new Snapshot);
+  // TODO: Error reporting?
+  GenerateCandidateSnapshot(root, path, candidate_snapshot.get());
+  callback(candidate_snapshot);
+}
+
 void CandidateSnapshotGenerator::GenerateCandidateSnapshots(
     const string& root,
     const vector<filesystem::path>& paths,

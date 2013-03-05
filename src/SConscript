@@ -37,7 +37,6 @@ filesystem_scanner = env.Library(
     )
 
 snapshot_state_machine_deplibs = [
-    'boost_msm-mt',
     candidate_snapshot_generator,
     candidate_snapshot_generator_deplibs,
     ];

@@ -22,6 +22,16 @@ class CandidateSnapshotGenerator {
   CandidateSnapshotGenerator();
   virtual ~CandidateSnapshotGenerator();
 
+  typedef boost::function<void(boost::shared_ptr<Snapshot>)>
+  CandidateSnapshotCallback;
+
+  // Generates one candidate snapshot for the given path, and invokes the given
+  // callback.
+  virtual void GenerateCandidateSnapshot(
+      const string& root,
+      const filesystem::path& path,
+      CandidateSnapshotCallback callback) const;
+  
   typedef boost::function<void(const vector<boost::shared_ptr<Snapshot> >&)>
   CandidateSnapshotsCallback;
 
