@@ -12,6 +12,17 @@ env.Append(LIBPATH='./src/proto')
 
 ### Libraries
 
+asio_dispatcher_deplibs = [
+    'boost_thread',
+    ];
+asio_dispatcher = env.Library(
+    target='asio-dispatcher', 
+    source=[
+        'asio-dispatcher.cc',
+        ],
+    LIBS=asio_dispatcher_deplibs,
+    )
+
 candidate_snapshot_generator_deplibs = [
     'boost_filesystem-mt',
     ];
@@ -62,12 +73,14 @@ polar_express = env.Program(
         snapshot_state_machine,
         filesystem_scanner,
         candidate_snapshot_generator,
+        asio_dispatcher,
         'snapshot_proto',
         'file_proto',
         
         candidate_snapshot_generator_deplibs,
         filesystem_scanner_deplibs,
         snapshot_state_machine_deplibs,
+        asio_dispatcher_deplibs,
         'protobuf',
         ],
     )
