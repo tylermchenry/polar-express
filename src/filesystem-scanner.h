@@ -6,11 +6,14 @@
 
 #include "boost/filesystem.hpp"
 #include "boost/function.hpp"
+#include "boost/scoped_ptr.hpp"
 
 #include "macros.h"
 
 namespace polar_express {
 
+class FilesystemScannerImpl;
+  
 // A class that recursively scans a filesystem hierarchy from a specified root
 // directory, and repeatedly invokes a callback with groups of paths found under
 // that root.
@@ -29,8 +32,13 @@ class FilesystemScanner {
       const string& root,
       FilePathsCallback callback,
       int callback_interval = 100) const;
+
+ protected:
+  explicit FilesystemScanner(bool create_impl);
   
  private:
+  scoped_ptr<FilesystemScannerImpl> impl_;
+  
   DISALLOW_COPY_AND_ASSIGN(FilesystemScanner);
 };
   

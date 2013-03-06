@@ -32,7 +32,7 @@ void AsioDispatcher::Start() {
   state_machine_io_service_ = StartService();
 }
 
-void AsioDispatcher::Stop() {
+void AsioDispatcher::Finish() {
   work_.clear();
   worker_threads_->join_all();
 }

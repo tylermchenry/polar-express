@@ -6,12 +6,14 @@
 
 #include "boost/filesystem.hpp"
 #include "boost/function.hpp"
+#include "boost/scoped_ptr.hpp"
 #include "boost/shared_ptr.hpp"
 
 #include "macros.h"
 
 namespace polar_express {
 
+class CandidateSnapshotGeneratorImpl;
 class Snapshot;
 
 // A class that reads filesystem metadata and generates candidate snapshot
@@ -44,20 +46,12 @@ class CandidateSnapshotGenerator {
       const vector<filesystem::path>& paths,
       CandidateSnapshotsCallback callback,
       int callback_interval = 10) const;
+
+ protected:
+  explicit CandidateSnapshotGenerator(bool create_impl);
   
  private:
-  bool GenerateCandidateSnapshot(
-      const string& root,
-      const filesystem::path& path,
-      Snapshot* candidate_snapshot) const;
-
-  string RemoveRootFromPath(
-      const string& root,
-      const string& path_str) const;
-
-  string GetUserNameFromUid(int uid) const;
-
-  string GetGroupNameFromGid(int gid) const;
+  scoped_ptr<CandidateSnapshotGeneratorImpl> impl_;
   
   DISALLOW_COPY_AND_ASSIGN(CandidateSnapshotGenerator);
 };

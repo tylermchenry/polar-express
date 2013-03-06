@@ -2,9 +2,9 @@
 
 #include <iostream>
 
-#include "boost/asio.hpp"
 #include "boost/thread/mutex.hpp"
 
+#include "asio-dispatcher.h"
 #include "candidate-snapshot-generator.h"
 #include "proto/snapshot.pb.h"
 
@@ -13,7 +13,6 @@ namespace {
 mutex output_mutex;
 
 void GenerateCandidateSnapshotCallback(
-    boost::shared_ptr<asio::io_service> io_service,
     SnapshotStateMachine::BackEnd* back_end,
     boost::shared_ptr<Snapshot> candidate_snapshot) {
   SnapshotStateMachine::CandidateSnapshotReady event;
@@ -24,9 +23,8 @@ void GenerateCandidateSnapshotCallback(
 }  // namespace
 
 SnapshotStateMachine::SnapshotStateMachine(
-    boost::shared_ptr<asio::io_service> io_service,
     SnapshotStateMachineImpl::DoneCallback done_callback)
-    : SnapshotStateMachineImpl::BackEnd(io_service, done_callback) {
+    : SnapshotStateMachineImpl::BackEnd(done_callback) {
 }
 
 void SnapshotStateMachine::Start(
@@ -35,10 +33,8 @@ void SnapshotStateMachine::Start(
 }
 
 SnapshotStateMachineImpl::SnapshotStateMachineImpl(
-    boost::shared_ptr<asio::io_service> io_service,
     DoneCallback done_callback)
-    : io_service_(io_service),
-      done_callback_(done_callback),
+    : done_callback_(done_callback),
       candidate_snapshot_generator_(new CandidateSnapshotGenerator) {
 }
 
@@ -49,7 +45,7 @@ void SnapshotStateMachineImpl::HandleRequestGenerateCandidateSnapshot(
     const NewFilePathReady& event, BackEnd& back_end) {
   candidate_snapshot_generator_->GenerateCandidateSnapshot(
       event.root_, event.filepath_,
-      bind(&GenerateCandidateSnapshotCallback, io_service_, &back_end, _1));
+      bind(&GenerateCandidateSnapshotCallback, &back_end, _1));
 }
 
 void SnapshotStateMachineImpl::HandlePrintCandidateSnapshot(
@@ -63,8 +59,8 @@ void SnapshotStateMachineImpl::HandlePrintCandidateSnapshot(
 
 void SnapshotStateMachineImpl::HandleExecuteDoneCallback(
     const CleanUp&, BackEnd& back_end) {
-  io_service_->post(bind(done_callback_,
-                         dynamic_cast<SnapshotStateMachine*>(&back_end)));
+  AsioDispatcher::GetInstance()->PostStateMachine(
+      bind(done_callback_, dynamic_cast<SnapshotStateMachine*>(&back_end)));
 }
 
 void SnapshotStateMachineImpl::InternalStart(
@@ -73,18 +69,15 @@ void SnapshotStateMachineImpl::InternalStart(
   event.root_ = root;
   event.filepath_ = filepath;
   CHECK_NOTNULL(back_end)->enqueue_event(event);
-  io_service_->post(
-      bind(&SnapshotStateMachineImpl::ExecuteEventsCallback,
-           io_service_, back_end));
+  ExecuteEventsCallback(back_end);
 }
 
 // static
-void SnapshotStateMachineImpl::ExecuteEventsCallback(
-    boost::shared_ptr<asio::io_service> io_service, BackEnd* back_end) {
+void SnapshotStateMachineImpl::ExecuteEventsCallback(BackEnd* back_end) {
   CHECK_NOTNULL(back_end)->execute_queued_events();
   if (back_end->get_message_queue_size() > 0) {
-    io_service->post(bind(
-        &SnapshotStateMachine::ExecuteEventsCallback, io_service, back_end));    
+    AsioDispatcher::GetInstance()->PostStateMachine(
+        bind(&SnapshotStateMachineImpl::ExecuteEventsCallback, back_end));
   }
 }
 

@@ -13,12 +13,6 @@
 #include "macros.h"
 #include "overrideable-scoped-ptr.h"
 
-namespace boost {
-namespace asio {
-class io_service;
-}  // namespace asio
-}  // namespace boost
-
 namespace polar_express {
 
 class CandidateSnapshotGenerator;
@@ -32,13 +26,9 @@ class SnapshotStateMachineImpl
   typedef boost::function<void(SnapshotStateMachine*)> DoneCallback;
   
   typedef msm::back::state_machine<
-    SnapshotStateMachineImpl,
-    boost::shared_ptr<asio::io_service>,
-    DoneCallback> BackEnd;
+    SnapshotStateMachineImpl, DoneCallback> BackEnd;
    
-  SnapshotStateMachineImpl(
-      boost::shared_ptr<asio::io_service> io_service,
-      DoneCallback done_callback);
+  explicit SnapshotStateMachineImpl(DoneCallback done_callback);
   virtual ~SnapshotStateMachineImpl();
  
   // Events
@@ -124,22 +114,19 @@ class SnapshotStateMachineImpl
       const CleanUp& event, BackEnd& back_end);
   
  private:
-  boost::shared_ptr<asio::io_service> io_service_;
   DoneCallback done_callback_;
 
   OverrideableScopedPtr<CandidateSnapshotGenerator>
   candidate_snapshot_generator_;
 
-  static void ExecuteEventsCallback(
-      boost::shared_ptr<asio::io_service> io_service, BackEnd* back_end);
+  static void ExecuteEventsCallback(BackEnd* back_end);
   
   DISALLOW_COPY_AND_ASSIGN(SnapshotStateMachineImpl);
 };
 
 class SnapshotStateMachine : public SnapshotStateMachineImpl::BackEnd {
  public:  
-  SnapshotStateMachine(boost::shared_ptr<asio::io_service> io_service,
-                       SnapshotStateMachineImpl::DoneCallback done_callback);
+  SnapshotStateMachine(SnapshotStateMachineImpl::DoneCallback done_callback);
   
   virtual void Start(const string& root, const filesystem::path& filepath);
   

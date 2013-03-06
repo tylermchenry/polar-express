@@ -24,17 +24,21 @@ asio_dispatcher = env.Library(
     )
 
 candidate_snapshot_generator_deplibs = [
+    asio_dispatcher,
     'boost_filesystem-mt',
+    'boost_thread',
     ];
 candidate_snapshot_generator = env.Library(
     target='candidate-snapshot-generator', 
     source=[
         'candidate-snapshot-generator.cc',
+        'candidate-snapshot-generator-impl.cc',
         ],
     LIBS=candidate_snapshot_generator_deplibs,
     )
 
 filesystem_scanner_deplibs = [
+    asio_dispatcher,
     'boost_filesystem-mt',
     'boost_system-mt',
     'boost_thread',
@@ -43,6 +47,7 @@ filesystem_scanner = env.Library(
     target='filesystem-scanner', 
     source=[
         'filesystem-scanner.cc',
+        'filesystem-scanner-impl.cc',
         ],
     LIBS=filesystem_scanner_deplibs,
     )
@@ -50,6 +55,7 @@ filesystem_scanner = env.Library(
 snapshot_state_machine_deplibs = [
     candidate_snapshot_generator,
     candidate_snapshot_generator_deplibs,
+    asio_dispatcher,
     ];
 snapshot_state_machine = env.Library(
     target='snapshot-state-machine', 

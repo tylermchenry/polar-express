@@ -2,12 +2,19 @@
 
 #include <utility>
 
-#include "boost/foreach.hpp"
-#include "boost/thread.hpp"
+#include "boost/bind.hpp"
+
+#include "asio-dispatcher.h"
+#include "filesystem-scanner-impl.h"
 
 namespace polar_express {
 
-FilesystemScanner::FilesystemScanner() {
+FilesystemScanner::FilesystemScanner()
+    : impl_(new FilesystemScannerImpl) {
+}
+
+FilesystemScanner::FilesystemScanner(bool create_impl) 
+    : impl_(create_impl ? new FilesystemScannerImpl : nullptr) {
 }
 
 FilesystemScanner::~FilesystemScanner() {
@@ -17,21 +24,9 @@ void FilesystemScanner::Scan(
     const string& root,
     FilePathsCallback callback,
     int callback_interval) const {
-  vector<filesystem::path> paths;
-  filesystem::recursive_directory_iterator itr(root);
-  filesystem::recursive_directory_iterator eod;
-  BOOST_FOREACH(const filesystem::path& path, make_pair(itr, eod)) {
-    paths.push_back(path);
-    if (paths.size() >= callback_interval) {
-      this_thread::interruption_point();
-      callback(paths);
-      paths.clear();
-    }
-  }
-
-  if (!paths.empty()) {
-    callback(paths);
-  }
+  AsioDispatcher::GetInstance()->PostDiskBound(
+      bind(&FilesystemScanner::Scan, impl_.get(),
+           root, callback, callback_interval));
 }
   
 }  // namespace polar_express

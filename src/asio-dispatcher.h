@@ -20,7 +20,7 @@ class AsioDispatcher {
   virtual ~AsioDispatcher();
   
   virtual void Start();
-  virtual void Stop();
+  virtual void Finish();
   
   virtual void PostCpuBound(boost::function<void()> callback);
   virtual void PostDiskBound(boost::function<void()> callback);
