@@ -6,6 +6,7 @@
 
 #include "boost/filesystem.hpp"
 #include "boost/msm/back/state_machine.hpp"
+#include "boost/msm/front/functor_row.hpp"
 #include "boost/msm/front/state_machine_def.hpp"
 #include "boost/shared_ptr.hpp"
 
@@ -22,26 +23,24 @@ namespace polar_express {
 
 class CandidateSnapshotGenerator;
 class Snapshot;
+class SnapshotStateMachine;
 
-class SnapshotStateMachine
+class SnapshotStateMachineImpl
     : public msm::front::state_machine_def<SnapshotStateMachine>
 {
- public: 
+ public:
+  typedef boost::function<void(SnapshotStateMachine*)> DoneCallback;
+  
   typedef msm::back::state_machine<
-   SnapshotStateMachine,
-   boost::shared_ptr<asio::io_service> > BackEnd;
-
-  typedef boost::function<void(BackEnd*)> DoneCallback;
-  
-  explicit SnapshotStateMachine(
-      boost::shared_ptr<asio::io_service> io_service);
-  virtual ~SnapshotStateMachine();
-
-  // Kind of a hack. What is the idiomatic way to do this?
-  // Takes ownership of the given pointer.
-  void Initialize(BackEnd* back_end,
-                  DoneCallback done_callback);
-  
+    SnapshotStateMachineImpl,
+    boost::shared_ptr<asio::io_service>,
+    DoneCallback> BackEnd;
+   
+  SnapshotStateMachineImpl(
+      boost::shared_ptr<asio::io_service> io_service,
+      DoneCallback done_callback);
+  virtual ~SnapshotStateMachineImpl();
+ 
   // Events
   struct NewFilePathReady {
     string root_;
@@ -60,31 +59,52 @@ class SnapshotStateMachine
   typedef WaitForNewFilePath initial_state;
   
   // Transition actions
-  virtual void RequestGenerateCandidateSnapshot(
-      const NewFilePathReady& event);
-  virtual void PrintCandidateSnapshot(
-      const CandidateSnapshotReady& event);
-  virtual void ExecuteDoneCallback(const CleanUp& event);
+  struct RequestGenerateCandidateSnapshot {
+    template <typename EventT, typename BackEndT,
+              typename SourceStateT, typename TargetStateT>
+    void operator()(const EventT& event, BackEndT& back_end,
+                    SourceStateT&, TargetStateT&) {
+      back_end.HandleRequestGenerateCandidateSnapshot(event, back_end);
+    }
+  };
+
+  struct PrintCandidateSnapshot {
+    template <typename EventT, typename BackEndT,
+              typename SourceStateT, typename TargetStateT>
+    void operator()(const EventT& event, BackEndT& back_end,
+                    SourceStateT&, TargetStateT&) {
+      back_end.HandlePrintCandidateSnapshot(event, back_end);
+    }
+  };
+
+  struct ExecuteDoneCallback {
+    template <typename EventT, typename BackEndT,
+              typename SourceStateT, typename TargetStateT>
+    void operator()(const EventT& event, BackEndT& back_end,
+                    SourceStateT&, TargetStateT&) {
+      back_end.HandleExecuteDoneCallback(event, back_end);
+    }
+  };
   
   // Transition table
   struct transition_table : mpl::vector<
-    a_row <WaitForNewFilePath,
-           NewFilePathReady,
-           WaitForCandidateSnapshot,
-           &SnapshotStateMachine::RequestGenerateCandidateSnapshot>,
-    a_row <WaitForCandidateSnapshot,
-           CandidateSnapshotReady,
-           WaitForCleanUp,
-           &SnapshotStateMachine::PrintCandidateSnapshot>,
-    a_row <WaitForCleanUp,
-           CleanUp,
-           Done,
-           &SnapshotStateMachine::ExecuteDoneCallback>
+    msm::front::Row <WaitForNewFilePath,
+                     NewFilePathReady,
+                     WaitForCandidateSnapshot,
+                     SnapshotStateMachineImpl::RequestGenerateCandidateSnapshot,
+                     msm::front::none>,
+    msm::front::Row <WaitForCandidateSnapshot,
+                     CandidateSnapshotReady,
+                     WaitForCleanUp,
+                     SnapshotStateMachineImpl::PrintCandidateSnapshot,
+                     msm::front::none>,
+    msm::front::Row <WaitForCleanUp,
+                     CleanUp,
+                     Done,
+                     SnapshotStateMachineImpl::ExecuteDoneCallback,
+                     msm::front::none>
     > {};
-
-  // Post this callback to an io_service this callback after enequing events.
-  static void ExecuteEventsCallback(SnapshotStateMachine::BackEnd* back_end);
-
+ 
   template <class FSM,class Event>
   void no_transition(Event const& e, FSM&,int state)
   {
@@ -92,17 +112,41 @@ class SnapshotStateMachine
               << " on event " << typeid(e).name() << std::endl;
   }
 
- private:
-  auto_ptr<BackEnd> back_end_;
-  DoneCallback done_callback_;
+ protected:
+  virtual void InternalStart(
+    const string& root, const filesystem::path& filepath, BackEnd* back_end);
 
+  virtual void HandleRequestGenerateCandidateSnapshot(
+      const NewFilePathReady& event, BackEnd& back_end);
+  virtual void HandlePrintCandidateSnapshot(
+      const CandidateSnapshotReady& event, BackEnd& back_end);
+  virtual void HandleExecuteDoneCallback(
+      const CleanUp& event, BackEnd& back_end);
+  
+ private:
   boost::shared_ptr<asio::io_service> io_service_;
+  DoneCallback done_callback_;
 
   OverrideableScopedPtr<CandidateSnapshotGenerator>
   candidate_snapshot_generator_;
+
+  static void ExecuteEventsCallback(
+      boost::shared_ptr<asio::io_service> io_service, BackEnd* back_end);
   
+  DISALLOW_COPY_AND_ASSIGN(SnapshotStateMachineImpl);
+};
+
+class SnapshotStateMachine : public SnapshotStateMachineImpl::BackEnd {
+ public:  
+  SnapshotStateMachine(boost::shared_ptr<asio::io_service> io_service,
+                       SnapshotStateMachineImpl::DoneCallback done_callback);
+  
+  virtual void Start(const string& root, const filesystem::path& filepath);
+  
+ private:
   DISALLOW_COPY_AND_ASSIGN(SnapshotStateMachine);
 };
+
 
 }  // namespace polar_express
 

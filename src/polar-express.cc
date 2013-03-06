@@ -17,26 +17,16 @@
 using namespace polar_express;
 
 void DeleteSnapshotStateMachine(
-    SnapshotStateMachine::BackEnd* snapshot_state_machine) {
+    SnapshotStateMachine* snapshot_state_machine) {
   delete snapshot_state_machine;
 }
 
 void StartSnapshotStateMachine(
     boost::shared_ptr<asio::io_service> io_service,
     const string& root, filesystem::path filepath) {
-  SnapshotStateMachine::BackEnd* snapshot_state_machine = 
-      new SnapshotStateMachine::BackEnd(io_service);
-  snapshot_state_machine->Initialize(
-      snapshot_state_machine, &DeleteSnapshotStateMachine);
-
-  SnapshotStateMachine::NewFilePathReady event;
-  event.root_ = root;
-  event.filepath_ = filepath;
-  snapshot_state_machine->enqueue_event(event);
-
-  io_service->post(
-      bind(&SnapshotStateMachine::ExecuteEventsCallback,
-           snapshot_state_machine));
+  SnapshotStateMachine* snapshot_state_machine = 
+    new SnapshotStateMachine(io_service, &DeleteSnapshotStateMachine);
+  snapshot_state_machine->Start(root, filepath);
 }
 
 void ScanFilesystemCallback(
@@ -66,7 +56,7 @@ int main(int argc, char** argv) {
   boost::shared_ptr<asio::io_service::work> work(
       new asio::io_service::work(*io_service));
 
-  const int kNumWorkers = 1;
+  const int kNumWorkers = 4;
   thread_group worker_threads;
   for (int i = 0; i < kNumWorkers; ++i) {
     worker_threads.create_thread(bind(&DoWork, io_service));
