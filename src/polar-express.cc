@@ -30,8 +30,7 @@ int main(int argc, char** argv) {
     FilesystemScanner fs_scanner;
     AsioDispatcher::GetInstance()->Start();
     fs_scanner.Scan(root, bind(StartSnapshotStateMachines, root, _1));
-    // WRONG: This stops the non-disk-bound ASIO services immediately. FIXME.
-    AsioDispatcher::GetInstance()->Finish();
+    AsioDispatcher::GetInstance()->WaitForFinish();
   }
   return 0;
 }

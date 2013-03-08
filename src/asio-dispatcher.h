@@ -20,7 +20,7 @@ class AsioDispatcher {
   virtual ~AsioDispatcher();
   
   virtual void Start();
-  virtual void Finish();
+  virtual void WaitForFinish();
   
   virtual void PostCpuBound(boost::function<void()> callback);
   virtual void PostDiskBound(boost::function<void()> callback);
@@ -32,9 +32,17 @@ class AsioDispatcher {
   AsioDispatcher();
 
   boost::shared_ptr<asio::io_service> StartService();
+  void PostToService(
+      boost::function<void()> callback,
+      boost::shared_ptr<asio::io_service> io_service);
   
   static void InitInstance();
   static void WorkerThread(boost::shared_ptr<asio::io_service> io_service);
+  static void RunCallbackAndDeleteWork(
+      boost::function<void()> callback,
+      asio::io_service::work* work);
+
+  boost::shared_ptr<asio::io_service> master_io_service_;
   
   boost::shared_ptr<asio::io_service> cpu_io_service_;
   boost::shared_ptr<asio::io_service> disk_io_service_;

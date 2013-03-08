@@ -25,6 +25,7 @@ AsioDispatcher::~AsioDispatcher() {
 void AsioDispatcher::Start() {
   work_.clear();
   worker_threads_.reset(new thread_group);
+  master_io_service_.reset(new asio::io_service);
   cpu_io_service_ = StartService();
   disk_io_service_ = StartService();
   uplink_io_service_ = StartService();
@@ -32,29 +33,30 @@ void AsioDispatcher::Start() {
   state_machine_io_service_ = StartService();
 }
 
-void AsioDispatcher::Finish() {
+void AsioDispatcher::WaitForFinish() {
+  master_io_service_->run();
   work_.clear();
   worker_threads_->join_all();
 }
 
 void AsioDispatcher::PostCpuBound(boost::function<void()> callback) {
-  cpu_io_service_->post(callback);
+  PostToService(callback, cpu_io_service_);
 }
 
 void AsioDispatcher::PostDiskBound(boost::function<void()> callback) {
-  disk_io_service_->post(callback);
+  PostToService(callback, disk_io_service_);
 }
 
 void AsioDispatcher::PostUplinkBound(boost::function<void()> callback) {
-  uplink_io_service_->post(callback);
+  PostToService(callback, uplink_io_service_);
 }
 
 void AsioDispatcher::PostDownlinkBound(boost::function<void()> callback) {
-  downlink_io_service_->post(callback);
+  PostToService(callback, downlink_io_service_);
 }
 
 void AsioDispatcher::PostStateMachine(boost::function<void()> callback) {
-  state_machine_io_service_->post(callback);
+  PostToService(callback, state_machine_io_service_);
 }
 
 boost::shared_ptr<asio::io_service> AsioDispatcher::StartService() {
@@ -67,6 +69,14 @@ boost::shared_ptr<asio::io_service> AsioDispatcher::StartService() {
   return io_service;
 }
 
+void AsioDispatcher::PostToService(
+    boost::function<void()> callback,
+    boost::shared_ptr<asio::io_service> io_service) {
+  io_service->post(boost::bind(
+      &AsioDispatcher::RunCallbackAndDeleteWork, callback,
+      new asio::io_service::work(*master_io_service_)));
+}
+
 // static
 void AsioDispatcher::InitInstance() {
   instance_.reset(new AsioDispatcher);
@@ -76,6 +86,14 @@ void AsioDispatcher::InitInstance() {
 void AsioDispatcher::WorkerThread(
     boost::shared_ptr<asio::io_service> io_service) {
   io_service->run();
+}
+
+// static
+void AsioDispatcher::RunCallbackAndDeleteWork(
+    boost::function<void()> callback,
+    asio::io_service::work* work) {
+  callback();
+  delete work;
 }
 
 }  // namespace polar_express
