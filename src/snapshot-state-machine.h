@@ -102,6 +102,12 @@ class SnapshotStateMachineImpl
               << " on event " << typeid(e).name() << std::endl;
   }
 
+  template <typename EventT, typename BackEndT>
+  static void PostEvent(const EventT& event, BackEndT* back_end) {
+    back_end->enqueue_event(event);
+    back_end->PostNextEventCallback(back_end);
+  }
+  
  protected:
   virtual void InternalStart(
     const string& root, const filesystem::path& filepath, BackEnd* back_end);
@@ -120,6 +126,7 @@ class SnapshotStateMachineImpl
   candidate_snapshot_generator_;
 
   static void ExecuteEventsCallback(BackEnd* back_end);
+  static void PostNextEventCallback(BackEnd* back_end);
   
   DISALLOW_COPY_AND_ASSIGN(SnapshotStateMachineImpl);
 };

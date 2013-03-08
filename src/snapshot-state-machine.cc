@@ -17,7 +17,7 @@ void GenerateCandidateSnapshotCallback(
     boost::shared_ptr<Snapshot> candidate_snapshot) {
   SnapshotStateMachine::CandidateSnapshotReady event;
   event.candidate_snapshot_ = candidate_snapshot;
-  back_end->enqueue_event(event);
+  SnapshotStateMachine::PostEvent(event, back_end);
 }
 
 }  // namespace
@@ -69,16 +69,21 @@ void SnapshotStateMachineImpl::InternalStart(
   event.root_ = root;
   event.filepath_ = filepath;
   CHECK_NOTNULL(back_end)->enqueue_event(event);
-  ExecuteEventsCallback(back_end);
+  PostNextEventCallback(back_end);
 }
-
+  
 // static
 void SnapshotStateMachineImpl::ExecuteEventsCallback(BackEnd* back_end) {
   CHECK_NOTNULL(back_end)->execute_queued_events();
+  PostNextEventCallback(back_end);
+}
+
+// static
+void SnapshotStateMachineImpl::PostNextEventCallback(BackEnd* back_end) {
   if (back_end->get_message_queue_size() > 0) {
     AsioDispatcher::GetInstance()->PostStateMachine(
         bind(&SnapshotStateMachineImpl::ExecuteEventsCallback, back_end));
   }
 }
-
+  
 }  // namespace polar_express
