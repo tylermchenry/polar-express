@@ -47,9 +47,12 @@ class BackupExecutor {
   snapshot_state_machine_pool_ GUARDED_BY(mu_);
   int num_running_snapshot_state_machines_ GUARDED_BY(mu_);
   int num_finished_snapshot_state_machines_ GUARDED_BY(mu_);
+  bool scan_in_progress_ GUARDED_BY(mu_);
+  bool scan_finished_ GUARDED_BY(mu_);
   
   OverrideableScopedPtr<FilesystemScanner> filesystem_scanner_;
-  
+
+  static const int kMaxPendingSnapshots;
   static const int kMaxSimultaneousSnapshots;
 
   DISALLOW_COPY_AND_ASSIGN(BackupExecutor);

@@ -12,6 +12,7 @@
 
 namespace polar_express {
 
+const int BackupExecutor::kMaxPendingSnapshots = 200;
 const int BackupExecutor::kMaxSimultaneousSnapshots = 5;
 
 BackupExecutor::BackupExecutor()
@@ -19,6 +20,8 @@ BackupExecutor::BackupExecutor()
         new boost::object_pool<SnapshotStateMachine>),
       num_running_snapshot_state_machines_(0),
       num_finished_snapshot_state_machines_(0),
+      scan_in_progress_(false),
+      scan_finished_(false),
       filesystem_scanner_(new FilesystemScanner) {
 }
 
@@ -32,8 +35,13 @@ void BackupExecutor::Start(const string& root) {
   assert(!root.empty());
   root_ = root;
 
-  filesystem_scanner_->Scan(
-      root, bind(&BackupExecutor::CreateSnapshotStateMachine, this));
+  filesystem_scanner_->StartScan(
+      root, kMaxPendingSnapshots / 2,
+      bind(&BackupExecutor::CreateSnapshotStateMachine, this));
+
+  boost::mutex::scoped_lock lock(mu_);
+  scan_in_progress_ = true;
+  scan_finished_ = false;
 }
 
 int BackupExecutor::GetNumFilesProcessed() const {
@@ -42,11 +50,19 @@ int BackupExecutor::GetNumFilesProcessed() const {
 }
 
 void BackupExecutor::CreateSnapshotStateMachine() {
-  boost::filesystem::path path;
-  if (filesystem_scanner_->GetNextPath(&path)) {
+  vector<boost::filesystem::path> paths;
+  if (filesystem_scanner_->GetPaths(&paths)) {
+    filesystem_scanner_->ClearPaths();
     boost::mutex::scoped_lock lock(mu_);
-    pending_snapshot_paths_.push(path);
+    scan_in_progress_ = false;
+    for (const boost::filesystem::path& path : paths) {
+      pending_snapshot_paths_.push(path);
+    }
     PostRunNextSnapshotStateMachine();
+  } else {
+    boost::mutex::scoped_lock lock(mu_);
+    scan_in_progress_ = false;
+    scan_finished_ = true;
   }
 }
 
@@ -68,6 +84,14 @@ void BackupExecutor::RunNextSnapshotStateMachine() {
   snapshot_state_machine->Start(root_, path);
 
   ++num_running_snapshot_state_machines_;
+
+  if ((pending_snapshot_paths_.size() < kMaxPendingSnapshots / 2) &&
+      !scan_in_progress_ && !scan_finished_) {
+    filesystem_scanner_->ContinueScan(
+        kMaxPendingSnapshots / 2,
+        bind(&BackupExecutor::CreateSnapshotStateMachine, this));
+    scan_in_progress_ = true;
+  } 
 }
 
 void BackupExecutor::PostRunNextSnapshotStateMachine() {

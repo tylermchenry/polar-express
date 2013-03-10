@@ -23,11 +23,14 @@ class FilesystemScanner {
   FilesystemScanner();
   virtual ~FilesystemScanner();
 
-  // Begins a scan of the filesystem hierarchy starting at root, invoking the
-  // given callback every time one is found.
-  virtual void Scan(const string& root, Callback callback);
+  virtual void StartScan(
+      const string& root, int max_paths, Callback callback);
 
-  virtual bool GetNextPath(boost::filesystem::path* path);
+  virtual void ContinueScan(int max_paths, Callback callback);
+
+  virtual bool GetPaths(vector<boost::filesystem::path>* paths) const;
+
+  virtual void ClearPaths();
   
  protected:
   explicit FilesystemScanner(bool create_impl);

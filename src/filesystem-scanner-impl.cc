@@ -1,9 +1,5 @@
 #include "filesystem-scanner-impl.h"
 
-#include <utility>
-
-#include "boost/foreach.hpp"
-
 namespace polar_express {
 
 FilesystemScannerImpl::FilesystemScannerImpl()
@@ -13,28 +9,30 @@ FilesystemScannerImpl::FilesystemScannerImpl()
 FilesystemScannerImpl::~FilesystemScannerImpl() {
 }
 
-void FilesystemScannerImpl::Scan(const string& root, Callback callback) {
-  filesystem::recursive_directory_iterator itr(root);
-  filesystem::recursive_directory_iterator eod;
-  BOOST_FOREACH(const filesystem::path& path, make_pair(itr, eod)) {
-    AddPath(path);
-    callback();
-  }
+void FilesystemScannerImpl::StartScan(
+    const string& root, int max_paths, Callback callback) {
+  ClearPaths();
+  itr_ = filesystem::recursive_directory_iterator(root);
+  ContinueScan(max_paths, callback);
 }
 
-bool FilesystemScannerImpl::GetNextPath(boost::filesystem::path* path) {
-  boost::mutex::scoped_lock lock(mu_);
-  if (paths_.empty()) {
-    return false;
+void FilesystemScannerImpl::ContinueScan(int max_paths, Callback callback) {
+  const filesystem::recursive_directory_iterator eod;
+  int initial_paths = paths_.size();
+  while ((paths_.size() - initial_paths < max_paths) && itr_ != eod) {
+    paths_.push_back(*itr_++);
   }
-  *CHECK_NOTNULL(path) = paths_.front();
-  paths_.pop();
-  return true;
+  callback();
 }
 
-void FilesystemScannerImpl::AddPath(const boost::filesystem::path& path) {
-  boost::mutex::scoped_lock lock(mu_);
-  paths_.push(path);
+bool FilesystemScannerImpl::GetPaths(
+    vector<boost::filesystem::path>* paths) const {
+  CHECK_NOTNULL(paths)->insert(paths->end(), paths_.begin(), paths_.end());
+  return !paths_.empty();
+}
+
+void FilesystemScannerImpl::ClearPaths() {
+  paths_.clear();
 }
   
 }  // namespace polar_express

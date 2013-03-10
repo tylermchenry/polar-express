@@ -20,13 +20,26 @@ FilesystemScanner::FilesystemScanner(bool create_impl)
 FilesystemScanner::~FilesystemScanner() {
 }
 
-void FilesystemScanner::Scan(const string& root, Callback callback) {
+void FilesystemScanner::StartScan(
+    const string& root, int max_paths, Callback callback) {
   AsioDispatcher::GetInstance()->PostDiskBound(
-      bind(&FilesystemScanner::Scan, impl_.get(), root, callback));
+      bind(&FilesystemScanner::StartScan, impl_.get(),
+           root, max_paths, callback));
 }
 
-bool FilesystemScanner::GetNextPath(boost::filesystem::path* path) {
-  return impl_->GetNextPath(path);
+void FilesystemScanner::ContinueScan(int max_paths, Callback callback) {
+  AsioDispatcher::GetInstance()->PostDiskBound(
+      bind(&FilesystemScanner::ContinueScan, impl_.get(),
+           max_paths, callback));
+}
+
+bool FilesystemScanner::GetPaths(
+    vector<boost::filesystem::path>* paths) const {
+  return impl_->GetPaths(paths);
+}
+
+void FilesystemScanner::ClearPaths() {
+  impl_->ClearPaths();
 }
   
 }  // namespace polar_express
