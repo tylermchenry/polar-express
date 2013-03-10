@@ -3,6 +3,7 @@
 
 #include "boost/bind.hpp"
 #include "boost/filesystem.hpp"
+#include "boost/shared_ptr.hpp"
 
 #include "asio-dispatcher.h"
 #include "filesystem-scanner.h"
@@ -12,15 +13,25 @@
 using namespace polar_express;
 
 void DeleteSnapshotStateMachine(
-    SnapshotStateMachine* snapshot_state_machine) {
-  delete snapshot_state_machine;
+    boost::shared_ptr<SnapshotStateMachine> snapshot_state_machine) {
+  snapshot_state_machine.reset();
+}
+
+void PostDeleteSnapshotStateMachine(
+    boost::shared_ptr<SnapshotStateMachine> snapshot_state_machine) {
+  AsioDispatcher::GetInstance()->PostStateMachine(
+      bind(&DeleteSnapshotStateMachine, snapshot_state_machine));
 }
 
 void StartSnapshotStateMachines(
     const string& root,
     const vector<filesystem::path>& paths) {
   for (const auto& path : paths) {
-    (new SnapshotStateMachine(&DeleteSnapshotStateMachine))->Start(root, path);
+    boost::shared_ptr<SnapshotStateMachine> snapshot_state_machine(
+        new SnapshotStateMachine);
+    snapshot_state_machine->SetDoneCallback(
+        bind(&PostDeleteSnapshotStateMachine, snapshot_state_machine));
+    snapshot_state_machine->Start(root, path);
   }
 }
 

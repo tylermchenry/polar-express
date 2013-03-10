@@ -11,6 +11,7 @@
 #include "boost/shared_ptr.hpp"
 
 #include "macros.h"
+#include "callback.h"
 #include "overrideable-scoped-ptr.h"
 
 namespace polar_express {
@@ -23,14 +24,19 @@ class SnapshotStateMachineImpl
     : public msm::front::state_machine_def<SnapshotStateMachine>
 {
  public:
-  typedef boost::function<void(SnapshotStateMachine*)> DoneCallback;
-  
-  typedef msm::back::state_machine<
-    SnapshotStateMachineImpl, DoneCallback> BackEnd;
-   
-  explicit SnapshotStateMachineImpl(DoneCallback done_callback);
+  typedef msm::back::state_machine<SnapshotStateMachineImpl> BackEnd;
+
+  SnapshotStateMachineImpl();
   virtual ~SnapshotStateMachineImpl();
- 
+
+  virtual void SetDoneCallback(Callback done_callback);
+
+  template <typename EventT, typename BackEndT>
+  static void PostEvent(const EventT& event, BackEndT* back_end) {
+    back_end->enqueue_event(event);
+    back_end->PostNextEventCallback(back_end);
+  }
+  
   // Events
   struct NewFilePathReady {
     string root_;
@@ -101,26 +107,20 @@ class SnapshotStateMachineImpl
     std::cerr << "no transition from state " << state
               << " on event " << typeid(e).name() << std::endl;
   }
-
-  template <typename EventT, typename BackEndT>
-  static void PostEvent(const EventT& event, BackEndT* back_end) {
-    back_end->enqueue_event(event);
-    back_end->PostNextEventCallback(back_end);
-  }
   
  protected:
-  virtual void InternalStart(
+  void InternalStart(
     const string& root, const filesystem::path& filepath, BackEnd* back_end);
-
-  virtual void HandleRequestGenerateCandidateSnapshot(
+  
+  void HandleRequestGenerateCandidateSnapshot(
       const NewFilePathReady& event, BackEnd& back_end);
-  virtual void HandlePrintCandidateSnapshot(
+  void HandlePrintCandidateSnapshot(
       const CandidateSnapshotReady& event, BackEnd& back_end);
-  virtual void HandleExecuteDoneCallback(
+  void HandleExecuteDoneCallback(
       const CleanUp& event, BackEnd& back_end);
   
  private:
-  DoneCallback done_callback_;
+  Callback done_callback_;
 
   OverrideableScopedPtr<CandidateSnapshotGenerator>
   candidate_snapshot_generator_;
@@ -133,7 +133,7 @@ class SnapshotStateMachineImpl
 
 class SnapshotStateMachine : public SnapshotStateMachineImpl::BackEnd {
  public:  
-  SnapshotStateMachine(SnapshotStateMachineImpl::DoneCallback done_callback);
+  SnapshotStateMachine() {}
   
   virtual void Start(const string& root, const filesystem::path& filepath);
   

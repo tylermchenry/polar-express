@@ -22,25 +22,22 @@ void GenerateCandidateSnapshotCallback(
 
 }  // namespace
 
-SnapshotStateMachine::SnapshotStateMachine(
-    SnapshotStateMachineImpl::DoneCallback done_callback)
-    : SnapshotStateMachineImpl::BackEnd(done_callback) {
-}
-
 void SnapshotStateMachine::Start(
     const string& root, const filesystem::path& filepath) {
   InternalStart(root, filepath, this);
 }
 
-SnapshotStateMachineImpl::SnapshotStateMachineImpl(
-    DoneCallback done_callback)
-    : done_callback_(done_callback),
-      candidate_snapshot_generator_(new CandidateSnapshotGenerator) {
+  SnapshotStateMachineImpl::SnapshotStateMachineImpl()
+    : candidate_snapshot_generator_(new CandidateSnapshotGenerator) {
 }
 
 SnapshotStateMachineImpl::~SnapshotStateMachineImpl() {
 }
 
+void SnapshotStateMachineImpl::SetDoneCallback(Callback done_callback) {
+  done_callback_ = done_callback;
+}
+  
 void SnapshotStateMachineImpl::HandleRequestGenerateCandidateSnapshot(
     const NewFilePathReady& event, BackEnd& back_end) {
   candidate_snapshot_generator_->GenerateCandidateSnapshot(
@@ -59,8 +56,9 @@ void SnapshotStateMachineImpl::HandlePrintCandidateSnapshot(
 
 void SnapshotStateMachineImpl::HandleExecuteDoneCallback(
     const CleanUp&, BackEnd& back_end) {
-  AsioDispatcher::GetInstance()->PostStateMachine(
-      bind(done_callback_, dynamic_cast<SnapshotStateMachine*>(&back_end)));
+  if (!done_callback_.empty()) {
+    done_callback_();
+  }
 }
 
 void SnapshotStateMachineImpl::InternalStart(
