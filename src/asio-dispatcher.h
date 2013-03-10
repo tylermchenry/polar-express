@@ -28,10 +28,29 @@ class AsioDispatcher {
   virtual void PostDownlinkBound(Callback callback);
   virtual void PostStateMachine(Callback callback);
 
+  class StrandDispatcher {
+   public:
+    StrandDispatcher(
+        const AsioDispatcher* asio_dispatcher,
+        boost::shared_ptr<asio::io_service> io_service);
+    void Post(Callback callback);
+   private:
+    const AsioDispatcher* const asio_dispatcher_;
+    const boost::shared_ptr<asio::io_service::strand> strand_;
+  };
+  
+  virtual boost::shared_ptr<StrandDispatcher> NewStrandDispatcherCpuBound();
+  virtual boost::shared_ptr<StrandDispatcher> NewStrandDispatcherDiskBound();
+  virtual boost::shared_ptr<StrandDispatcher> NewStrandDispatcherUplinkBound();
+  virtual boost::shared_ptr<StrandDispatcher> NewStrandDispatcherDownlinkBound();
+  virtual boost::shared_ptr<StrandDispatcher> NewStrandDispatcherStateMachine();
+  
  private:
   AsioDispatcher();
 
   boost::shared_ptr<asio::io_service> StartService();
+
+  Callback WrapCallbackWithMasterWork(Callback callback) const;
   void PostToService(
       Callback callback,
       boost::shared_ptr<asio::io_service> io_service);
@@ -57,7 +76,7 @@ class AsioDispatcher {
 
   DISALLOW_COPY_AND_ASSIGN(AsioDispatcher);
 };
-  
+
 }  // namespace polar_express
 
 #endif  // ASIO_DISPATCHER_H

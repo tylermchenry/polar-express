@@ -59,6 +59,36 @@ void AsioDispatcher::PostStateMachine(Callback callback) {
   PostToService(callback, state_machine_io_service_);
 }
 
+boost::shared_ptr<AsioDispatcher::StrandDispatcher>
+AsioDispatcher::NewStrandDispatcherCpuBound() {
+  return boost::shared_ptr<StrandDispatcher>(
+      new StrandDispatcher(this, cpu_io_service_));
+}
+
+boost::shared_ptr<AsioDispatcher::StrandDispatcher>
+AsioDispatcher::NewStrandDispatcherDiskBound() {
+  return boost::shared_ptr<StrandDispatcher>(
+      new StrandDispatcher(this, disk_io_service_));
+}
+
+boost::shared_ptr<AsioDispatcher::StrandDispatcher>
+AsioDispatcher::NewStrandDispatcherUplinkBound() {
+  return boost::shared_ptr<StrandDispatcher>(
+      new StrandDispatcher(this, uplink_io_service_));
+}
+
+boost::shared_ptr<AsioDispatcher::StrandDispatcher>
+AsioDispatcher::NewStrandDispatcherDownlinkBound() {
+  return boost::shared_ptr<StrandDispatcher>(
+      new StrandDispatcher(this, downlink_io_service_));
+}
+
+boost::shared_ptr<AsioDispatcher::StrandDispatcher>
+AsioDispatcher::NewStrandDispatcherStateMachine() {
+  return boost::shared_ptr<StrandDispatcher>(
+      new StrandDispatcher(this, state_machine_io_service_));
+}
+
 boost::shared_ptr<asio::io_service> AsioDispatcher::StartService() {
   boost::shared_ptr<asio::io_service> io_service(new asio::io_service);
   work_.push_back(boost::shared_ptr<asio::io_service::work>(
@@ -69,12 +99,15 @@ boost::shared_ptr<asio::io_service> AsioDispatcher::StartService() {
   return io_service;
 }
 
+Callback AsioDispatcher::WrapCallbackWithMasterWork(Callback callback) const {
+  return boost::bind(&AsioDispatcher::RunCallbackAndDeleteWork, callback,
+                     new asio::io_service::work(*master_io_service_));
+}                                                   
+  
 void AsioDispatcher::PostToService(
     Callback callback,
     boost::shared_ptr<asio::io_service> io_service) {
-  io_service->post(boost::bind(
-      &AsioDispatcher::RunCallbackAndDeleteWork, callback,
-      new asio::io_service::work(*master_io_service_)));
+  io_service->post(WrapCallbackWithMasterWork(callback));
 }
 
 // static
@@ -94,5 +127,16 @@ void AsioDispatcher::RunCallbackAndDeleteWork(
   callback();
   delete work;
 }
+
+AsioDispatcher::StrandDispatcher::StrandDispatcher(
+    const AsioDispatcher* asio_dispatcher,
+    boost::shared_ptr<asio::io_service> io_service)
+    : asio_dispatcher_(CHECK_NOTNULL(asio_dispatcher)),
+      strand_(new asio::io_service::strand(*io_service)) {
+}
+
+void AsioDispatcher::StrandDispatcher::Post(Callback callback) {
+  strand_->post(asio_dispatcher_->WrapCallbackWithMasterWork(callback));
+}   
 
 }  // namespace polar_express
