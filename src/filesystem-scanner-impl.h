@@ -1,12 +1,13 @@
 #ifndef FILESYSTEM_SCANNER_IMPL_H
 #define FILESYSTEM_SCANNER_IMPL_H
 
-#include <vector>
+#include <queue>
 #include <string>
 
 #include "boost/filesystem.hpp"
-#include "boost/function.hpp"
+#include "boost/thread/mutex.hpp"
 
+#include "callback.h"
 #include "macros.h"
 #include "filesystem-scanner.h"
 
@@ -17,14 +18,16 @@ class FilesystemScannerImpl : public FilesystemScanner {
   FilesystemScannerImpl();
   virtual ~FilesystemScannerImpl();
 
-  using FilesystemScanner::FilePathsCallback;
-  
-  virtual void Scan(
-      const string& root,
-      FilePathsCallback callback,
-      int callback_interval = 100) const;
+  virtual void Scan(const string& root, Callback callback);
+
+  virtual bool GetNextPath(boost::filesystem::path* path);
   
  private:
+  void AddPath(const boost::filesystem::path& path);
+  
+  mutable boost::mutex mu_;
+  queue<boost::filesystem::path> paths_ GUARDED_BY(mu_);
+  
   DISALLOW_COPY_AND_ASSIGN(FilesystemScannerImpl);
 };
   

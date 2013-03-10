@@ -8,6 +8,7 @@
 #include "boost/function.hpp"
 #include "boost/scoped_ptr.hpp"
 
+#include "callback.h"
 #include "macros.h"
 
 namespace polar_express {
@@ -22,17 +23,12 @@ class FilesystemScanner {
   FilesystemScanner();
   virtual ~FilesystemScanner();
 
-  typedef boost::function<void(const vector<filesystem::path>&)>
-  FilePathsCallback;
+  // Begins a scan of the filesystem hierarchy starting at root, invoking the
+  // given callback every time one is found.
+  virtual void Scan(const string& root, Callback callback);
 
-  // Begins a scan of the filesystem hierarchy starting at root. Every time
-  // callback_interval distinct paths are found, the callback is invoked with a
-  // vector of those paths. This method blocks until the scan is complete.
-  virtual void Scan(
-      const string& root,
-      FilePathsCallback callback,
-      int callback_interval = 100) const;
-
+  virtual bool GetNextPath(boost::filesystem::path* path);
+  
  protected:
   explicit FilesystemScanner(bool create_impl);
   

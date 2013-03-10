@@ -23,10 +23,10 @@ void PostDeleteSnapshotStateMachine(
       bind(&DeleteSnapshotStateMachine, snapshot_state_machine));
 }
 
-void StartSnapshotStateMachines(
-    const string& root,
-    const vector<filesystem::path>& paths) {
-  for (const auto& path : paths) {
+void StartSnapshotStateMachine(
+    const string& root, FilesystemScanner* fs_scanner) {
+  boost::filesystem::path path;
+  if (CHECK_NOTNULL(fs_scanner)->GetNextPath(&path)) {
     boost::shared_ptr<SnapshotStateMachine> snapshot_state_machine(
         new SnapshotStateMachine);
     snapshot_state_machine->SetDoneCallback(
@@ -40,7 +40,7 @@ int main(int argc, char** argv) {
     string root = argv[1];
     FilesystemScanner fs_scanner;
     AsioDispatcher::GetInstance()->Start();
-    fs_scanner.Scan(root, bind(StartSnapshotStateMachines, root, _1));
+    fs_scanner.Scan(root, bind(StartSnapshotStateMachine, root, &fs_scanner));
     AsioDispatcher::GetInstance()->WaitForFinish();
   }
   return 0;

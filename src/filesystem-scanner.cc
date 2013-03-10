@@ -20,13 +20,13 @@ FilesystemScanner::FilesystemScanner(bool create_impl)
 FilesystemScanner::~FilesystemScanner() {
 }
 
-void FilesystemScanner::Scan(
-    const string& root,
-    FilePathsCallback callback,
-    int callback_interval) const {
+void FilesystemScanner::Scan(const string& root, Callback callback) {
   AsioDispatcher::GetInstance()->PostDiskBound(
-      bind(&FilesystemScanner::Scan, impl_.get(),
-           root, callback, callback_interval));
+      bind(&FilesystemScanner::Scan, impl_.get(), root, callback));
+}
+
+bool FilesystemScanner::GetNextPath(boost::filesystem::path* path) {
+  return impl_->GetNextPath(path);
 }
   
 }  // namespace polar_express
