@@ -31,12 +31,6 @@ class SnapshotStateMachineImpl
   virtual ~SnapshotStateMachineImpl();
 
   virtual void SetDoneCallback(Callback done_callback);
-
-  template <typename EventT, typename BackEndT>
-  static void PostEvent(const EventT& event, BackEndT* back_end) {
-    back_end->enqueue_event(event);
-    back_end->PostNextEventCallback(back_end);
-  }
   
   // Events
   struct NewFilePathReady {};
@@ -56,25 +50,25 @@ class SnapshotStateMachineImpl
               typename SourceStateT, typename TargetStateT>
     void operator()(const EventT& event, BackEndT& back_end,
                     SourceStateT&, TargetStateT&) {
-      back_end.HandleRequestGenerateCandidateSnapshot(event, back_end);
+      back_end.HandleRequestGenerateCandidateSnapshot();
     }
   };
 
   struct PrintCandidateSnapshot {
     template <typename EventT, typename BackEndT,
               typename SourceStateT, typename TargetStateT>
-    void operator()(const EventT& event, BackEndT& back_end,
+    void operator()(const EventT&, BackEndT& back_end,
                     SourceStateT&, TargetStateT&) {
-      back_end.HandlePrintCandidateSnapshot(event, back_end);
+      back_end.HandlePrintCandidateSnapshot();
     }
   };
 
   struct ExecuteDoneCallback {
     template <typename EventT, typename BackEndT,
               typename SourceStateT, typename TargetStateT>
-    void operator()(const EventT& event, BackEndT& back_end,
+    void operator()(const EventT&, BackEndT& back_end,
                     SourceStateT&, TargetStateT&) {
-      back_end.HandleExecuteDoneCallback(event, back_end);
+      back_end.HandleExecuteDoneCallback();
     }
   };
   
@@ -105,20 +99,24 @@ class SnapshotStateMachineImpl
   }
   
  protected:
+  virtual BackEnd* GetBackEnd() = 0;
+  
   void InternalStart(
-    const string& root, const filesystem::path& filepath, BackEnd* back_end);
+    const string& root, const filesystem::path& filepath);
 
   template <typename EventT>
-  Callback EventCallback(BackEnd* back_end) {
-    return bind(&PostEvent<EventT, BackEnd>, EventT(), back_end);
+  Callback EventCallback() {
+    return bind(&PostEvent<EventT, BackEnd>, EventT(), GetBackEnd());
+  }
+
+  template <typename EventT>
+  void RaiseEvent() {
+    EventCallback<EventT>()();
   }
   
-  void HandleRequestGenerateCandidateSnapshot(
-      const NewFilePathReady& event, BackEnd& back_end);
-  void HandlePrintCandidateSnapshot(
-      const CandidateSnapshotReady& event, BackEnd& back_end);
-  void HandleExecuteDoneCallback(
-      const CleanUp& event, BackEnd& back_end);
+  void HandleRequestGenerateCandidateSnapshot();
+  void HandlePrintCandidateSnapshot();
+  void HandleExecuteDoneCallback();
   
  private:
   Callback done_callback_;
@@ -128,9 +126,15 @@ class SnapshotStateMachineImpl
 
   string root_;
   filesystem::path filepath_;
-  
-  static void ExecuteEventsCallback(BackEnd* back_end);
+
+  static void ExecuteQueuedEventsWrapper(BackEnd* back_end);
   static void PostNextEventCallback(BackEnd* back_end);
+
+  template <typename EventT, typename BackEndT>
+  static void PostEvent(const EventT& event, BackEndT* back_end) {
+    back_end->enqueue_event(event);
+    back_end->PostNextEventCallback(back_end);
+  }
   
   DISALLOW_COPY_AND_ASSIGN(SnapshotStateMachineImpl);
 };
@@ -140,6 +144,9 @@ class SnapshotStateMachine : public SnapshotStateMachineImpl::BackEnd {
   SnapshotStateMachine() {}
   
   virtual void Start(const string& root, const filesystem::path& filepath);
+
+ protected:
+  virtual SnapshotStateMachineImpl::BackEnd* GetBackEnd();
   
  private:
   DISALLOW_COPY_AND_ASSIGN(SnapshotStateMachine);
