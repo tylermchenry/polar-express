@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 
+#include "boost/bind.hpp"
 #include "boost/filesystem.hpp"
 #include "boost/msm/back/state_machine.hpp"
 #include "boost/msm/front/functor_row.hpp"
@@ -38,10 +39,7 @@ class SnapshotStateMachineImpl
   }
   
   // Events
-  struct NewFilePathReady {
-    string root_;
-    filesystem::path filepath_;
-  };
+  struct NewFilePathReady {};
   struct CandidateSnapshotReady {};
   struct CleanUp {};
   
@@ -109,6 +107,11 @@ class SnapshotStateMachineImpl
  protected:
   void InternalStart(
     const string& root, const filesystem::path& filepath, BackEnd* back_end);
+
+  template <typename EventT>
+  Callback EventCallback(BackEnd* back_end) {
+    return bind(&PostEvent<EventT, BackEnd>, EventT(), back_end);
+  }
   
   void HandleRequestGenerateCandidateSnapshot(
       const NewFilePathReady& event, BackEnd& back_end);
@@ -123,6 +126,9 @@ class SnapshotStateMachineImpl
   OverrideableScopedPtr<CandidateSnapshotGenerator>
   candidate_snapshot_generator_;
 
+  string root_;
+  filesystem::path filepath_;
+  
   static void ExecuteEventsCallback(BackEnd* back_end);
   static void PostNextEventCallback(BackEnd* back_end);
   

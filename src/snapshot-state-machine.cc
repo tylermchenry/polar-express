@@ -18,7 +18,7 @@ void SnapshotStateMachine::Start(
   InternalStart(root, filepath, this);
 }
 
-  SnapshotStateMachineImpl::SnapshotStateMachineImpl()
+SnapshotStateMachineImpl::SnapshotStateMachineImpl()
     : candidate_snapshot_generator_(new CandidateSnapshotGenerator) {
 }
 
@@ -32,9 +32,7 @@ void SnapshotStateMachineImpl::SetDoneCallback(Callback done_callback) {
 void SnapshotStateMachineImpl::HandleRequestGenerateCandidateSnapshot(
     const NewFilePathReady& event, BackEnd& back_end) {
   candidate_snapshot_generator_->GenerateCandidateSnapshot(
-      event.root_, event.filepath_,
-      bind(&PostEvent<decltype(CandidateSnapshotReady()), BackEnd>,
-           CandidateSnapshotReady(), &back_end));
+      root_, filepath_, EventCallback<CandidateSnapshotReady>(&back_end));
 }
 
 void SnapshotStateMachineImpl::HandlePrintCandidateSnapshot(
@@ -57,10 +55,9 @@ void SnapshotStateMachineImpl::HandleExecuteDoneCallback(
 
 void SnapshotStateMachineImpl::InternalStart(
     const string& root, const filesystem::path& filepath, BackEnd* back_end) {
-  NewFilePathReady event;
-  event.root_ = root;
-  event.filepath_ = filepath;
-  CHECK_NOTNULL(back_end)->enqueue_event(event);
+  root_ = root;
+  filepath_ = filepath;
+  CHECK_NOTNULL(back_end)->enqueue_event(NewFilePathReady());
   PostNextEventCallback(back_end);
 }
   
