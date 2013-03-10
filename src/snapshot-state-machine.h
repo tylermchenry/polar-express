@@ -1,8 +1,11 @@
 #ifndef SNAPSHOT_STATE_MACHINE_H
 #define SNAPSHOT_STATE_MACHINE_H
 
+#include <cassert>
 #include <iostream>
+#include <queue>
 #include <string>
+#include <typeinfo>
 
 #include "boost/bind.hpp"
 #include "boost/filesystem.hpp"
@@ -10,6 +13,8 @@
 #include "boost/msm/front/functor_row.hpp"
 #include "boost/msm/front/state_machine_def.hpp"
 #include "boost/shared_ptr.hpp"
+#include "boost/thread/condition_variable.hpp"
+#include "boost/thread/recursive_mutex.hpp"
 
 #include "macros.h"
 #include "callback.h"
@@ -31,16 +36,15 @@ class SnapshotStateMachineImpl
   virtual ~SnapshotStateMachineImpl();
 
   virtual void SetDoneCallback(Callback done_callback);
+  virtual void WaitForDone();
   
   // Events
   struct NewFilePathReady {};
   struct CandidateSnapshotReady {};
-  struct CleanUp {};
   
   // States
   struct WaitForNewFilePath : public msm::front::state<> {};
   struct WaitForCandidateSnapshot : public msm::front::state<> {};
-  struct WaitForCleanUp : public msm::front::state<> {};
   struct Done : public msm::front::state<> {};
   typedef WaitForNewFilePath initial_state;
   
@@ -62,15 +66,6 @@ class SnapshotStateMachineImpl
       back_end.HandlePrintCandidateSnapshot();
     }
   };
-
-  struct ExecuteDoneCallback {
-    template <typename EventT, typename BackEndT,
-              typename SourceStateT, typename TargetStateT>
-    void operator()(const EventT&, BackEndT& back_end,
-                    SourceStateT&, TargetStateT&) {
-      back_end.HandleExecuteDoneCallback();
-    }
-  };
   
   // Transition table
   struct transition_table : mpl::vector<
@@ -81,13 +76,8 @@ class SnapshotStateMachineImpl
                      msm::front::none>,
     msm::front::Row <WaitForCandidateSnapshot,
                      CandidateSnapshotReady,
-                     WaitForCleanUp,
-                     SnapshotStateMachineImpl::PrintCandidateSnapshot,
-                     msm::front::none>,
-    msm::front::Row <WaitForCleanUp,
-                     CleanUp,
                      Done,
-                     SnapshotStateMachineImpl::ExecuteDoneCallback,
+                     SnapshotStateMachineImpl::PrintCandidateSnapshot,
                      msm::front::none>
     > {};
  
@@ -104,19 +94,10 @@ class SnapshotStateMachineImpl
   void InternalStart(
     const string& root, const filesystem::path& filepath);
 
-  template <typename EventT>
-  Callback EventCallback() {
-    return bind(&PostEvent<EventT, BackEnd>, EventT(), GetBackEnd());
-  }
-
-  template <typename EventT>
-  void RaiseEvent() {
-    EventCallback<EventT>()();
-  }
-  
+  template <typename EventT> Callback CreateExternalEventCallback();
+ 
   void HandleRequestGenerateCandidateSnapshot();
   void HandlePrintCandidateSnapshot();
-  void HandleExecuteDoneCallback();
   
  private:
   Callback done_callback_;
@@ -127,14 +108,18 @@ class SnapshotStateMachineImpl
   string root_;
   filesystem::path filepath_;
 
-  static void ExecuteQueuedEventsWrapper(BackEnd* back_end);
-  static void PostNextEventCallback(BackEnd* back_end);
+  mutable boost::recursive_mutex events_mu_;
+  bool active_external_callback_ GUARDED_BY(events_mu_);
+  queue<Callback> events_queue_ GUARDED_BY(events_mu_);
+  boost::condition_variable_any events_queue_empty_ GUARDED_BY(events_mu_);
+  
+  void RunNextEvent();
 
-  template <typename EventT, typename BackEndT>
-  static void PostEvent(const EventT& event, BackEndT* back_end) {
-    back_end->enqueue_event(event);
-    back_end->PostNextEventCallback(back_end);
-  }
+  template <typename EventT> Callback CreateEventCallback();
+  
+  template <typename EventT> void PostEvent();
+  void PostEventCallback(Callback callback);
+  void PostEventCallbackExternal(Callback callback);
   
   DISALLOW_COPY_AND_ASSIGN(SnapshotStateMachineImpl);
 };
@@ -152,6 +137,25 @@ class SnapshotStateMachine : public SnapshotStateMachineImpl::BackEnd {
   DISALLOW_COPY_AND_ASSIGN(SnapshotStateMachine);
 };
 
+template <typename EventT>
+Callback SnapshotStateMachineImpl::CreateEventCallback() {
+  return bind(&SnapshotStateMachine::process_event<EventT>,
+              GetBackEnd(), EventT());
+}
+  
+template <typename EventT>
+void SnapshotStateMachineImpl::PostEvent() {
+  PostEventCallback(CreateEventCallback<EventT>());
+}
+
+template <typename EventT>
+Callback SnapshotStateMachineImpl::CreateExternalEventCallback() {
+  boost::recursive_mutex::scoped_lock lock(events_mu_);
+  assert(active_external_callback_ == false);
+  active_external_callback_ = true;
+  return bind(&SnapshotStateMachineImpl::PostEventCallbackExternal,
+              this, CreateEventCallback<EventT>());
+}
 
 }  // namespace polar_express
 
