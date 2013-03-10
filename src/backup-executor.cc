@@ -12,7 +12,7 @@
 
 namespace polar_express {
 
-const int BackupExecutor::kMaxSimultaneousSnapshots = 1;
+const int BackupExecutor::kMaxSimultaneousSnapshots = 5;
 
 BackupExecutor::BackupExecutor()
     : snapshot_state_machine_pool_(
