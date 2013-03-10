@@ -2,9 +2,9 @@
 #define ASIO_DISPATCHER_H
 
 #include "boost/asio.hpp"
-#include "boost/function.hpp"
 #include "boost/shared_ptr.hpp"
 
+#include "callback.h"
 #include "macros.h"
 
 namespace boost {
@@ -22,25 +22,24 @@ class AsioDispatcher {
   virtual void Start();
   virtual void WaitForFinish();
   
-  virtual void PostCpuBound(boost::function<void()> callback);
-  virtual void PostDiskBound(boost::function<void()> callback);
-  virtual void PostUplinkBound(boost::function<void()> callback);
-  virtual void PostDownlinkBound(boost::function<void()> callback);
-  virtual void PostStateMachine(boost::function<void()> callback);
+  virtual void PostCpuBound(Callback callback);
+  virtual void PostDiskBound(Callback callback);
+  virtual void PostUplinkBound(Callback callback);
+  virtual void PostDownlinkBound(Callback callback);
+  virtual void PostStateMachine(Callback callback);
 
  private:
   AsioDispatcher();
 
   boost::shared_ptr<asio::io_service> StartService();
   void PostToService(
-      boost::function<void()> callback,
+      Callback callback,
       boost::shared_ptr<asio::io_service> io_service);
   
   static void InitInstance();
   static void WorkerThread(boost::shared_ptr<asio::io_service> io_service);
   static void RunCallbackAndDeleteWork(
-      boost::function<void()> callback,
-      asio::io_service::work* work);
+      Callback callback, asio::io_service::work* work);
 
   boost::shared_ptr<asio::io_service> master_io_service_;
   

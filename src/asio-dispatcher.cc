@@ -39,23 +39,23 @@ void AsioDispatcher::WaitForFinish() {
   worker_threads_->join_all();
 }
 
-void AsioDispatcher::PostCpuBound(boost::function<void()> callback) {
+void AsioDispatcher::PostCpuBound(Callback callback) {
   PostToService(callback, cpu_io_service_);
 }
 
-void AsioDispatcher::PostDiskBound(boost::function<void()> callback) {
+void AsioDispatcher::PostDiskBound(Callback callback) {
   PostToService(callback, disk_io_service_);
 }
 
-void AsioDispatcher::PostUplinkBound(boost::function<void()> callback) {
+void AsioDispatcher::PostUplinkBound(Callback callback) {
   PostToService(callback, uplink_io_service_);
 }
 
-void AsioDispatcher::PostDownlinkBound(boost::function<void()> callback) {
+void AsioDispatcher::PostDownlinkBound(Callback callback) {
   PostToService(callback, downlink_io_service_);
 }
 
-void AsioDispatcher::PostStateMachine(boost::function<void()> callback) {
+void AsioDispatcher::PostStateMachine(Callback callback) {
   PostToService(callback, state_machine_io_service_);
 }
 
@@ -70,7 +70,7 @@ boost::shared_ptr<asio::io_service> AsioDispatcher::StartService() {
 }
 
 void AsioDispatcher::PostToService(
-    boost::function<void()> callback,
+    Callback callback,
     boost::shared_ptr<asio::io_service> io_service) {
   io_service->post(boost::bind(
       &AsioDispatcher::RunCallbackAndDeleteWork, callback,
@@ -90,8 +90,7 @@ void AsioDispatcher::WorkerThread(
 
 // static
 void AsioDispatcher::RunCallbackAndDeleteWork(
-    boost::function<void()> callback,
-    asio::io_service::work* work) {
+    Callback callback, asio::io_service::work* work) {
   callback();
   delete work;
 }
