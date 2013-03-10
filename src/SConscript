@@ -25,6 +25,10 @@ asio_dispatcher = env.Library(
 
 candidate_snapshot_generator_deplibs = [
     asio_dispatcher,
+    asio_dispatcher_deplibs,
+    'snapshot_proto',
+    'file_proto',
+    'protobuf',
     'boost_filesystem-mt',
     'boost_thread',
     ];
@@ -39,6 +43,7 @@ candidate_snapshot_generator = env.Library(
 
 filesystem_scanner_deplibs = [
     asio_dispatcher,
+    asio_dispatcher_deplibs,
     'boost_filesystem-mt',
     'boost_system-mt',
     'boost_thread',
@@ -56,6 +61,10 @@ snapshot_state_machine_deplibs = [
     candidate_snapshot_generator,
     candidate_snapshot_generator_deplibs,
     asio_dispatcher,
+    asio_dispatcher_deplibs,
+    'snapshot_proto',
+    'file_proto',
+    'protobuf',
     ];
 snapshot_state_machine = env.Library(
     target='snapshot-state-machine', 
@@ -63,6 +72,24 @@ snapshot_state_machine = env.Library(
         'snapshot-state-machine.cc',
         ],
     LIBS=snapshot_state_machine_deplibs,
+    )
+
+backup_executor_deplibs = [
+    snapshot_state_machine,
+    filesystem_scanner,
+    asio_dispatcher,
+    asio_dispatcher_deplibs,
+    filesystem_scanner_deplibs,
+    snapshot_state_machine_deplibs,
+    'boost_filesystem-mt',
+    'boost_thread',
+    ];
+backup_executor = env.Library(
+    target='backup-executor', 
+    source=[
+        'backup-executor.cc',
+        ],
+    LIBS=backup_executor_deplibs,
     )
 
 ### Binaries
@@ -73,21 +100,10 @@ polar_express = env.Program(
         'polar-express.cc',
         ],
     LIBS=[
-        'boost_filesystem-mt',
-        'boost_system-mt',
-        'boost_thread',
-        snapshot_state_machine,
-        filesystem_scanner,
-        candidate_snapshot_generator,
+        backup_executor,
         asio_dispatcher,
-        'snapshot_proto',
-        'file_proto',
-        
-        candidate_snapshot_generator_deplibs,
-        filesystem_scanner_deplibs,
-        snapshot_state_machine_deplibs,
         asio_dispatcher_deplibs,
-        'protobuf',
+        backup_executor_deplibs,
         ],
     )
 
