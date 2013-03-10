@@ -20,8 +20,7 @@ BackupExecutor::BackupExecutor()
         new boost::object_pool<SnapshotStateMachine>),
       num_running_snapshot_state_machines_(0),
       num_finished_snapshot_state_machines_(0),
-      scan_in_progress_(false),
-      scan_finished_(false),
+      scan_state_(ScanState::kNotStarted),
       filesystem_scanner_(new FilesystemScanner) {
 }
 
@@ -35,13 +34,11 @@ void BackupExecutor::Start(const string& root) {
   assert(!root.empty());
   root_ = root;
 
+  boost::mutex::scoped_lock lock(mu_);
   filesystem_scanner_->StartScan(
       root, kMaxPendingSnapshots / 2,
-      bind(&BackupExecutor::CreateSnapshotStateMachine, this));
-
-  boost::mutex::scoped_lock lock(mu_);
-  scan_in_progress_ = true;
-  scan_finished_ = false;
+      bind(&BackupExecutor::AddNewPendingSnapshotPaths, this));
+  scan_state_ = ScanState::kInProgress;
 }
 
 int BackupExecutor::GetNumFilesProcessed() const {
@@ -49,20 +46,19 @@ int BackupExecutor::GetNumFilesProcessed() const {
   return num_finished_snapshot_state_machines_;
 }
 
-void BackupExecutor::CreateSnapshotStateMachine() {
+void BackupExecutor::AddNewPendingSnapshotPaths() {
   vector<boost::filesystem::path> paths;
   if (filesystem_scanner_->GetPaths(&paths)) {
     filesystem_scanner_->ClearPaths();
     boost::mutex::scoped_lock lock(mu_);
-    scan_in_progress_ = false;
+    scan_state_ = ScanState::kWaitingToContinue;
     for (const boost::filesystem::path& path : paths) {
       pending_snapshot_paths_.push(path);
     }
     PostRunNextSnapshotStateMachine();
   } else {
     boost::mutex::scoped_lock lock(mu_);
-    scan_in_progress_ = false;
-    scan_finished_ = true;
+    scan_state_ = ScanState::kFinished;
   }
 }
 
@@ -85,12 +81,12 @@ void BackupExecutor::RunNextSnapshotStateMachine() {
 
   ++num_running_snapshot_state_machines_;
 
-  if ((pending_snapshot_paths_.size() < kMaxPendingSnapshots / 2) &&
-      !scan_in_progress_ && !scan_finished_) {
+  if (scan_state_ == ScanState::kWaitingToContinue &&
+      (pending_snapshot_paths_.size() < kMaxPendingSnapshots / 2)) {
     filesystem_scanner_->ContinueScan(
         kMaxPendingSnapshots / 2,
-        bind(&BackupExecutor::CreateSnapshotStateMachine, this));
-    scan_in_progress_ = true;
+        bind(&BackupExecutor::AddNewPendingSnapshotPaths, this));
+    scan_state_ = ScanState::kInProgress;
   } 
 }
 

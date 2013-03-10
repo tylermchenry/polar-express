@@ -27,7 +27,7 @@ class BackupExecutor {
   virtual int GetNumFilesProcessed() const;
   
  private:
-  void CreateSnapshotStateMachine();
+  void AddNewPendingSnapshotPaths();
 
   void RunNextSnapshotStateMachine();
   
@@ -47,8 +47,14 @@ class BackupExecutor {
   snapshot_state_machine_pool_ GUARDED_BY(mu_);
   int num_running_snapshot_state_machines_ GUARDED_BY(mu_);
   int num_finished_snapshot_state_machines_ GUARDED_BY(mu_);
-  bool scan_in_progress_ GUARDED_BY(mu_);
-  bool scan_finished_ GUARDED_BY(mu_);
+
+  enum class ScanState {
+    kNotStarted,
+    kInProgress,
+    kWaitingToContinue,
+    kFinished,
+  };        
+  ScanState scan_state_ GUARDED_BY(mu_);
   
   OverrideableScopedPtr<FilesystemScanner> filesystem_scanner_;
 
