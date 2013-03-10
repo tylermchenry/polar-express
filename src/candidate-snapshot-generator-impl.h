@@ -1,13 +1,13 @@
 #ifndef CANDIDATE_SNAPSHOT_GENERATOR_IMPL_H
 #define CANDIDATE_SNAPSHOT_GENERATOR_IMPL_H
 
-#include <vector>
 #include <string>
 
 #include "boost/filesystem.hpp"
-#include "boost/function.hpp"
 #include "boost/shared_ptr.hpp"
+#include "boost/thread/mutex.hpp"
 
+#include "callback.h"
 #include "candidate-snapshot-generator.h"
 #include "macros.h"
 
@@ -20,20 +20,12 @@ class CandidateSnapshotGeneratorImpl : public CandidateSnapshotGenerator {
   CandidateSnapshotGeneratorImpl();
   virtual ~CandidateSnapshotGeneratorImpl();
 
-  using CandidateSnapshotGenerator::CandidateSnapshotCallback;
-
   virtual void GenerateCandidateSnapshot(
       const string& root,
       const filesystem::path& path,
-      CandidateSnapshotCallback callback) const;
-  
-  using CandidateSnapshotGenerator::CandidateSnapshotsCallback;
+      Callback callback) const;
 
-  virtual void GenerateCandidateSnapshots(
-      const string& root,
-      const vector<filesystem::path>& paths,
-      CandidateSnapshotsCallback callback,
-      int callback_interval = 10) const;
+  virtual boost::shared_ptr<Snapshot> GetGeneratedCandidateSnapshot() const;
   
  private:
   bool GenerateCandidateSnapshot(
@@ -48,6 +40,8 @@ class CandidateSnapshotGeneratorImpl : public CandidateSnapshotGenerator {
   string GetUserNameFromUid(int uid) const;
 
   string GetGroupNameFromGid(int gid) const;
+
+  boost::shared_ptr<Snapshot> candidate_snapshot_;
   
   DISALLOW_COPY_AND_ASSIGN(CandidateSnapshotGeneratorImpl);
 };

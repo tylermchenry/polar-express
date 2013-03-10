@@ -11,15 +11,6 @@
 namespace polar_express {
 namespace {
 mutex output_mutex;
-
-void GenerateCandidateSnapshotCallback(
-    SnapshotStateMachine::BackEnd* back_end,
-    boost::shared_ptr<Snapshot> candidate_snapshot) {
-  SnapshotStateMachine::CandidateSnapshotReady event;
-  event.candidate_snapshot_ = candidate_snapshot;
-  SnapshotStateMachine::PostEvent(event, back_end);
-}
-
 }  // namespace
 
 void SnapshotStateMachine::Start(
@@ -42,14 +33,17 @@ void SnapshotStateMachineImpl::HandleRequestGenerateCandidateSnapshot(
     const NewFilePathReady& event, BackEnd& back_end) {
   candidate_snapshot_generator_->GenerateCandidateSnapshot(
       event.root_, event.filepath_,
-      bind(&GenerateCandidateSnapshotCallback, &back_end, _1));
+      bind(&PostEvent<decltype(CandidateSnapshotReady()), BackEnd>,
+           CandidateSnapshotReady(), &back_end));
 }
 
 void SnapshotStateMachineImpl::HandlePrintCandidateSnapshot(
     const CandidateSnapshotReady& event, BackEnd& back_end) {
+  boost::shared_ptr<Snapshot> candidate_snapshot =
+      candidate_snapshot_generator_->GetGeneratedCandidateSnapshot();
   {
     unique_lock<mutex> output_lock(output_mutex);
-    cout << event.candidate_snapshot_->DebugString();
+    cout << candidate_snapshot->DebugString();
   }
   back_end.enqueue_event(CleanUp());
 }

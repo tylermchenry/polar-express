@@ -6,13 +6,15 @@
 #include <time.h>
 
 #include "boost/thread.hpp"
+#include "boost/filesystem.hpp"
 
 #include "proto/snapshot.pb.h"
 
 namespace polar_express {
 
 CandidateSnapshotGeneratorImpl::CandidateSnapshotGeneratorImpl()
-    : CandidateSnapshotGenerator(false) {
+  : CandidateSnapshotGenerator(false),
+    candidate_snapshot_(new Snapshot) {
 }
 
 CandidateSnapshotGeneratorImpl::~CandidateSnapshotGeneratorImpl() {
@@ -21,34 +23,14 @@ CandidateSnapshotGeneratorImpl::~CandidateSnapshotGeneratorImpl() {
 void CandidateSnapshotGeneratorImpl::GenerateCandidateSnapshot(
     const string& root,
     const filesystem::path& path,
-    CandidateSnapshotCallback callback) const {
-  boost::shared_ptr<Snapshot> candidate_snapshot(new Snapshot);
-  // TODO: Error reporting?
-  GenerateCandidateSnapshot(root, path, candidate_snapshot.get());
-  callback(candidate_snapshot);
+    Callback callback) const {
+  GenerateCandidateSnapshot(root, path, candidate_snapshot_.get());
+  callback();
 }
 
-void CandidateSnapshotGeneratorImpl::GenerateCandidateSnapshots(
-    const string& root,
-    const vector<filesystem::path>& paths,
-    CandidateSnapshotsCallback callback,
-    int callback_interval) const {
-  vector<boost::shared_ptr<Snapshot> > candidate_snapshots;
-  for (const auto& path : paths) {
-    boost::shared_ptr<Snapshot> candidate_snapshot(new Snapshot);
-    if (GenerateCandidateSnapshot(root, path, candidate_snapshot.get())) {
-      candidate_snapshots.push_back(candidate_snapshot);
-      if (candidate_snapshots.size() >= callback_interval) {
-        this_thread::interruption_point();
-        callback(candidate_snapshots);
-        candidate_snapshots.clear();
-      }
-    }
-  }
-
-  if (!candidate_snapshots.empty()) {
-    callback(candidate_snapshots);
-  }
+boost::shared_ptr<Snapshot>
+CandidateSnapshotGeneratorImpl::GetGeneratedCandidateSnapshot() const {
+  return candidate_snapshot_;
 }
 
 bool CandidateSnapshotGeneratorImpl::GenerateCandidateSnapshot(

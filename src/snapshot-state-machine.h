@@ -42,9 +42,7 @@ class SnapshotStateMachineImpl
     string root_;
     filesystem::path filepath_;
   };
-  struct CandidateSnapshotReady {
-    boost::shared_ptr<Snapshot> candidate_snapshot_;
-  };
+  struct CandidateSnapshotReady {};
   struct CleanUp {};
   
   // States
