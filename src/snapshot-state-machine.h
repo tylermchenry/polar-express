@@ -14,8 +14,8 @@
 #include "boost/msm/front/state_machine_def.hpp"
 #include "boost/shared_ptr.hpp"
 #include "boost/thread/condition_variable.hpp"
-#include "boost/thread/recursive_mutex.hpp"
 
+#include "asio-dispatcher.h"
 #include "macros.h"
 #include "callback.h"
 #include "overrideable-scoped-ptr.h"
@@ -36,7 +36,6 @@ class SnapshotStateMachineImpl
   virtual ~SnapshotStateMachineImpl();
 
   virtual void SetDoneCallback(Callback done_callback);
-  virtual void WaitForDone();
   
   // Events
   struct NewFilePathReady {};
@@ -108,18 +107,17 @@ class SnapshotStateMachineImpl
   string root_;
   filesystem::path filepath_;
 
-  mutable boost::recursive_mutex events_mu_;
-  bool active_external_callback_ GUARDED_BY(events_mu_);
-  queue<Callback> events_queue_ GUARDED_BY(events_mu_);
-  boost::condition_variable_any events_queue_empty_ GUARDED_BY(events_mu_);
+  boost::shared_ptr<AsioDispatcher::StrandDispatcher> event_strand_dispatcher_;
   
-  void RunNextEvent();
+  int num_active_external_callbacks_;
+  queue<Callback> events_queue_;
+  
+  void RunNextEvent(bool is_external);
 
   template <typename EventT> Callback CreateEventCallback();
   
   template <typename EventT> void PostEvent();
-  void PostEventCallback(Callback callback);
-  void PostEventCallbackExternal(Callback callback);
+  void PostEventCallback(Callback callback, bool is_external);
   
   DISALLOW_COPY_AND_ASSIGN(SnapshotStateMachineImpl);
 };
@@ -145,16 +143,14 @@ Callback SnapshotStateMachineImpl::CreateEventCallback() {
   
 template <typename EventT>
 void SnapshotStateMachineImpl::PostEvent() {
-  PostEventCallback(CreateEventCallback<EventT>());
+  PostEventCallback(CreateEventCallback<EventT>(), false);
 }
 
 template <typename EventT>
 Callback SnapshotStateMachineImpl::CreateExternalEventCallback() {
-  boost::recursive_mutex::scoped_lock lock(events_mu_);
-  assert(active_external_callback_ == false);
-  active_external_callback_ = true;
-  return bind(&SnapshotStateMachineImpl::PostEventCallbackExternal,
-              this, CreateEventCallback<EventT>());
+  ++num_active_external_callbacks_;
+  return bind(&SnapshotStateMachineImpl::PostEventCallback,
+              this, CreateEventCallback<EventT>(), true);
 }
 
 }  // namespace polar_express

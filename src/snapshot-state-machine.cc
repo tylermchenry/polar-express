@@ -4,7 +4,6 @@
 
 #include "boost/thread/mutex.hpp"
 
-#include "asio-dispatcher.h"
 #include "candidate-snapshot-generator.h"
 #include "proto/snapshot.pb.h"
 
@@ -24,7 +23,9 @@ SnapshotStateMachineImpl::BackEnd* SnapshotStateMachine::GetBackEnd() {
 
 SnapshotStateMachineImpl::SnapshotStateMachineImpl()
     : candidate_snapshot_generator_(new CandidateSnapshotGenerator),
-      active_external_callback_(false) {
+      event_strand_dispatcher_(
+          AsioDispatcher::GetInstance()->NewStrandDispatcherStateMachine()),
+      num_active_external_callbacks_(0) {
 }
 
 SnapshotStateMachineImpl::~SnapshotStateMachineImpl() {
@@ -32,13 +33,6 @@ SnapshotStateMachineImpl::~SnapshotStateMachineImpl() {
 
 void SnapshotStateMachineImpl::SetDoneCallback(Callback done_callback) {
   done_callback_ = done_callback;
-}
-
-void SnapshotStateMachineImpl::WaitForDone() {
-  boost::recursive_mutex::scoped_lock lock(events_mu_);
-  while (!events_queue_.empty()) {
-    events_queue_empty_.wait(lock);
-  }
 }
   
 void SnapshotStateMachineImpl::HandleRequestGenerateCandidateSnapshot() {
@@ -60,8 +54,11 @@ void SnapshotStateMachineImpl::InternalStart(
   PostEvent<NewFilePathReady>();
 }
 
-void SnapshotStateMachineImpl::RunNextEvent() {
-  boost::recursive_mutex::scoped_lock lock(events_mu_);
+void SnapshotStateMachineImpl::RunNextEvent(bool is_external) {
+  if (is_external && num_active_external_callbacks_ > 0) {
+    --num_active_external_callbacks_;
+  }
+
   if (!events_queue_.empty()) {
     Callback next_event_callback = events_queue_.front();
     events_queue_.pop();
@@ -71,26 +68,18 @@ void SnapshotStateMachineImpl::RunNextEvent() {
   // If the event did not add any new events, then the state machine is
   // finished, so signal this condition to wake up anything blocked on
   // WaitForDone.
-  if (!active_external_callback_ && events_queue_.empty()) {
-    if (!done_callback_.empty()) {
-      done_callback_();
-    }
-    events_queue_empty_.notify_all();
+  if ((num_active_external_callbacks_ == 0) &&
+      events_queue_.empty() &&
+      !done_callback_.empty()) {
+    done_callback_();
   }
 }
 
-void SnapshotStateMachineImpl::PostEventCallback(Callback callback) {
-  boost::recursive_mutex::scoped_lock lock(events_mu_);
+void SnapshotStateMachineImpl::PostEventCallback(
+    Callback callback, bool is_external) {
   events_queue_.push(callback);
-  AsioDispatcher::GetInstance()->PostStateMachine(
-      bind(&SnapshotStateMachineImpl::RunNextEvent, this));
-}
-
-void SnapshotStateMachineImpl::PostEventCallbackExternal(Callback callback) {
-  boost::recursive_mutex::scoped_lock lock(events_mu_);
-  assert(active_external_callback_ == true);
-  active_external_callback_ = false;
-  PostEventCallback(callback);
+  event_strand_dispatcher_->Post(
+      bind(&SnapshotStateMachineImpl::RunNextEvent, this, is_external));
 }
   
 }  // namespace polar_express

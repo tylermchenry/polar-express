@@ -97,8 +97,6 @@ void BackupExecutor::PostRunNextSnapshotStateMachine() {
   
 void BackupExecutor::DeleteSnapshotStateMachine(
     SnapshotStateMachine* snapshot_state_machine) {
-  snapshot_state_machine->WaitForDone();
-  
   boost::mutex::scoped_lock lock(mu_);
   snapshot_state_machine_pool_->destroy(snapshot_state_machine);
   --num_running_snapshot_state_machines_;
