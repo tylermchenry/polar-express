@@ -15,21 +15,26 @@ namespace polar_express {
 class CandidateSnapshotGeneratorImpl;
 class Snapshot;
 
-// A class that reads filesystem metadata and generates candidate snapshot
-// protobufs for a given collection of file paths. A callback is repeatedly
-// invoked with groups of candidate snapshots.
+// A class that asynchronously reads filesystem metadata and generates candidate
+// snapshot protobufs for a given file path.
+//
+// This class is the asynchronous stub. Calls to its asynchronous methods post a
+// task which will invoke the equivalent method on its implementation
+// class. Calls to other methods are forwarded directly to the implementation.
 class CandidateSnapshotGenerator {
  public:
   CandidateSnapshotGenerator();
   virtual ~CandidateSnapshotGenerator();
 
-  // Generates one candidate snapshot for the given path, and invokes the given
-  // callback.
+  // Asynchronously generates the candidate snapshot for the given root and
+  // path, and invokes the given callback when done.
   virtual void GenerateCandidateSnapshot(
       const string& root,
       const filesystem::path& path,
       Callback callback) const;
 
+  // Returns a pointer to the generated candidate snapshot. Should only be
+  // called once the callback passed to GenerateCandidateSnapshot is invoked.
   virtual boost::shared_ptr<Snapshot> GetGeneratedCandidateSnapshot() const;
   
  protected:

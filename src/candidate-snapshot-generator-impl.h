@@ -15,6 +15,10 @@ namespace polar_express {
 
 class Snapshot;
 
+// This class is the synchronous implementation of the asynchronous stub class
+// CandidateSnapshotGenerator. Do not use it directly; use the stub instead. See
+// the stub class header for documentation on the behavior of the public
+// methods.
 class CandidateSnapshotGeneratorImpl : public CandidateSnapshotGenerator {
  public:
   CandidateSnapshotGeneratorImpl();
@@ -28,11 +32,15 @@ class CandidateSnapshotGeneratorImpl : public CandidateSnapshotGenerator {
   virtual boost::shared_ptr<Snapshot> GetGeneratedCandidateSnapshot() const;
   
  private:
+  // Fills the candidate snapshot information into a pre-existing snapshot
+  // protocol buffer.
   bool GenerateCandidateSnapshot(
       const string& root,
       const filesystem::path& path,
       Snapshot* candidate_snapshot) const;
 
+  // If path_str starts with root, returns path_str with the root prefix
+  // removed. Otherwise return path_str as-is.
   string RemoveRootFromPath(
       const string& root,
       const string& path_str) const;

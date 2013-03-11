@@ -12,6 +12,9 @@
 
 namespace polar_express {
 
+// This class is the synchronous implementation of the asynchronous stub class
+// FilesystemScanner. Do not use it directly; use the stub instead. See the stub
+// class header for documentation on the behavior of the public methods.
 class FilesystemScannerImpl : public FilesystemScanner {
  public:
   FilesystemScannerImpl();

@@ -79,6 +79,8 @@ void BackupExecutor::RunNextSnapshotStateMachine() {
 
   ++num_running_snapshot_state_machines_;
 
+  // If the paths queue has drained below half of its maximum size, and the
+  // filesystem scanner is waiting to scan more paths, tell it to do so.
   if (scan_state_ == ScanState::kWaitingToContinue &&
       (pending_snapshot_paths_.size() < kMaxPendingSnapshots / 2)) {
     filesystem_scanner_->ContinueScan(
