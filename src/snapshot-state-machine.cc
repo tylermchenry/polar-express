@@ -27,13 +27,15 @@ SnapshotStateMachineImpl::SnapshotStateMachineImpl()
 
 SnapshotStateMachineImpl::~SnapshotStateMachineImpl() {
 }
-  
-void SnapshotStateMachineImpl::HandleRequestGenerateCandidateSnapshot() {
+
+PE_STATE_MACHINE_ACTION_HANDLER(
+    SnapshotStateMachineImpl, RequestGenerateCandidateSnapshot) {
   candidate_snapshot_generator_->GenerateCandidateSnapshot(
       root_, filepath_, CreateExternalEventCallback<CandidateSnapshotReady>());
 }
 
-void SnapshotStateMachineImpl::HandlePrintCandidateSnapshot() {
+PE_STATE_MACHINE_ACTION_HANDLER(
+    SnapshotStateMachineImpl, PrintCandidateSnapshot) {
   boost::shared_ptr<Snapshot> candidate_snapshot =
       candidate_snapshot_generator_->GetGeneratedCandidateSnapshot();
   unique_lock<mutex> output_lock(output_mutex);

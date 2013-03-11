@@ -1,89 +1,59 @@
 #ifndef SNAPSHOT_STATE_MACHINE_H
 #define SNAPSHOT_STATE_MACHINE_H
 
-#include <cassert>
-#include <iostream>
-#include <queue>
 #include <string>
-#include <typeinfo>
 
-#include "boost/bind.hpp"
 #include "boost/filesystem.hpp"
-#include "boost/msm/back/state_machine.hpp"
-#include "boost/msm/front/functor_row.hpp"
-#include "boost/msm/front/state_machine_def.hpp"
 #include "boost/shared_ptr.hpp"
 #include "boost/thread/condition_variable.hpp"
 
-#include "asio-dispatcher.h"
 #include "macros.h"
-#include "callback.h"
 #include "overrideable-scoped-ptr.h"
 #include "state-machine.h"
 
 namespace polar_express {
 
 class CandidateSnapshotGenerator;
-class Snapshot;
 class SnapshotStateMachine;
 
+// A state machine which goes through the process of generating a snapshot of a
+// single file, comparing it with the previous snapshot (if any), and then
+// writing information about any updates to the database.
+//
+// TODO: Currently this is incomplete; it just reads the filesystem metadata and
+// prints it to standard output. Expand documentation as the class becomes more
+// complete.
 class SnapshotStateMachineImpl
   : public StateMachine<SnapshotStateMachineImpl, SnapshotStateMachine> {
  public:
-  using StateMachine<SnapshotStateMachineImpl, SnapshotStateMachine>::BackEnd;
-  
   SnapshotStateMachineImpl();
   virtual ~SnapshotStateMachineImpl();
 
-  // Events
-  struct NewFilePathReady {};
-  struct CandidateSnapshotReady {};
-  
-  // States
-  struct WaitForNewFilePath : public msm::front::state<> {};
-  struct WaitForCandidateSnapshot : public msm::front::state<> {};
-  struct Done : public msm::front::state<> {};
-  typedef WaitForNewFilePath initial_state;
-  
-  // Transition actions
-  struct RequestGenerateCandidateSnapshot {
-    template <typename EventT, typename BackEndT,
-              typename SourceStateT, typename TargetStateT>
-    void operator()(const EventT& event, BackEndT& back_end,
-                    SourceStateT&, TargetStateT&) {
-      back_end.HandleRequestGenerateCandidateSnapshot();
-    }
-  };
-
-  struct PrintCandidateSnapshot {
-    template <typename EventT, typename BackEndT,
-              typename SourceStateT, typename TargetStateT>
-    void operator()(const EventT&, BackEndT& back_end,
-                    SourceStateT&, TargetStateT&) {
-      back_end.HandlePrintCandidateSnapshot();
-    }
-  };
-  
-  // Transition table
-  struct transition_table : mpl::vector<
-    msm::front::Row <WaitForNewFilePath,
-                     NewFilePathReady,
-                     WaitForCandidateSnapshot,
-                     SnapshotStateMachineImpl::RequestGenerateCandidateSnapshot,
-                     msm::front::none>,
-    msm::front::Row <WaitForCandidateSnapshot,
-                     CandidateSnapshotReady,
-                     Done,
-                     SnapshotStateMachineImpl::PrintCandidateSnapshot,
-                     msm::front::none>
-    > {};
+  PE_STATE_MACHINE_DEFINE_INITIAL_STATE(WaitForNewFilePath);
+  PE_STATE_MACHINE_DEFINE_STATE(WaitForCandidateSnapshot);
+  PE_STATE_MACHINE_DEFINE_STATE(Done);
   
  protected:
+  PE_STATE_MACHINE_DEFINE_EVENT(NewFilePathReady);
+  PE_STATE_MACHINE_DEFINE_EVENT(CandidateSnapshotReady);
+
+  PE_STATE_MACHINE_DEFINE_ACTION(RequestGenerateCandidateSnapshot);
+  PE_STATE_MACHINE_DEFINE_ACTION(PrintCandidateSnapshot);
+
+  PE_STATE_MACHINE_TRANSITION_TABLE(
+      PE_STATE_MACHINE_TRANSITION(
+          WaitForNewFilePath,
+          NewFilePathReady,
+          RequestGenerateCandidateSnapshot,
+          WaitForCandidateSnapshot),
+      PE_STATE_MACHINE_TRANSITION(
+          WaitForCandidateSnapshot,
+          CandidateSnapshotReady,
+          PrintCandidateSnapshot,
+          Done));
+
   void InternalStart(
     const string& root, const filesystem::path& filepath);
-
-  void HandleRequestGenerateCandidateSnapshot();
-  void HandlePrintCandidateSnapshot();
   
  private:
   OverrideableScopedPtr<CandidateSnapshotGenerator>
