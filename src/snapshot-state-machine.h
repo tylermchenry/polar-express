@@ -19,6 +19,7 @@
 #include "macros.h"
 #include "callback.h"
 #include "overrideable-scoped-ptr.h"
+#include "state-machine.h"
 
 namespace polar_express {
 
@@ -27,16 +28,13 @@ class Snapshot;
 class SnapshotStateMachine;
 
 class SnapshotStateMachineImpl
-    : public msm::front::state_machine_def<SnapshotStateMachine>
-{
+  : public StateMachine<SnapshotStateMachineImpl, SnapshotStateMachine> {
  public:
-  typedef msm::back::state_machine<SnapshotStateMachineImpl> BackEnd;
-
+  using StateMachine<SnapshotStateMachineImpl, SnapshotStateMachine>::BackEnd;
+  
   SnapshotStateMachineImpl();
   virtual ~SnapshotStateMachineImpl();
 
-  virtual void SetDoneCallback(Callback done_callback);
-  
   // Events
   struct NewFilePathReady {};
   struct CandidateSnapshotReady {};
@@ -79,45 +77,20 @@ class SnapshotStateMachineImpl
                      SnapshotStateMachineImpl::PrintCandidateSnapshot,
                      msm::front::none>
     > {};
- 
-  template <class FSM,class Event>
-  void no_transition(Event const& e, FSM&,int state)
-  {
-    std::cerr << "no transition from state " << state
-              << " on event " << typeid(e).name() << std::endl;
-  }
   
  protected:
-  virtual BackEnd* GetBackEnd() = 0;
-  
   void InternalStart(
     const string& root, const filesystem::path& filepath);
 
-  template <typename EventT> Callback CreateExternalEventCallback();
- 
   void HandleRequestGenerateCandidateSnapshot();
   void HandlePrintCandidateSnapshot();
   
  private:
-  Callback done_callback_;
-
   OverrideableScopedPtr<CandidateSnapshotGenerator>
   candidate_snapshot_generator_;
 
   string root_;
   filesystem::path filepath_;
-
-  boost::shared_ptr<AsioDispatcher::StrandDispatcher> event_strand_dispatcher_;
-  
-  int num_active_external_callbacks_;
-  queue<Callback> events_queue_;
-  
-  void RunNextEvent(bool is_external);
-
-  template <typename EventT> Callback CreateEventCallback();
-  
-  template <typename EventT> void PostEvent();
-  void PostEventCallback(Callback callback, bool is_external);
   
   DISALLOW_COPY_AND_ASSIGN(SnapshotStateMachineImpl);
 };
@@ -134,24 +107,6 @@ class SnapshotStateMachine : public SnapshotStateMachineImpl::BackEnd {
  private:
   DISALLOW_COPY_AND_ASSIGN(SnapshotStateMachine);
 };
-
-template <typename EventT>
-Callback SnapshotStateMachineImpl::CreateEventCallback() {
-  return bind(&SnapshotStateMachine::process_event<EventT>,
-              GetBackEnd(), EventT());
-}
-  
-template <typename EventT>
-void SnapshotStateMachineImpl::PostEvent() {
-  PostEventCallback(CreateEventCallback<EventT>(), false);
-}
-
-template <typename EventT>
-Callback SnapshotStateMachineImpl::CreateExternalEventCallback() {
-  ++num_active_external_callbacks_;
-  return bind(&SnapshotStateMachineImpl::PostEventCallback,
-              this, CreateEventCallback<EventT>(), true);
-}
 
 }  // namespace polar_express
 

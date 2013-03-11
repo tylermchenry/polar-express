@@ -22,17 +22,10 @@ SnapshotStateMachineImpl::BackEnd* SnapshotStateMachine::GetBackEnd() {
 }
 
 SnapshotStateMachineImpl::SnapshotStateMachineImpl()
-    : candidate_snapshot_generator_(new CandidateSnapshotGenerator),
-      event_strand_dispatcher_(
-          AsioDispatcher::GetInstance()->NewStrandDispatcherStateMachine()),
-      num_active_external_callbacks_(0) {
+    : candidate_snapshot_generator_(new CandidateSnapshotGenerator) {
 }
 
 SnapshotStateMachineImpl::~SnapshotStateMachineImpl() {
-}
-
-void SnapshotStateMachineImpl::SetDoneCallback(Callback done_callback) {
-  done_callback_ = done_callback;
 }
   
 void SnapshotStateMachineImpl::HandleRequestGenerateCandidateSnapshot() {
@@ -52,34 +45,6 @@ void SnapshotStateMachineImpl::InternalStart(
   root_ = root;
   filepath_ = filepath;
   PostEvent<NewFilePathReady>();
-}
-
-void SnapshotStateMachineImpl::RunNextEvent(bool is_external) {
-  if (is_external && num_active_external_callbacks_ > 0) {
-    --num_active_external_callbacks_;
-  }
-
-  if (!events_queue_.empty()) {
-    Callback next_event_callback = events_queue_.front();
-    events_queue_.pop();
-    next_event_callback();
-  }
-
-  // If the event did not add any new events, then the state machine is
-  // finished, so signal this condition to wake up anything blocked on
-  // WaitForDone.
-  if ((num_active_external_callbacks_ == 0) &&
-      events_queue_.empty() &&
-      !done_callback_.empty()) {
-    done_callback_();
-  }
-}
-
-void SnapshotStateMachineImpl::PostEventCallback(
-    Callback callback, bool is_external) {
-  events_queue_.push(callback);
-  event_strand_dispatcher_->Post(
-      bind(&SnapshotStateMachineImpl::RunNextEvent, this, is_external));
 }
   
 }  // namespace polar_express
