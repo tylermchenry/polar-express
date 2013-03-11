@@ -5,6 +5,8 @@
 #include "boost/thread/mutex.hpp"
 
 #include "candidate-snapshot-generator.h"
+#include "chunk-hasher.h"
+#include "proto/block.pb.h"
 #include "proto/snapshot.pb.h"
 
 namespace polar_express {
@@ -22,7 +24,8 @@ SnapshotStateMachineImpl::BackEnd* SnapshotStateMachine::GetBackEnd() {
 }
 
 SnapshotStateMachineImpl::SnapshotStateMachineImpl()
-    : candidate_snapshot_generator_(new CandidateSnapshotGenerator) {
+    : candidate_snapshot_generator_(new CandidateSnapshotGenerator),
+      chunk_hasher_(new ChunkHasher) {
 }
 
 SnapshotStateMachineImpl::~SnapshotStateMachineImpl() {
@@ -35,11 +38,38 @@ PE_STATE_MACHINE_ACTION_HANDLER(
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(
-    SnapshotStateMachineImpl, PrintCandidateSnapshot) {
-  boost::shared_ptr<Snapshot> candidate_snapshot =
+    SnapshotStateMachineImpl, GetCandidateSnapshot) {
+  candidate_snapshot_ =
       candidate_snapshot_generator_->GetGeneratedCandidateSnapshot();
+  if (candidate_snapshot_->is_regular() &&
+      !candidate_snapshot_->is_deleted()) {
+    PostEvent<NeedChunkHashes>();
+  } else {
+    PostEvent<ReadyToPrint>();
+  }
+}
+
+PE_STATE_MACHINE_ACTION_HANDLER(
+    SnapshotStateMachineImpl, RequestGenerateAndHashChunks) {
+  candidate_snapshot_ =
+      candidate_snapshot_generator_->GetGeneratedCandidateSnapshot();
+  chunk_hasher_->GenerateAndHashChunks(
+      filepath_, CreateExternalEventCallback<ChunkHashesReady>());
+}
+
+PE_STATE_MACHINE_ACTION_HANDLER(
+    SnapshotStateMachineImpl, GetChunkHashes) {
+  chunk_hasher_->GetGeneratedAndHashedChunks(&chunks_);
+  PostEvent<ReadyToPrint>();
+}
+
+PE_STATE_MACHINE_ACTION_HANDLER(
+    SnapshotStateMachineImpl, PrintCandidateSnapshotAndChunks) {
   unique_lock<mutex> output_lock(output_mutex);
-  cout << candidate_snapshot->DebugString();
+  cout << candidate_snapshot_->DebugString();
+  for (const auto& chunk : chunks_) {
+    cout << chunk->DebugString();
+  }
 }
 
 void SnapshotStateMachineImpl::InternalStart(

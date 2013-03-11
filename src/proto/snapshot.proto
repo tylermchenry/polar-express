@@ -31,7 +31,7 @@ message Snapshot {
   optional ExtraAttributes extra_attributes = 7;
   optional bool is_regular = 8;
   optional bool is_deleted = 9;
-  optional string hash = 10;
+  optional string sha1_digest = 10;
   optional int64 length = 11;
 
   optional int64 observation_time = 12;

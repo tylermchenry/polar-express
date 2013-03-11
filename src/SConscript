@@ -41,6 +41,23 @@ candidate_snapshot_generator = env.Library(
     LIBS=candidate_snapshot_generator_deplibs,
     )
 
+chunk_hasher_deplibs = [
+    asio_dispatcher,
+    asio_dispatcher_deplibs,
+    'block_proto',
+    'boost_filesystem-mt',
+    'boost_iostreams-mt',
+    'crypto++',
+    ];
+chunk_hasher = env.Library(
+    target='chunk-hasher', 
+    source=[
+        'chunk-hasher.cc',
+        'chunk-hasher-impl.cc',
+        ],
+    LIBS=chunk_hasher_deplibs,
+    )
+
 filesystem_scanner_deplibs = [
     asio_dispatcher,
     asio_dispatcher_deplibs,
@@ -59,9 +76,12 @@ filesystem_scanner = env.Library(
 
 snapshot_state_machine_deplibs = [
     candidate_snapshot_generator,
-    candidate_snapshot_generator_deplibs,
+    chunk_hasher,
     asio_dispatcher,
     asio_dispatcher_deplibs,
+    chunk_hasher_deplibs,
+    candidate_snapshot_generator_deplibs,
+    'block_proto',
     'snapshot_proto',
     'file_proto',
     'protobuf',

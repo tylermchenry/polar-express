@@ -1,0 +1,15 @@
+package polar_express;
+
+// Next tag: 4
+message Block {
+  optional int64 id = 1;
+  optional string sha1_digest = 2;
+  optional int64 length = 3;
+}
+
+// Next tag: 3
+message Chunk {
+  optional int64 offset = 1;
+  optional Block candidate_block = 2;
+  optional int64 observation_time = 3;
+}

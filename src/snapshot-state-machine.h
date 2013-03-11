@@ -14,7 +14,10 @@
 namespace polar_express {
 
 class CandidateSnapshotGenerator;
+class Chunk;
+class ChunkHasher;
 class SnapshotStateMachine;
+class Snapshot;
 
 // A state machine which goes through the process of generating a snapshot of a
 // single file, comparing it with the previous snapshot (if any), and then
@@ -31,14 +34,23 @@ class SnapshotStateMachineImpl
 
   PE_STATE_MACHINE_DEFINE_INITIAL_STATE(WaitForNewFilePath);
   PE_STATE_MACHINE_DEFINE_STATE(WaitForCandidateSnapshot);
+  PE_STATE_MACHINE_DEFINE_STATE(HaveCandidateSnapshot);
+  PE_STATE_MACHINE_DEFINE_STATE(WaitForChunkHashes);
+  PE_STATE_MACHINE_DEFINE_STATE(HaveChunkHashes);
   PE_STATE_MACHINE_DEFINE_STATE(Done);
   
  protected:
   PE_STATE_MACHINE_DEFINE_EVENT(NewFilePathReady);
   PE_STATE_MACHINE_DEFINE_EVENT(CandidateSnapshotReady);
+  PE_STATE_MACHINE_DEFINE_EVENT(NeedChunkHashes);
+  PE_STATE_MACHINE_DEFINE_EVENT(ChunkHashesReady);
+  PE_STATE_MACHINE_DEFINE_EVENT(ReadyToPrint);
 
   PE_STATE_MACHINE_DEFINE_ACTION(RequestGenerateCandidateSnapshot);
-  PE_STATE_MACHINE_DEFINE_ACTION(PrintCandidateSnapshot);
+  PE_STATE_MACHINE_DEFINE_ACTION(GetCandidateSnapshot);
+  PE_STATE_MACHINE_DEFINE_ACTION(RequestGenerateAndHashChunks);
+  PE_STATE_MACHINE_DEFINE_ACTION(GetChunkHashes);
+  PE_STATE_MACHINE_DEFINE_ACTION(PrintCandidateSnapshotAndChunks);
 
   PE_STATE_MACHINE_TRANSITION_TABLE(
       PE_STATE_MACHINE_TRANSITION(
@@ -49,7 +61,27 @@ class SnapshotStateMachineImpl
       PE_STATE_MACHINE_TRANSITION(
           WaitForCandidateSnapshot,
           CandidateSnapshotReady,
-          PrintCandidateSnapshot,
+          GetCandidateSnapshot,
+          HaveCandidateSnapshot),
+      PE_STATE_MACHINE_TRANSITION(
+          HaveCandidateSnapshot,
+          NeedChunkHashes,
+          RequestGenerateAndHashChunks,
+          WaitForChunkHashes),
+      PE_STATE_MACHINE_TRANSITION(
+          WaitForChunkHashes,
+          ChunkHashesReady,
+          GetChunkHashes,
+          HaveChunkHashes),
+      PE_STATE_MACHINE_TRANSITION(
+          HaveChunkHashes,
+          ReadyToPrint,
+          PrintCandidateSnapshotAndChunks,
+          Done),
+      PE_STATE_MACHINE_TRANSITION(
+          HaveCandidateSnapshot,
+          ReadyToPrint,
+          PrintCandidateSnapshotAndChunks,
           Done));
 
   void InternalStart(
@@ -58,7 +90,11 @@ class SnapshotStateMachineImpl
  private:
   OverrideableScopedPtr<CandidateSnapshotGenerator>
   candidate_snapshot_generator_;
+  OverrideableScopedPtr<ChunkHasher> chunk_hasher_;
 
+  boost::shared_ptr<Snapshot> candidate_snapshot_;
+  vector<boost::shared_ptr<Chunk> > chunks_;
+  
   string root_;
   filesystem::path filepath_;
   
