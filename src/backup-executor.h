@@ -7,8 +7,10 @@
 #include "boost/filesystem.hpp"
 #include "boost/pool/poolfwd.hpp"
 #include "boost/scoped_ptr.hpp"
-#include "boost/thread/mutex.hpp"
+#include "boost/shared_ptr.hpp"
 
+#include "asio-dispatcher.h"
+#include "callback.h"
 #include "macros.h"
 #include "overrideable-scoped-ptr.h"
 
@@ -31,22 +33,18 @@ class BackupExecutor {
 
   void RunNextSnapshotStateMachine();
   
-  void PostRunNextSnapshotStateMachine();
-  
   void DeleteSnapshotStateMachine(
       SnapshotStateMachine* snapshot_state_machine);
 
-  void PostDeleteSnapshotStateMachine(
-      SnapshotStateMachine* snapshot_state_machine);
- 
+  Callback CreateStrandCallback(Callback callback);
+  
   string root_;
 
-  mutable boost::mutex mu_;
-  queue<boost::filesystem::path> pending_snapshot_paths_ GUARDED_BY(mu_);
+  queue<boost::filesystem::path> pending_snapshot_paths_;
   boost::scoped_ptr<boost::object_pool<SnapshotStateMachine> >
-  snapshot_state_machine_pool_ GUARDED_BY(mu_);
-  int num_running_snapshot_state_machines_ GUARDED_BY(mu_);
-  int num_finished_snapshot_state_machines_ GUARDED_BY(mu_);
+  snapshot_state_machine_pool_;
+  int num_running_snapshot_state_machines_;
+  int num_finished_snapshot_state_machines_;
 
   enum class ScanState {
     kNotStarted,
@@ -54,7 +52,9 @@ class BackupExecutor {
     kWaitingToContinue,
     kFinished,
   };        
-  ScanState scan_state_ GUARDED_BY(mu_);
+  ScanState scan_state_;
+
+  boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher_;
   
   OverrideableScopedPtr<FilesystemScanner> filesystem_scanner_;
 

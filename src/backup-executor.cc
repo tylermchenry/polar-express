@@ -6,7 +6,6 @@
 
 #include "boost/pool/object_pool.hpp"
 
-#include "asio-dispatcher.h"
 #include "filesystem-scanner.h"
 #include "snapshot-state-machine.h"
 
@@ -21,6 +20,8 @@ BackupExecutor::BackupExecutor()
       num_running_snapshot_state_machines_(0),
       num_finished_snapshot_state_machines_(0),
       scan_state_(ScanState::kNotStarted),
+      strand_dispatcher_(
+          AsioDispatcher::GetInstance()->NewStrandDispatcherStateMachine()),
       filesystem_scanner_(new FilesystemScanner) {
 }
 
@@ -34,15 +35,14 @@ void BackupExecutor::Start(const string& root) {
   assert(!root.empty());
   root_ = root;
 
-  boost::mutex::scoped_lock lock(mu_);
   filesystem_scanner_->StartScan(
       root, kMaxPendingSnapshots / 2,
-      bind(&BackupExecutor::AddNewPendingSnapshotPaths, this));
+      CreateStrandCallback(
+          bind(&BackupExecutor::AddNewPendingSnapshotPaths, this)));
   scan_state_ = ScanState::kInProgress;
 }
 
 int BackupExecutor::GetNumFilesProcessed() const {
-  boost::mutex::scoped_lock lock(mu_);
   return num_finished_snapshot_state_machines_;
 }
 
@@ -50,20 +50,18 @@ void BackupExecutor::AddNewPendingSnapshotPaths() {
   vector<boost::filesystem::path> paths;
   if (filesystem_scanner_->GetPaths(&paths)) {
     filesystem_scanner_->ClearPaths();
-    boost::mutex::scoped_lock lock(mu_);
     scan_state_ = ScanState::kWaitingToContinue;
     for (const boost::filesystem::path& path : paths) {
       pending_snapshot_paths_.push(path);
     }
-    PostRunNextSnapshotStateMachine();
+    strand_dispatcher_->Post(
+        bind(&BackupExecutor::RunNextSnapshotStateMachine, this));
   } else {
-    boost::mutex::scoped_lock lock(mu_);
     scan_state_ = ScanState::kFinished;
   }
 }
 
 void BackupExecutor::RunNextSnapshotStateMachine() {
-  boost::mutex::scoped_lock lock(mu_);
   if (num_running_snapshot_state_machines_ >= kMaxSimultaneousSnapshots ||
       pending_snapshot_paths_.empty()) {
     return;
@@ -74,9 +72,9 @@ void BackupExecutor::RunNextSnapshotStateMachine() {
   
   SnapshotStateMachine* snapshot_state_machine =
       snapshot_state_machine_pool_->construct();
-  snapshot_state_machine->SetDoneCallback(
-      bind(&BackupExecutor::PostDeleteSnapshotStateMachine,
-           this, snapshot_state_machine));
+  snapshot_state_machine->SetDoneCallback(CreateStrandCallback(
+      bind(&BackupExecutor::DeleteSnapshotStateMachine,
+           this, snapshot_state_machine)));
   snapshot_state_machine->Start(root_, path);
 
   ++num_running_snapshot_state_machines_;
@@ -85,30 +83,24 @@ void BackupExecutor::RunNextSnapshotStateMachine() {
       (pending_snapshot_paths_.size() < kMaxPendingSnapshots / 2)) {
     filesystem_scanner_->ContinueScan(
         kMaxPendingSnapshots / 2,
-        bind(&BackupExecutor::AddNewPendingSnapshotPaths, this));
+        CreateStrandCallback(
+            bind(&BackupExecutor::AddNewPendingSnapshotPaths, this)));
     scan_state_ = ScanState::kInProgress;
   } 
-}
-
-void BackupExecutor::PostRunNextSnapshotStateMachine() {
-  AsioDispatcher::GetInstance()->PostStateMachine(
-      bind(&BackupExecutor::RunNextSnapshotStateMachine, this));
 }
   
 void BackupExecutor::DeleteSnapshotStateMachine(
     SnapshotStateMachine* snapshot_state_machine) {
-  boost::mutex::scoped_lock lock(mu_);
   snapshot_state_machine_pool_->destroy(snapshot_state_machine);
   --num_running_snapshot_state_machines_;
   ++num_finished_snapshot_state_machines_;
-  PostRunNextSnapshotStateMachine();
+  strand_dispatcher_->Post(
+      bind(&BackupExecutor::RunNextSnapshotStateMachine, this));
 }
 
-void BackupExecutor::PostDeleteSnapshotStateMachine(
-    SnapshotStateMachine* snapshot_state_machine) {
-  AsioDispatcher::GetInstance()->PostStateMachine(
-      bind(&BackupExecutor::DeleteSnapshotStateMachine,
-           this, snapshot_state_machine));
-}
+Callback BackupExecutor::CreateStrandCallback(Callback callback) {
+  return bind(&AsioDispatcher::StrandDispatcher::Post,
+              strand_dispatcher_.get(), callback);
+}  
 
 }  // polar_express
