@@ -5,10 +5,10 @@ PRAGMA foreign_keys = ON;
 -- A block is a series of bytes that is (or is to be) backed up.
 create table blocks (
   'id'                  INTEGER PRIMARY KEY NOT NULL,
-  'hash'                TEXT    NOT NULL,
+  'sha1_digest'         TEXT    NOT NULL,
   'length'              INTEGER NOT NULL
 );
-create index idx_blocks_hash_length on blocks('hash', 'length');
+create index idx_blocks_sha1_digest_length on blocks('sha1_digest', 'length');
 
 -- A file is a file at exists (or previously existed) on the local
 -- filesystem.
@@ -37,8 +37,8 @@ create unique index idx_attributes_all on
   attributes('owner', 'group', 'uid', 'gid', 'mode');
 
 -- A snapshot is a record of having observed a file on the local
--- filesystem at some particular time. This records the length, hash,
--- and attributes of that file at that time.
+-- filesystem at some particular time. This records the length,
+-- sha1_digest, and attributes of that file at that time.
 create table snapshots (
   'id'                  INTEGER PRIMARY KEY NOT NULL,
   'file_id'             INTEGER NOT NULL REFERENCES files('id') 
@@ -51,7 +51,7 @@ create table snapshots (
   'extra_attributes'    TEXT,
   'is_regular'          INTEGER NOT NULL DEFAULT true,
   'is_deleted'          INTEGER NOT NULL DEFAULT false,
-  'hash'                TEXT    NOT NULL,
+  'sha1_digest'         TEXT    NOT NULL,
   'length'              INTEGER NOT NULL,
   'observation_time'    INTEGER NOT NULL
 );
@@ -85,7 +85,7 @@ create index idx_files_to_blocks_observation_time on
 -- (or will be) uploaded to the server.
 create table local_bundles (
   'id'                  INTEGER PRIMARY KEY NOT NULL,
-  'hash'                TEXT    NOT NULL,
+  'sha1_digest'         TEXT    NOT NULL,
   'length'              INTEGER NOT NULL
 );
 

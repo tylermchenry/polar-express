@@ -11,6 +11,8 @@
 #include "overrideable-scoped-ptr.h"
 #include "state-machine.h"
 
+class sqlite3;
+
 namespace polar_express {
 
 class CandidateSnapshotGenerator;
@@ -44,13 +46,13 @@ class SnapshotStateMachineImpl
   PE_STATE_MACHINE_DEFINE_EVENT(CandidateSnapshotReady);
   PE_STATE_MACHINE_DEFINE_EVENT(NeedChunkHashes);
   PE_STATE_MACHINE_DEFINE_EVENT(ChunkHashesReady);
-  PE_STATE_MACHINE_DEFINE_EVENT(ReadyToPrint);
+  PE_STATE_MACHINE_DEFINE_EVENT(ReadyToRecord);
 
   PE_STATE_MACHINE_DEFINE_ACTION(RequestGenerateCandidateSnapshot);
   PE_STATE_MACHINE_DEFINE_ACTION(GetCandidateSnapshot);
   PE_STATE_MACHINE_DEFINE_ACTION(RequestGenerateAndHashChunks);
   PE_STATE_MACHINE_DEFINE_ACTION(GetChunkHashes);
-  PE_STATE_MACHINE_DEFINE_ACTION(PrintCandidateSnapshotAndChunks);
+  PE_STATE_MACHINE_DEFINE_ACTION(RecordCandidateSnapshotAndChunks);
 
   PE_STATE_MACHINE_TRANSITION_TABLE(
       PE_STATE_MACHINE_TRANSITION(
@@ -75,13 +77,13 @@ class SnapshotStateMachineImpl
           HaveChunkHashes),
       PE_STATE_MACHINE_TRANSITION(
           HaveChunkHashes,
-          ReadyToPrint,
-          PrintCandidateSnapshotAndChunks,
+          ReadyToRecord,
+          RecordCandidateSnapshotAndChunks,
           Done),
       PE_STATE_MACHINE_TRANSITION(
           HaveCandidateSnapshot,
-          ReadyToPrint,
-          PrintCandidateSnapshotAndChunks,
+          ReadyToRecord,
+          RecordCandidateSnapshotAndChunks,
           Done));
 
   void InternalStart(
@@ -97,6 +99,11 @@ class SnapshotStateMachineImpl
   
   string root_;
   filesystem::path filepath_;
+
+  static sqlite3* metadata_db_;
+  
+  static sqlite3* GetMetadataDb();
+  static void InitMetadataDb();
   
   DISALLOW_COPY_AND_ASSIGN(SnapshotStateMachineImpl);
 };
