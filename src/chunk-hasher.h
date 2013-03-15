@@ -13,8 +13,8 @@
 
 namespace polar_express {
 
-class Chunk;
 class ChunkHasherImpl;
+class Snapshot;
 
 class ChunkHasher {
  public:
@@ -22,10 +22,8 @@ class ChunkHasher {
   virtual ~ChunkHasher();
 
   virtual void GenerateAndHashChunks(
-      const boost::filesystem::path& path, Callback callback);
-
-  virtual void GetGeneratedAndHashedChunks(
-      vector<boost::shared_ptr<Chunk> >* chunks) const;
+      const boost::filesystem::path& path,
+      boost::shared_ptr<Snapshot> snapshot, Callback callback);
   
  protected:
   explicit ChunkHasher(bool create_impl);

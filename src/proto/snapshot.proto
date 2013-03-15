@@ -1,5 +1,6 @@
 package polar_express;
 
+import "src/proto/block.proto";
 import "src/proto/file.proto";
 
 // Next tag: 7
@@ -35,4 +36,6 @@ message Snapshot {
   optional int64 length = 11;
 
   optional int64 observation_time = 12;
+
+  repeated Chunk chunks = 13;
 }

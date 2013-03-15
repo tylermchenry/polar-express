@@ -21,15 +21,11 @@ CandidateSnapshotGenerator::~CandidateSnapshotGenerator() {
 void CandidateSnapshotGenerator::GenerateCandidateSnapshot(
     const string& root,
     const filesystem::path& path,
+    boost::shared_ptr<Snapshot>* snapshot_ptr,   
     Callback callback) const {
   AsioDispatcher::GetInstance()->PostDiskBound(
       bind(&CandidateSnapshotGenerator::GenerateCandidateSnapshot,
-           impl_.get(), root, path, callback));
-}
-
-boost::shared_ptr<Snapshot>
-CandidateSnapshotGenerator::GetGeneratedCandidateSnapshot() const {
-  return impl_->GetGeneratedCandidateSnapshot();
+           impl_.get(), root, path, snapshot_ptr, callback));
 }
 
 }  // namespace polar_express

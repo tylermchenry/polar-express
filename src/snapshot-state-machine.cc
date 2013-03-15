@@ -35,13 +35,12 @@ SnapshotStateMachineImpl::~SnapshotStateMachineImpl() {
 PE_STATE_MACHINE_ACTION_HANDLER(
     SnapshotStateMachineImpl, RequestGenerateCandidateSnapshot) {
   candidate_snapshot_generator_->GenerateCandidateSnapshot(
-      root_, filepath_, CreateExternalEventCallback<CandidateSnapshotReady>());
+      root_, filepath_, &candidate_snapshot_,
+      CreateExternalEventCallback<CandidateSnapshotReady>());
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(
-    SnapshotStateMachineImpl, GetCandidateSnapshot) {
-  candidate_snapshot_ =
-      candidate_snapshot_generator_->GetGeneratedCandidateSnapshot();
+    SnapshotStateMachineImpl, InspectCandidateSnapshot) {
   if (candidate_snapshot_->is_regular() &&
       !candidate_snapshot_->is_deleted()) {
     PostEvent<NeedChunkHashes>();
@@ -52,15 +51,13 @@ PE_STATE_MACHINE_ACTION_HANDLER(
 
 PE_STATE_MACHINE_ACTION_HANDLER(
     SnapshotStateMachineImpl, RequestGenerateAndHashChunks) {
-  candidate_snapshot_ =
-      candidate_snapshot_generator_->GetGeneratedCandidateSnapshot();
   chunk_hasher_->GenerateAndHashChunks(
-      filepath_, CreateExternalEventCallback<ChunkHashesReady>());
+      filepath_, candidate_snapshot_,
+      CreateExternalEventCallback<ChunkHashesReady>());
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(
-    SnapshotStateMachineImpl, GetChunkHashes) {
-  chunk_hasher_->GetGeneratedAndHashedChunks(&chunks_);
+    SnapshotStateMachineImpl, InspectChunkHashes) {
   PostEvent<ReadyToRecord>();
 }
 
@@ -76,8 +73,8 @@ PE_STATE_MACHINE_ACTION_HANDLER(
   sqlite3_exec(GetMetadataDb(), "begin transaction;",
                nullptr, nullptr, nullptr);
   
-  for (auto chunk : chunks_) {
-    const Block& block = chunk->candidate_block();
+  for (const Chunk& chunk : candidate_snapshot_->chunks()) {
+    const Block& block = chunk.block();
     sqlite3_reset(chunk_insert_stmt);
     sqlite3_bind_text(
         chunk_insert_stmt,

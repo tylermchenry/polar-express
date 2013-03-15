@@ -24,21 +24,17 @@ class ChunkHasherImpl : public ChunkHasher {
   virtual ~ChunkHasherImpl();
 
   virtual void GenerateAndHashChunks(
-      const boost::filesystem::path& path, Callback callback);
-
-  virtual void GetGeneratedAndHashedChunks(
-      vector<boost::shared_ptr<Chunk> >* chunks) const;
+      const boost::filesystem::path& path,
+      boost::shared_ptr<Snapshot> snapshot, Callback callback);
   
  private:
-  void FillCandidateBlock(
+  void FillBlock(
       const boost::iostreams::mapped_file& mapped_file, size_t offset,
-      Block* candidate_block) const;
+      Block* block) const;
 
   void HashData(
       const char* data_start, size_t data_length,
       string* sha1_digest) const;
-
-  vector<boost::shared_ptr<Chunk> > chunks_;
 
   static const size_t kBlockSizeBytes;
   

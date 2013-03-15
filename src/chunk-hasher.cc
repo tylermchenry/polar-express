@@ -17,15 +17,11 @@ ChunkHasher::~ChunkHasher() {
 }
 
 void ChunkHasher::GenerateAndHashChunks(
-    const boost::filesystem::path& path, Callback callback) {
+    const boost::filesystem::path& path,
+    boost::shared_ptr<Snapshot> snapshot, Callback callback) {
   AsioDispatcher::GetInstance()->PostDiskBound(
       bind(&ChunkHasher::GenerateAndHashChunks,
-           impl_.get(), path, callback));
-}
-
-void ChunkHasher::GetGeneratedAndHashedChunks(
-    vector<boost::shared_ptr<Chunk> >* chunks) const {
-  impl_->GetGeneratedAndHashedChunks(chunks);
+           impl_.get(), path, snapshot, callback));
 }
  
 }  // namespace polar_express

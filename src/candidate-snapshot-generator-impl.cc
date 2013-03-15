@@ -13,8 +13,7 @@
 namespace polar_express {
 
 CandidateSnapshotGeneratorImpl::CandidateSnapshotGeneratorImpl()
-  : CandidateSnapshotGenerator(false),
-    candidate_snapshot_(new Snapshot) {
+  : CandidateSnapshotGenerator(false) {
 }
 
 CandidateSnapshotGeneratorImpl::~CandidateSnapshotGeneratorImpl() {
@@ -23,14 +22,11 @@ CandidateSnapshotGeneratorImpl::~CandidateSnapshotGeneratorImpl() {
 void CandidateSnapshotGeneratorImpl::GenerateCandidateSnapshot(
     const string& root,
     const filesystem::path& path,
+    boost::shared_ptr<Snapshot>* snapshot_ptr,
     Callback callback) const {
-  GenerateCandidateSnapshot(root, path, candidate_snapshot_.get());
+  CHECK_NOTNULL(snapshot_ptr)->reset(new Snapshot);
+  GenerateCandidateSnapshot(root, path, snapshot_ptr->get());
   callback();
-}
-
-boost::shared_ptr<Snapshot>
-CandidateSnapshotGeneratorImpl::GetGeneratedCandidateSnapshot() const {
-  return candidate_snapshot_;
 }
 
 bool CandidateSnapshotGeneratorImpl::GenerateCandidateSnapshot(

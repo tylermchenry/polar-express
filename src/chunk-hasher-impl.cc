@@ -5,7 +5,7 @@
 #include "crypto++/hex.h"
 #include "crypto++/sha.h"
 
-#include "proto/block.pb.h"
+#include "proto/snapshot.pb.h"
 
 namespace polar_express {
 
@@ -19,18 +19,18 @@ ChunkHasherImpl::~ChunkHasherImpl() {
 }
 
 void ChunkHasherImpl::GenerateAndHashChunks(
-    const boost::filesystem::path& path, Callback callback) {
+    const boost::filesystem::path& path,
+    boost::shared_ptr<Snapshot> snapshot, Callback callback) {
+  CHECK_NOTNULL(snapshot.get());
   try {
     boost::iostreams::mapped_file mapped_file(path.string(), ios_base::in);
     if (mapped_file.is_open()) {
       size_t offset = 0;
       while (offset < mapped_file.size()) {
-        boost::shared_ptr<Chunk> chunk(new Chunk);
+        Chunk* chunk = snapshot->add_chunks();
         chunk->set_offset(offset);
-        FillCandidateBlock(
-            mapped_file, offset, chunk->mutable_candidate_block());
+        FillBlock(mapped_file, offset, chunk->mutable_block());
         chunk->set_observation_time(time(NULL));
-        chunks_.push_back(chunk);
         offset += kBlockSizeBytes;
       }
     }
@@ -40,19 +40,12 @@ void ChunkHasherImpl::GenerateAndHashChunks(
   callback();
 }
 
-void ChunkHasherImpl::GetGeneratedAndHashedChunks(
-    vector<boost::shared_ptr<Chunk> >* chunks) const {
-  CHECK_NOTNULL(chunks)->insert(chunks->end(), chunks_.begin(), chunks_.end());
-}
-
-void ChunkHasherImpl::FillCandidateBlock(
+void ChunkHasherImpl::FillBlock(
     const boost::iostreams::mapped_file& mapped_file, size_t offset,
-    Block* candidate_block) const {
-  candidate_block->set_length(
-      min(kBlockSizeBytes, mapped_file.size() - offset));
-  HashData(
-      mapped_file.const_data() + offset, candidate_block->length(),
-      candidate_block->mutable_sha1_digest());
+    Block* block) const {
+  block->set_length(min(kBlockSizeBytes, mapped_file.size() - offset));
+  HashData(mapped_file.const_data() + offset, block->length(),
+           block->mutable_sha1_digest());
 }
 
 void ChunkHasherImpl::HashData(

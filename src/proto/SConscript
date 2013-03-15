@@ -49,6 +49,7 @@ snapshot_proto = env.Library(
         'snapshot.pb.cc',
         ],
     LIBS=[
+        block_proto,
         file_proto,
         'protobuf'
         ],

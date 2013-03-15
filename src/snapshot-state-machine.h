@@ -49,9 +49,9 @@ class SnapshotStateMachineImpl
   PE_STATE_MACHINE_DEFINE_EVENT(ReadyToRecord);
 
   PE_STATE_MACHINE_DEFINE_ACTION(RequestGenerateCandidateSnapshot);
-  PE_STATE_MACHINE_DEFINE_ACTION(GetCandidateSnapshot);
+  PE_STATE_MACHINE_DEFINE_ACTION(InspectCandidateSnapshot);
   PE_STATE_MACHINE_DEFINE_ACTION(RequestGenerateAndHashChunks);
-  PE_STATE_MACHINE_DEFINE_ACTION(GetChunkHashes);
+  PE_STATE_MACHINE_DEFINE_ACTION(InspectChunkHashes);
   PE_STATE_MACHINE_DEFINE_ACTION(RecordCandidateSnapshotAndChunks);
 
   PE_STATE_MACHINE_TRANSITION_TABLE(
@@ -63,7 +63,7 @@ class SnapshotStateMachineImpl
       PE_STATE_MACHINE_TRANSITION(
           WaitForCandidateSnapshot,
           CandidateSnapshotReady,
-          GetCandidateSnapshot,
+          InspectCandidateSnapshot,
           HaveCandidateSnapshot),
       PE_STATE_MACHINE_TRANSITION(
           HaveCandidateSnapshot,
@@ -73,7 +73,7 @@ class SnapshotStateMachineImpl
       PE_STATE_MACHINE_TRANSITION(
           WaitForChunkHashes,
           ChunkHashesReady,
-          GetChunkHashes,
+          InspectChunkHashes,
           HaveChunkHashes),
       PE_STATE_MACHINE_TRANSITION(
           HaveChunkHashes,
@@ -95,7 +95,6 @@ class SnapshotStateMachineImpl
   OverrideableScopedPtr<ChunkHasher> chunk_hasher_;
 
   boost::shared_ptr<Snapshot> candidate_snapshot_;
-  vector<boost::shared_ptr<Chunk> > chunks_;
   
   string root_;
   filesystem::path filepath_;

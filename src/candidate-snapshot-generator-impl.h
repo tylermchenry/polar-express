@@ -27,10 +27,9 @@ class CandidateSnapshotGeneratorImpl : public CandidateSnapshotGenerator {
   virtual void GenerateCandidateSnapshot(
       const string& root,
       const filesystem::path& path,
+      boost::shared_ptr<Snapshot>* snapshot_ptr,
       Callback callback) const;
 
-  virtual boost::shared_ptr<Snapshot> GetGeneratedCandidateSnapshot() const;
-  
  private:
   // Fills the candidate snapshot information into a pre-existing snapshot
   // protocol buffer.
@@ -48,8 +47,6 @@ class CandidateSnapshotGeneratorImpl : public CandidateSnapshotGenerator {
   string GetUserNameFromUid(int uid) const;
 
   string GetGroupNameFromGid(int gid) const;
-
-  boost::shared_ptr<Snapshot> candidate_snapshot_;
   
   DISALLOW_COPY_AND_ASSIGN(CandidateSnapshotGeneratorImpl);
 };

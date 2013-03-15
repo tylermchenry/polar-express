@@ -31,11 +31,8 @@ class CandidateSnapshotGenerator {
   virtual void GenerateCandidateSnapshot(
       const string& root,
       const filesystem::path& path,
+      boost::shared_ptr<Snapshot>* snapshot_ptr,
       Callback callback) const;
-
-  // Returns a pointer to the generated candidate snapshot. Should only be
-  // called once the callback passed to GenerateCandidateSnapshot is invoked.
-  virtual boost::shared_ptr<Snapshot> GetGeneratedCandidateSnapshot() const;
   
  protected:
   explicit CandidateSnapshotGenerator(bool create_impl);
