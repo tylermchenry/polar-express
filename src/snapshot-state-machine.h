@@ -81,7 +81,7 @@ class SnapshotStateMachineImpl
           HaveChunkHashes,
           ReadyToRecord,
           RecordCandidateSnapshot,
-          Done),
+          WaitForSnapshotToRecord),
       PE_STATE_MACHINE_TRANSITION(
           HaveCandidateSnapshot,
           ReadyToRecord,

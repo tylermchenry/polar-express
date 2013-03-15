@@ -76,5 +76,4 @@ void SnapshotStateMachineImpl::InternalStart(
   PostEvent<NewFilePathReady>();
 }
 
-
 }  // namespace polar_express
