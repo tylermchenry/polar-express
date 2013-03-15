@@ -11,13 +11,12 @@
 #include "overrideable-scoped-ptr.h"
 #include "state-machine.h"
 
-class sqlite3;
-
 namespace polar_express {
 
 class CandidateSnapshotGenerator;
 class Chunk;
 class ChunkHasher;
+class MetadataDb;
 class SnapshotStateMachine;
 class Snapshot;
 
@@ -39,6 +38,7 @@ class SnapshotStateMachineImpl
   PE_STATE_MACHINE_DEFINE_STATE(HaveCandidateSnapshot);
   PE_STATE_MACHINE_DEFINE_STATE(WaitForChunkHashes);
   PE_STATE_MACHINE_DEFINE_STATE(HaveChunkHashes);
+  PE_STATE_MACHINE_DEFINE_STATE(WaitForSnapshotToRecord);
   PE_STATE_MACHINE_DEFINE_STATE(Done);
   
  protected:
@@ -47,12 +47,14 @@ class SnapshotStateMachineImpl
   PE_STATE_MACHINE_DEFINE_EVENT(NeedChunkHashes);
   PE_STATE_MACHINE_DEFINE_EVENT(ChunkHashesReady);
   PE_STATE_MACHINE_DEFINE_EVENT(ReadyToRecord);
+  PE_STATE_MACHINE_DEFINE_EVENT(SnapshotRecorded);
 
   PE_STATE_MACHINE_DEFINE_ACTION(RequestGenerateCandidateSnapshot);
   PE_STATE_MACHINE_DEFINE_ACTION(InspectCandidateSnapshot);
   PE_STATE_MACHINE_DEFINE_ACTION(RequestGenerateAndHashChunks);
   PE_STATE_MACHINE_DEFINE_ACTION(InspectChunkHashes);
-  PE_STATE_MACHINE_DEFINE_ACTION(RecordCandidateSnapshotAndChunks);
+  PE_STATE_MACHINE_DEFINE_ACTION(RecordCandidateSnapshot);
+  PE_STATE_MACHINE_DEFINE_ACTION(CleanUp);
 
   PE_STATE_MACHINE_TRANSITION_TABLE(
       PE_STATE_MACHINE_TRANSITION(
@@ -78,12 +80,17 @@ class SnapshotStateMachineImpl
       PE_STATE_MACHINE_TRANSITION(
           HaveChunkHashes,
           ReadyToRecord,
-          RecordCandidateSnapshotAndChunks,
+          RecordCandidateSnapshot,
           Done),
       PE_STATE_MACHINE_TRANSITION(
           HaveCandidateSnapshot,
           ReadyToRecord,
-          RecordCandidateSnapshotAndChunks,
+          RecordCandidateSnapshot,
+          WaitForSnapshotToRecord),
+      PE_STATE_MACHINE_TRANSITION(
+          WaitForSnapshotToRecord,
+          SnapshotRecorded,
+          CleanUp,
           Done));
 
   void InternalStart(
@@ -93,16 +100,12 @@ class SnapshotStateMachineImpl
   OverrideableScopedPtr<CandidateSnapshotGenerator>
   candidate_snapshot_generator_;
   OverrideableScopedPtr<ChunkHasher> chunk_hasher_;
-
+  OverrideableScopedPtr<MetadataDb> metadata_db_;
+  
   boost::shared_ptr<Snapshot> candidate_snapshot_;
   
   string root_;
   filesystem::path filepath_;
-
-  static sqlite3* metadata_db_;
-  
-  static sqlite3* GetMetadataDb();
-  static void InitMetadataDb();
   
   DISALLOW_COPY_AND_ASSIGN(SnapshotStateMachineImpl);
 };

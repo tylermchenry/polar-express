@@ -74,18 +74,38 @@ filesystem_scanner = env.Library(
     LIBS=filesystem_scanner_deplibs,
     )
 
+metadata_db_deplibs = [
+    asio_dispatcher,
+    asio_dispatcher_deplibs,
+    'block_proto',
+    'snapshot_proto',
+    'file_proto',
+    'boost_thread',
+    'protobuf',
+    'sqlite3',
+    ];
+metadata_db = env.Library(
+    target='metadata-db', 
+    source=[
+        'metadata-db.cc',
+        'metadata-db-impl.cc',
+        ],
+    LIBS=metadata_db_deplibs,
+    )
+
 snapshot_state_machine_deplibs = [
     candidate_snapshot_generator,
     chunk_hasher,
+    metadata_db,
     asio_dispatcher,
     asio_dispatcher_deplibs,
+    metadata_db_deplibs,
     chunk_hasher_deplibs,
     candidate_snapshot_generator_deplibs,
     'block_proto',
     'snapshot_proto',
     'file_proto',
     'protobuf',
-    'sqlite3',
     ];
 snapshot_state_machine = env.Library(
     target='snapshot-state-machine', 
