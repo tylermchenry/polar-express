@@ -3,6 +3,8 @@
 
 #include <cassert>
 
+#include "boost/scoped_ptr.hpp"
+
 #define DISALLOW_COPY_AND_ASSIGN(TypeName) \
   TypeName(const TypeName&);               \
   void operator=(const TypeName&)

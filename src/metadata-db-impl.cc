@@ -5,6 +5,7 @@
 
 #include "proto/file.pb.h"
 #include "proto/snapshot.pb.h"
+#include "sqlite3-helpers.h"
 
 namespace polar_express {
 
@@ -38,42 +39,32 @@ void MetadataDbImpl::RecordNewSnapshot(
 
 void MetadataDbImpl::WriteNewBlocks(
     boost::shared_ptr<Snapshot> snapshot) const {
-  sqlite3_stmt* block_insert_stmt = nullptr;
-  
-  sqlite3_prepare_v2(
-      db(),
+  ScopedStatement block_insert_stmt(db());
+
+  block_insert_stmt.Prepare(
       "insert into blocks ('sha1_digest', 'length') "
-      "values (:sha1_digest, :length);", -1,
-      &block_insert_stmt, nullptr);
+      "values (:sha1_digest, :length);");
 
   for (const Chunk& chunk : snapshot->chunks()) {
     const Block& block = chunk.block();
     if (block.has_id()) {
       continue;
     }
-    
-    sqlite3_reset(block_insert_stmt);
-    sqlite3_bind_text(
-        block_insert_stmt,
-        sqlite3_bind_parameter_index(block_insert_stmt, ":sha1_digest"),
-        block.sha1_digest().c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int64(
-        block_insert_stmt,
-        sqlite3_bind_parameter_index(block_insert_stmt, ":length"),
-        block.length());
+
+    block_insert_stmt.Reset();
+    block_insert_stmt.BindText(":sha1_digest", block.sha1_digest());
+    block_insert_stmt.BindInt64(":length", block.length());
+        
     int code;
     do {
-      code = sqlite3_step(block_insert_stmt);
+      code = block_insert_stmt.Step();
     } while (code == SQLITE_BUSY);
 
     if (code != SQLITE_DONE) {
       std::cerr << sqlite3_errmsg(db()) << std::endl;
-      std::cerr << sqlite3_sql(block_insert_stmt) << std::endl;
       std::cerr << block.DebugString() << std::endl;
     }
   }
-  
-  sqlite3_finalize(block_insert_stmt);
 }
 
 // static

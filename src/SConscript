@@ -89,6 +89,7 @@ metadata_db = env.Library(
     source=[
         'metadata-db.cc',
         'metadata-db-impl.cc',
+        'sqlite3-helpers.cc',
         ],
     LIBS=metadata_db_deplibs,
     )
