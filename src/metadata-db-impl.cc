@@ -35,6 +35,8 @@ void MetadataDbImpl::RecordNewSnapshot(
   // block-to-file mappings.
   
   sqlite3_exec(db(), "commit;", nullptr, nullptr, nullptr);
+
+  callback();
 }
 
 void MetadataDbImpl::WriteNewBlocks(
@@ -54,12 +56,14 @@ void MetadataDbImpl::WriteNewBlocks(
     block_insert_stmt.Reset();
     block_insert_stmt.BindText(":sha1_digest", block.sha1_digest());
     block_insert_stmt.BindInt64(":length", block.length());
-        
+    
     int code;
     do {
       code = block_insert_stmt.Step();
     } while (code == SQLITE_BUSY);
 
+    // TODO: Set autoincremented ID for block.
+    
     if (code != SQLITE_DONE) {
       std::cerr << sqlite3_errmsg(db()) << std::endl;
       std::cerr << block.DebugString() << std::endl;
