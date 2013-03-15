@@ -123,7 +123,7 @@ void SnapshotStateMachineImpl::InitMetadataDb() {
   assert(sqlite3_threadsafe());
   int code = sqlite3_open_v2(
       "metadata.db", &metadata_db_,
-      SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX, nullptr);
+      SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX, nullptr);
   assert(code == SQLITE_OK);
 }
 
