@@ -18,10 +18,10 @@ MetadataDbImpl::MetadataDbImpl()
 MetadataDbImpl::~MetadataDbImpl() {
 }
 
-void MetadataDbImpl::ReadLatestSnapshot(
-    const File& file, boost::shared_ptr<Snapshot> snapshot,
+void MetadataDbImpl::GetLatestSnapshot(
+    const File& file, boost::shared_ptr<Snapshot>* snapshot,
     Callback callback) {
-  snapshot.reset(new Snapshot);
+  CHECK_NOTNULL(snapshot)->reset(new Snapshot);
   
   ScopedStatement snapshot_select_stmt(db());
   snapshot_select_stmt.Prepare(
@@ -33,11 +33,11 @@ void MetadataDbImpl::ReadLatestSnapshot(
   snapshot_select_stmt.BindInt64(":file_id", file.id());
 
   if (snapshot_select_stmt.StepUntilNotBusy() == SQLITE_ROW) {
-    snapshot->set_id(snapshot_select_stmt.GetColumnInt64("snapshots.id"));
+    (*snapshot)->set_id(snapshot_select_stmt.GetColumnInt64("snapshots.id"));
 
-    snapshot->mutable_file()->CopyFrom(file);
+    (*snapshot)->mutable_file()->CopyFrom(file);
     
-    Attributes* attributes = snapshot->mutable_attributes();
+    Attributes* attributes = (*snapshot)->mutable_attributes();
     attributes->set_id(snapshot_select_stmt.GetColumnInt64("attributes.id"));
     attributes->set_owner_user(
         snapshot_select_stmt.GetColumnText("attributes.owner_user"));
@@ -50,22 +50,22 @@ void MetadataDbImpl::ReadLatestSnapshot(
     attributes->set_mode(
         snapshot_select_stmt.GetColumnInt64("attributes.mode"));
     
-    snapshot->set_creation_time(
+    (*snapshot)->set_creation_time(
         snapshot_select_stmt.GetColumnInt64("snapshots.creation_time"));
-    snapshot->set_modification_time(
+    (*snapshot)->set_modification_time(
         snapshot_select_stmt.GetColumnInt64("snapshots.modification_time"));
-    snapshot->set_access_time(
+    (*snapshot)->set_access_time(
         snapshot_select_stmt.GetColumnInt64("snapshots.access_time"));
     // TODO: Extra attributes
-    snapshot->set_is_regular(
+    (*snapshot)->set_is_regular(
         snapshot_select_stmt.GetColumnBool("snapshots.is_regular"));
-    snapshot->set_is_deleted(
+    (*snapshot)->set_is_deleted(
         snapshot_select_stmt.GetColumnBool("snapshots.is_deleted"));
-    snapshot->set_sha1_digest(
+    (*snapshot)->set_sha1_digest(
         snapshot_select_stmt.GetColumnText("snapshots.sha1_digest"));
-    snapshot->set_length(
+    (*snapshot)->set_length(
         snapshot_select_stmt.GetColumnInt64("snapshots.length"));
-    snapshot->set_observation_time(
+    (*snapshot)->set_observation_time(
         snapshot_select_stmt.GetColumnInt64("snapshots.observation_time"));
   }
   

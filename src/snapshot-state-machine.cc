@@ -40,7 +40,7 @@ PE_STATE_MACHINE_ACTION_HANDLER(
 PE_STATE_MACHINE_ACTION_HANDLER(
     SnapshotStateMachineImpl, RequestPreviousSnapshot) {
   metadata_db_->GetLatestSnapshot(
-      candidate_snapshot_->file(), previous_snapshot_,
+      candidate_snapshot_->file(), &previous_snapshot_,
       CreateExternalEventCallback<PreviousSnapshotReady>());
 }
   

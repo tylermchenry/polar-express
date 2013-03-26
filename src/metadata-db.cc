@@ -17,7 +17,7 @@ MetadataDb::~MetadataDb() {
 }
 
 void MetadataDb::GetLatestSnapshot(
-    const File& file, boost::shared_ptr<Snapshot> snapshot,
+    const File& file, boost::shared_ptr<Snapshot>* snapshot,
     Callback callback) {
   AsioDispatcher::GetInstance()->PostDiskBound(
       bind(&MetadataDb::GetLatestSnapshot,
@@ -26,7 +26,7 @@ void MetadataDb::GetLatestSnapshot(
 
 void MetadataDb::RecordNewSnapshot(
     boost::shared_ptr<Snapshot> snapshot, Callback callback) {
- AsioDispatcher::GetInstance()->PostDiskBound(
+  AsioDispatcher::GetInstance()->PostDiskBound(
       bind(&MetadataDb::RecordNewSnapshot,
            impl_.get(), snapshot, callback));
 }

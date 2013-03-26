@@ -21,8 +21,8 @@ class MetadataDbImpl : public MetadataDb {
   MetadataDbImpl();
   virtual ~MetadataDbImpl();
 
-  virtual void ReadLatestSnapshot(
-      const File& file, boost::shared_ptr<Snapshot> snapshot,
+  virtual void GetLatestSnapshot(
+      const File& file, boost::shared_ptr<Snapshot>* snapshot,
       Callback callback);
 
   virtual void RecordNewSnapshot(

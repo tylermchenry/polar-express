@@ -19,9 +19,9 @@ class MetadataDb {
   virtual ~MetadataDb();
 
   virtual void GetLatestSnapshot(
-      const File& file, boost::shared_ptr<Snapshot> snapshot,
+      const File& file, boost::shared_ptr<Snapshot>* snapshot,
       Callback callback);
-
+  
   // This also modifies the snapshot to add IDs for the snapshot itself as well
   // as any blocks that do not already have IDs.
   virtual void RecordNewSnapshot(
