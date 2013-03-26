@@ -46,7 +46,7 @@ PE_STATE_MACHINE_ACTION_HANDLER(
   
 PE_STATE_MACHINE_ACTION_HANDLER(
     SnapshotStateMachineImpl, InspectSnapshots) {
-  if (!snapshot_util_->AllMetadataEqual(
+  if (snapshot_util_->AllMetadataEqual(
           *candidate_snapshot_, *previous_snapshot_)) {
     PostEvent<NoUpdatesNecessary>();
   } else if (snapshot_util_->FileContentsEqual(
