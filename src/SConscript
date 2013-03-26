@@ -23,6 +23,19 @@ asio_dispatcher = env.Library(
     LIBS=asio_dispatcher_deplibs,
     )
 
+snapshot_util_deplibs = [
+    'snapshot_proto',
+    'file_proto',
+    'protobuf',
+    ];
+snapshot_util = env.Library(
+    target='snapshot-util', 
+    source=[
+        'snapshot-util.cc',
+        ],
+    LIBS=snapshot_util_deplibs
+    )
+
 candidate_snapshot_generator_deplibs = [
     asio_dispatcher,
     asio_dispatcher_deplibs,
@@ -98,8 +111,10 @@ snapshot_state_machine_deplibs = [
     candidate_snapshot_generator,
     chunk_hasher,
     metadata_db,
+    snapshot_util,
     asio_dispatcher,
     asio_dispatcher_deplibs,
+    snapshot_util_deplibs,
     metadata_db_deplibs,
     chunk_hasher_deplibs,
     candidate_snapshot_generator_deplibs,

@@ -2,6 +2,7 @@
 #define SQLITE3_HELPERS_H
 
 #include <string>
+#include <unordered_map>
 
 #include "macros.h"
 
@@ -20,14 +21,25 @@ class ScopedStatement {
 
   int BindText(const string& param_name, const string& value);
   int BindInt64(const string& param_name, int64_t value);
+  int BindBool(const string& param_name, bool value);
 
   int Step();
+  int StepUntilNotBusy();
 
+  string GetColumnText(const string& col_name);
+  int64_t GetColumnInt64(const string& col_name);
+  bool GetColumnBool(const string& col_name);
+  
   int Reset();
   
  private:
+  void GenerateColumnIdxs();
+  int GetColumnIdx(const string& col_name);
+  
   sqlite3* db_;
   sqlite3_stmt* stmt_;
+
+  unordered_map<string, int> column_idxs;
   
   DISALLOW_COPY_AND_ASSIGN(ScopedStatement);
 };

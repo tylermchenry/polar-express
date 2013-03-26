@@ -21,7 +21,54 @@ MetadataDbImpl::~MetadataDbImpl() {
 void MetadataDbImpl::ReadLatestSnapshot(
     const File& file, boost::shared_ptr<Snapshot> snapshot,
     Callback callback) {
-  // TODO: Implement
+  snapshot.reset(new Snapshot);
+  
+  ScopedStatement snapshot_select_stmt(db());
+  snapshot_select_stmt.Prepare(
+      "select * from snapshots join attributes on "
+      "snapshots.attributes_id = attributes.id "
+      "where file_id = :file_id "
+      "order by observation_time desc limit 1;");
+
+  snapshot_select_stmt.BindInt64(":file_id", file.id());
+
+  if (snapshot_select_stmt.StepUntilNotBusy() == SQLITE_ROW) {
+    snapshot->set_id(snapshot_select_stmt.GetColumnInt64("snapshots.id"));
+
+    snapshot->mutable_file()->CopyFrom(file);
+    
+    Attributes* attributes = snapshot->mutable_attributes();
+    attributes->set_id(snapshot_select_stmt.GetColumnInt64("attributes.id"));
+    attributes->set_owner_user(
+        snapshot_select_stmt.GetColumnText("attributes.owner_user"));
+    attributes->set_owner_group(
+        snapshot_select_stmt.GetColumnText("attributes.owner_group"));
+    attributes->set_uid(
+        snapshot_select_stmt.GetColumnInt64("attributes.uid"));
+    attributes->set_gid(
+        snapshot_select_stmt.GetColumnInt64("attributes.gid"));
+    attributes->set_mode(
+        snapshot_select_stmt.GetColumnInt64("attributes.mode"));
+    
+    snapshot->set_creation_time(
+        snapshot_select_stmt.GetColumnInt64("snapshots.creation_time"));
+    snapshot->set_modification_time(
+        snapshot_select_stmt.GetColumnInt64("snapshots.modification_time"));
+    snapshot->set_access_time(
+        snapshot_select_stmt.GetColumnInt64("snapshots.access_time"));
+    // TODO: Extra attributes
+    snapshot->set_is_regular(
+        snapshot_select_stmt.GetColumnBool("snapshots.is_regular"));
+    snapshot->set_is_deleted(
+        snapshot_select_stmt.GetColumnBool("snapshots.is_deleted"));
+    snapshot->set_sha1_digest(
+        snapshot_select_stmt.GetColumnText("snapshots.sha1_digest"));
+    snapshot->set_length(
+        snapshot_select_stmt.GetColumnInt64("snapshots.length"));
+    snapshot->set_observation_time(
+        snapshot_select_stmt.GetColumnInt64("snapshots.observation_time"));
+  }
+  
   callback();
 }
 
@@ -57,10 +104,7 @@ void MetadataDbImpl::WriteNewBlocks(
     block_insert_stmt.BindText(":sha1_digest", block.sha1_digest());
     block_insert_stmt.BindInt64(":length", block.length());
     
-    int code;
-    do {
-      code = block_insert_stmt.Step();
-    } while (code == SQLITE_BUSY);
+    int code = block_insert_stmt.StepUntilNotBusy();
 
     // TODO: Set autoincremented ID for block.
     

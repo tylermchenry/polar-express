@@ -7,6 +7,7 @@
 #include "metadata-db.h"
 #include "proto/block.pb.h"
 #include "proto/snapshot.pb.h"
+#include "snapshot-util.h"
 
 namespace polar_express {
 
@@ -20,7 +21,8 @@ SnapshotStateMachineImpl::BackEnd* SnapshotStateMachine::GetBackEnd() {
 }
 
 SnapshotStateMachineImpl::SnapshotStateMachineImpl()
-    : candidate_snapshot_generator_(new CandidateSnapshotGenerator),
+    : snapshot_util_(new SnapshotUtil),
+      candidate_snapshot_generator_(new CandidateSnapshotGenerator),
       chunk_hasher_(new ChunkHasher),
       metadata_db_(new MetadataDb) {
 }
@@ -36,12 +38,22 @@ PE_STATE_MACHINE_ACTION_HANDLER(
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(
-    SnapshotStateMachineImpl, InspectCandidateSnapshot) {
-  if (candidate_snapshot_->is_regular() &&
-      !candidate_snapshot_->is_deleted()) {
-    PostEvent<NeedChunkHashes>();
-  } else {
+    SnapshotStateMachineImpl, RequestPreviousSnapshot) {
+  metadata_db_->GetLatestSnapshot(
+      candidate_snapshot_->file(), previous_snapshot_,
+      CreateExternalEventCallback<PreviousSnapshotReady>());
+}
+  
+PE_STATE_MACHINE_ACTION_HANDLER(
+    SnapshotStateMachineImpl, InspectSnapshots) {
+  if (!snapshot_util_->AllMetadataEqual(
+          *candidate_snapshot_, *previous_snapshot_)) {
+    PostEvent<NoUpdatesNecessary>();
+  } else if (snapshot_util_->FileContentsEqual(
+      *candidate_snapshot_, *previous_snapshot_)) {
     PostEvent<ReadyToRecord>();
+  } else {
+    PostEvent<NeedChunkHashes>();
   }
 }
 
