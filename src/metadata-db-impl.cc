@@ -142,9 +142,9 @@ void MetadataDbImpl::WriteNewSnapshot(
 
   int code = snapshot_insert_stmt.StepUntilNotBusy();
 
-  // TODO: Set autoincremented ID for snapshot.
-    
-  if (code != SQLITE_DONE) {
+  if (code == SQLITE_DONE) {
+    snapshot->set_id(sqlite3_last_insert_rowid(db()));
+  } else {
     std::cerr << sqlite3_errmsg(db()) << std::endl;
     std::cerr << snapshot->DebugString() << std::endl;
   }
@@ -163,10 +163,10 @@ void MetadataDbImpl::WriteNewFile(File* file) const {
   file_insert_stmt.BindText(":path", file->path());
 
   int code = file_insert_stmt.StepUntilNotBusy();
-
-  // TODO: Set autoincremented ID for file.
     
-  if (code != SQLITE_DONE) {
+  if (code == SQLITE_DONE) {
+    file->set_id(sqlite3_last_insert_rowid(db()));
+  } else {
     std::cerr << sqlite3_errmsg(db()) << std::endl;
     std::cerr << file->DebugString() << std::endl;
   }
@@ -191,9 +191,9 @@ void MetadataDbImpl::WriteNewAttributes(Attributes* attributes) const {
   
   int code = attributes_insert_stmt.StepUntilNotBusy();
 
-  // TODO: Set autoincremented ID for attributes.
-    
-  if (code != SQLITE_DONE) {
+  if (code == SQLITE_DONE) {
+    attributes->set_id(sqlite3_last_insert_rowid(db()));
+  } else {
     std::cerr << sqlite3_errmsg(db()) << std::endl;
     std::cerr << attributes->DebugString() << std::endl;
   }
@@ -219,9 +219,9 @@ void MetadataDbImpl::WriteNewBlocks(
     
     int code = block_insert_stmt.StepUntilNotBusy();
 
-    // TODO: Set autoincremented ID for block.
-    
-    if (code != SQLITE_DONE) {
+    if (code == SQLITE_DONE) {
+      block->set_id(sqlite3_last_insert_rowid(db()));
+    } else {
       std::cerr << sqlite3_errmsg(db()) << std::endl;
       std::cerr << block->DebugString() << std::endl;
     }
