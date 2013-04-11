@@ -27,14 +27,14 @@ create unique index idx_files_path on files('path');
 -- files.
 create table attributes (
   'id'                  INTEGER PRIMARY KEY NOT NULL,
-  'owner'               TEXT,
-  'group'               TEXT,
+  'owner_user'          TEXT,
+  'owner_group'         TEXT,
   'uid'                 INTEGER,
   'gid'                 INTEGER,
   'mode'                INTEGER
 );
 create unique index idx_attributes_all on 
-  attributes('owner', 'group', 'uid', 'gid', 'mode');
+  attributes('owner_user', 'owner_group', 'uid', 'gid', 'mode');
 
 -- A snapshot is a record of having observed a file on the local
 -- filesystem at some particular time. This records the length,
@@ -45,7 +45,7 @@ create table snapshots (
                                   ON DELETE CASCADE,
   'attributes_id'       INTEGER NOT NULL REFERENCES attributes('id') 
                                   ON DELETE CASCADE,
-  'creation_time'       INTEGER NOT NULL,
+  'creation_time'       INTEGER,
   'modification_time'   INTEGER NOT NULL,
   'access_time'         INTEGER,
   'extra_attributes'    TEXT,

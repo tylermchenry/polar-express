@@ -7,6 +7,20 @@
 #include "proto/snapshot.pb.h"
 #include "sqlite3-helpers.h"
 
+#define HAS_FIELD(field_name) has_ ## field_name
+
+#define BIND_TYPE(type) Bind ## type
+
+#define COL_NAME(field_name) ":" #field_name
+
+#define BIND_IF_PRESENT(stmt, type, proto_ptr, field_name)    \
+  do {                                                               \
+    if ((proto_ptr)->HAS_FIELD(field_name)()) {                      \
+      (stmt).BIND_TYPE(type)(COL_NAME(field_name),                   \
+                             (proto_ptr)->field_name());             \
+    }                                                                \
+  } while(0)
+
 namespace polar_express {
 
 sqlite3* MetadataDbImpl::db_ = nullptr;
@@ -91,8 +105,7 @@ void MetadataDbImpl::RecordNewSnapshot(
 
   WriteNewSnapshot(snapshot);
 
-  // TODO: Also write (if necessary): the file, the snapshot itself, and
-  // block-to-file mappings.
+  // TODO: Also write block-to-file mappings.
   
   sqlite3_exec(db(), "commit;", nullptr, nullptr, nullptr);
 
@@ -107,7 +120,7 @@ void MetadataDbImpl::WriteNewSnapshot(
 
   // TODO: Extra attributes.
   snapshot_insert_stmt.Prepare(
-      "insert into files ('file_id', 'attributes_id', 'creation_time', "
+      "insert into snapshots ('file_id', 'attributes_id', 'creation_time', "
       "'modification_time', 'access_time', 'is_regular', 'is_deleted', "
       "'sha1_digest', 'length', 'observation_time') "
       "values (:file_id, :attributes_id, :creation_time, "
@@ -116,10 +129,10 @@ void MetadataDbImpl::WriteNewSnapshot(
 
   snapshot_insert_stmt.BindInt64(":file_id", snapshot->file().id());
   snapshot_insert_stmt.BindInt64(":attributes_id", snapshot->attributes().id());
-  snapshot_insert_stmt.BindInt64(":creation_time", snapshot->creation_time());
+  BIND_IF_PRESENT(snapshot_insert_stmt, Int64, snapshot, creation_time);
   snapshot_insert_stmt.BindInt64(":modification_time",
                                  snapshot->modification_time());
-  snapshot_insert_stmt.BindInt64(":access_time", snapshot->access_time());
+  BIND_IF_PRESENT(snapshot_insert_stmt, Int64, snapshot, access_time);
   snapshot_insert_stmt.BindBool(":is_regular", snapshot->is_regular());
   snapshot_insert_stmt.BindBool(":is_deleted", snapshot->is_deleted());
   snapshot_insert_stmt.BindText(":sha1_digest", snapshot->sha1_digest());
@@ -166,16 +179,16 @@ void MetadataDbImpl::WriteNewAttributes(Attributes* attributes) const {
   ScopedStatement attributes_insert_stmt(db());
 
   attributes_insert_stmt.Prepare(
-      "insert into attributess ('owner_user', 'owner_group', 'uid' "
+      "insert into attributes ('owner_user', 'owner_group', 'uid', "
       "'gid', 'mode') "
       "values (:owner_user, :owner_group, :uid, :gid, :mode);");
 
-  attributes_insert_stmt.BindText(":owner_user", attributes->owner_user());
-  attributes_insert_stmt.BindText(":owner_group", attributes->owner_group());
-  attributes_insert_stmt.BindInt(":uid", attributes->uid());
-  attributes_insert_stmt.BindInt(":gid", attributes->gid());
-  attributes_insert_stmt.BindInt(":mode", attributes->mode());
-
+  BIND_IF_PRESENT(attributes_insert_stmt, Text, attributes, owner_user);
+  BIND_IF_PRESENT(attributes_insert_stmt, Text, attributes, owner_group);
+  BIND_IF_PRESENT(attributes_insert_stmt, Int, attributes, uid);
+  BIND_IF_PRESENT(attributes_insert_stmt, Int, attributes, gid);
+  BIND_IF_PRESENT(attributes_insert_stmt, Int, attributes, mode);
+  
   int code = attributes_insert_stmt.StepUntilNotBusy();
 
   // TODO: Set autoincremented ID for attributes.
