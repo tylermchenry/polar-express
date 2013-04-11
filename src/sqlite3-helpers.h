@@ -20,6 +20,7 @@ class ScopedStatement {
   int Prepare(const string& query);
 
   int BindText(const string& param_name, const string& value);
+  int BindInt(const string& param_name, int value);
   int BindInt64(const string& param_name, int64_t value);
   int BindBool(const string& param_name, bool value);
 

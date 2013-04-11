@@ -25,6 +25,11 @@ int ScopedStatement::BindText(const string& param_name, const string& value) {
       value.c_str(), -1, SQLITE_TRANSIENT);
 }
 
+int ScopedStatement::BindInt(const string& param_name, int value) {
+  return sqlite3_bind_int(
+      stmt_, sqlite3_bind_parameter_index(stmt_, param_name.c_str()), value);
+}
+  
 int ScopedStatement::BindInt64(const string& param_name, int64_t value) {
   return sqlite3_bind_int64(
       stmt_, sqlite3_bind_parameter_index(stmt_, param_name.c_str()), value);

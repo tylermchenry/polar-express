@@ -13,6 +13,7 @@ class sqlite3;
 
 namespace polar_express {
 
+class Attributes;
 class File;
 class Snapshot;
 
@@ -29,6 +30,9 @@ class MetadataDbImpl : public MetadataDb {
       boost::shared_ptr<Snapshot> snapshot, Callback callback);
   
  private:
+  void WriteNewSnapshot(boost::shared_ptr<Snapshot> snapshot) const;
+  void WriteNewFile(File* file) const;
+  void WriteNewAttributes(Attributes* attributes) const;
   void WriteNewBlocks(boost::shared_ptr<Snapshot> snapshot) const;
   
   static sqlite3* db_;

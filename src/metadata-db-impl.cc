@@ -74,16 +74,116 @@ void MetadataDbImpl::GetLatestSnapshot(
 
 void MetadataDbImpl::RecordNewSnapshot(
     boost::shared_ptr<Snapshot> snapshot, Callback callback) {
+  assert(!snapshot->has_id());
+  
   sqlite3_exec(db(), "begin transaction;",
                nullptr, nullptr, nullptr);
 
+  if (!snapshot->file().has_id()) {
+    WriteNewFile(snapshot->mutable_file());
+  }
+  
+  if (!snapshot->attributes().has_id()) {
+    WriteNewAttributes(snapshot->mutable_attributes());
+  }
+
   WriteNewBlocks(snapshot);
+
+  WriteNewSnapshot(snapshot);
+
   // TODO: Also write (if necessary): the file, the snapshot itself, and
   // block-to-file mappings.
   
   sqlite3_exec(db(), "commit;", nullptr, nullptr, nullptr);
 
   callback();
+}
+
+void MetadataDbImpl::WriteNewSnapshot(
+    boost::shared_ptr<Snapshot> snapshot) const {
+  assert(!snapshot->has_id());
+
+  ScopedStatement snapshot_insert_stmt(db());
+
+  // TODO: Extra attributes.
+  snapshot_insert_stmt.Prepare(
+      "insert into files ('file_id', 'attributes_id', 'creation_time', "
+      "'modification_time', 'access_time', 'is_regular', 'is_deleted', "
+      "'sha1_digest', 'length', 'observation_time') "
+      "values (:file_id, :attributes_id, :creation_time, "
+      ":modification_time, :access_time, :is_regular, :is_deleted, "
+      ":sha1_digest, :length, :observation_time);");
+
+  snapshot_insert_stmt.BindInt64(":file_id", snapshot->file().id());
+  snapshot_insert_stmt.BindInt64(":attributes_id", snapshot->attributes().id());
+  snapshot_insert_stmt.BindInt64(":creation_time", snapshot->creation_time());
+  snapshot_insert_stmt.BindInt64(":modification_time",
+                                 snapshot->modification_time());
+  snapshot_insert_stmt.BindInt64(":access_time", snapshot->access_time());
+  snapshot_insert_stmt.BindBool(":is_regular", snapshot->is_regular());
+  snapshot_insert_stmt.BindBool(":is_deleted", snapshot->is_deleted());
+  snapshot_insert_stmt.BindText(":sha1_digest", snapshot->sha1_digest());
+  snapshot_insert_stmt.BindInt64(":length", snapshot->length());
+  snapshot_insert_stmt.BindInt64(":observation_time",
+                                 snapshot->observation_time());
+
+  int code = snapshot_insert_stmt.StepUntilNotBusy();
+
+  // TODO: Set autoincremented ID for snapshot.
+    
+  if (code != SQLITE_DONE) {
+    std::cerr << sqlite3_errmsg(db()) << std::endl;
+    std::cerr << snapshot->DebugString() << std::endl;
+  }
+}
+
+void MetadataDbImpl::WriteNewFile(File* file) const {
+  assert(file != nullptr);
+  assert(!file->has_id());
+
+  ScopedStatement file_insert_stmt(db());
+
+  file_insert_stmt.Prepare(
+      "insert into files ('path') "
+      "values (:path);");
+
+  file_insert_stmt.BindText(":path", file->path());
+
+  int code = file_insert_stmt.StepUntilNotBusy();
+
+  // TODO: Set autoincremented ID for file.
+    
+  if (code != SQLITE_DONE) {
+    std::cerr << sqlite3_errmsg(db()) << std::endl;
+    std::cerr << file->DebugString() << std::endl;
+  }
+}
+
+void MetadataDbImpl::WriteNewAttributes(Attributes* attributes) const {
+  assert(attributes != nullptr);
+  assert(!attributes->has_id());
+
+  ScopedStatement attributes_insert_stmt(db());
+
+  attributes_insert_stmt.Prepare(
+      "insert into attributess ('owner_user', 'owner_group', 'uid' "
+      "'gid', 'mode') "
+      "values (:owner_user, :owner_group, :uid, :gid, :mode);");
+
+  attributes_insert_stmt.BindText(":owner_user", attributes->owner_user());
+  attributes_insert_stmt.BindText(":owner_group", attributes->owner_group());
+  attributes_insert_stmt.BindInt(":uid", attributes->uid());
+  attributes_insert_stmt.BindInt(":gid", attributes->gid());
+  attributes_insert_stmt.BindInt(":mode", attributes->mode());
+
+  int code = attributes_insert_stmt.StepUntilNotBusy();
+
+  // TODO: Set autoincremented ID for attributes.
+    
+  if (code != SQLITE_DONE) {
+    std::cerr << sqlite3_errmsg(db()) << std::endl;
+    std::cerr << attributes->DebugString() << std::endl;
+  }
 }
 
 void MetadataDbImpl::WriteNewBlocks(
@@ -94,15 +194,15 @@ void MetadataDbImpl::WriteNewBlocks(
       "insert into blocks ('sha1_digest', 'length') "
       "values (:sha1_digest, :length);");
 
-  for (const Chunk& chunk : snapshot->chunks()) {
-    const Block& block = chunk.block();
-    if (block.has_id()) {
+  for (Chunk& chunk : *(snapshot->mutable_chunks())) {
+    Block* block = chunk.mutable_block();
+    if (block->has_id()) {
       continue;
     }
 
     block_insert_stmt.Reset();
-    block_insert_stmt.BindText(":sha1_digest", block.sha1_digest());
-    block_insert_stmt.BindInt64(":length", block.length());
+    block_insert_stmt.BindText(":sha1_digest", block->sha1_digest());
+    block_insert_stmt.BindInt64(":length", block->length());
     
     int code = block_insert_stmt.StepUntilNotBusy();
 
@@ -110,7 +210,7 @@ void MetadataDbImpl::WriteNewBlocks(
     
     if (code != SQLITE_DONE) {
       std::cerr << sqlite3_errmsg(db()) << std::endl;
-      std::cerr << block.DebugString() << std::endl;
+      std::cerr << block->DebugString() << std::endl;
     }
   }
 }
