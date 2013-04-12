@@ -30,6 +30,11 @@ class MetadataDbImpl : public MetadataDb {
       boost::shared_ptr<Snapshot> snapshot, Callback callback);
   
  private:
+  void FindExistingIds(boost::shared_ptr<Snapshot> snapshot) const;
+  void FindExistingFileId(File* file) const;
+  void FindExistingAttributesId(Attributes* attributes) const;
+  void FindExistingBlockIds(boost::shared_ptr<Snapshot> snapshot) const;
+  
   void WriteNewSnapshot(boost::shared_ptr<Snapshot> snapshot) const;
   void WriteNewFile(File* file) const;
   void WriteNewAttributes(Attributes* attributes) const;

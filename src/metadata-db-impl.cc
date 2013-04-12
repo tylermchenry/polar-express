@@ -89,6 +89,8 @@ void MetadataDbImpl::GetLatestSnapshot(
 void MetadataDbImpl::RecordNewSnapshot(
     boost::shared_ptr<Snapshot> snapshot, Callback callback) {
   assert(!snapshot->has_id());
+
+  FindExistingIds(snapshot);
   
   sqlite3_exec(db(), "begin transaction;",
                nullptr, nullptr, nullptr);
@@ -110,6 +112,74 @@ void MetadataDbImpl::RecordNewSnapshot(
   sqlite3_exec(db(), "commit;", nullptr, nullptr, nullptr);
 
   callback();
+}
+
+void MetadataDbImpl::FindExistingIds(
+    boost::shared_ptr<Snapshot> snapshot) const {
+  if (!snapshot->file().has_id()) {
+    FindExistingFileId(snapshot->mutable_file());
+  }
+  if (!snapshot->attributes().has_id()) {
+    FindExistingAttributesId(snapshot->mutable_attributes());
+  }
+  FindExistingBlockIds(snapshot);
+}
+
+void MetadataDbImpl::FindExistingFileId(File* file) const {
+  assert(file != nullptr);
+  assert(!file->has_id());
+
+  ScopedStatement file_select_stmt(db());
+  file_select_stmt.Prepare("select id from files where path = :path;");
+  file_select_stmt.BindText(":path", file->path());
+
+  if (file_select_stmt.StepUntilNotBusy() == SQLITE_ROW) {
+    file->set_id(file_select_stmt.GetColumnInt64("id"));
+  }
+}
+
+void MetadataDbImpl::FindExistingAttributesId(Attributes* attributes) const {
+  assert(attributes != nullptr);
+  assert(!attributes->has_id());
+
+  ScopedStatement attributes_select_stmt(db());
+  attributes_select_stmt.Prepare(
+      "select id from attributes where owner_user = :owner_user and "
+      "owner_group = :owner_group and uid = :uid and gid = :gid and "
+      "mode = :mode;");
+
+  BIND_IF_PRESENT(attributes_select_stmt, Text, attributes, owner_user);
+  BIND_IF_PRESENT(attributes_select_stmt, Text, attributes, owner_group);
+  BIND_IF_PRESENT(attributes_select_stmt, Int, attributes, uid);
+  BIND_IF_PRESENT(attributes_select_stmt, Int, attributes, gid);
+  BIND_IF_PRESENT(attributes_select_stmt, Int, attributes, mode);
+
+  if (attributes_select_stmt.StepUntilNotBusy() == SQLITE_ROW) {
+    attributes->set_id(attributes_select_stmt.GetColumnInt64("id"));
+  }
+}
+
+void MetadataDbImpl::FindExistingBlockIds(
+    boost::shared_ptr<Snapshot> snapshot) const {
+  ScopedStatement block_select_stmt(db());
+  block_select_stmt.Prepare(
+      "select id from blocks where sha1_digest = :sha1_digest and "
+      "length = :length;");
+
+  for (Chunk& chunk : *(snapshot->mutable_chunks())) {
+    Block* block = chunk.mutable_block();
+    if (block->has_id()) {
+      continue;
+    }
+
+    block_select_stmt.Reset();
+    block_select_stmt.BindText(":sha1_digest", block->sha1_digest());
+    block_select_stmt.BindInt64(":length", block->length());
+
+    if (block_select_stmt.StepUntilNotBusy() == SQLITE_ROW) {
+      block->set_id(block_select_stmt.GetColumnInt64("id"));
+    }
+  }
 }
 
 void MetadataDbImpl::WriteNewSnapshot(
