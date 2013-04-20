@@ -8,6 +8,17 @@
 #include "proto/snapshot.pb.h"
 
 namespace polar_express {
+namespace {
+
+template <int N>
+void WriteHashToString(unsigned char (&raw_digest)[N], string* str) {
+  CryptoPP::HexEncoder encoder;
+  encoder.Attach(new CryptoPP::StringSink(*str));
+  encoder.Put(raw_digest, N);
+  encoder.MessageEnd();
+}
+
+}  // namespace
 
 const size_t ChunkHasherImpl::kBlockSizeBytes = 1024 * 1024;  // 1 MiB
 
@@ -62,11 +73,7 @@ void ChunkHasherImpl::HashData(
       raw_digest,
       reinterpret_cast<const unsigned char*>(data_start),
       data_length);
-
-  CryptoPP::HexEncoder encoder;
-  encoder.Attach(new CryptoPP::StringSink(*sha1_digest));
-  encoder.Put(raw_digest, sizeof(raw_digest));
-  encoder.MessageEnd();
+  WriteHashToString(raw_digest, sha1_digest);
 }
 
 void ChunkHasherImpl::UpdateWholeFileHash(
@@ -79,11 +86,7 @@ void ChunkHasherImpl::UpdateWholeFileHash(
 void ChunkHasherImpl::WriteWholeFileHash(string* sha1_digest) const {
   unsigned char raw_digest[CryptoPP::SHA1::DIGESTSIZE];
   whole_file_sha1_engine_->Final(raw_digest);
-  
-  CryptoPP::HexEncoder encoder;
-  encoder.Attach(new CryptoPP::StringSink(*sha1_digest));
-  encoder.Put(raw_digest, sizeof(raw_digest));
-  encoder.MessageEnd();
+  WriteHashToString(raw_digest, sha1_digest);
 }
 
 }  // namespace polar_express
