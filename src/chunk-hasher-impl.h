@@ -13,6 +13,10 @@
 #include "chunk-hasher.h"
 #include "macros.h"
 
+namespace CryptoPP {
+class SHA1;
+}  // namespace CryptoPP
+
 namespace polar_express {
 
 class Block;
@@ -30,12 +34,19 @@ class ChunkHasherImpl : public ChunkHasher {
  private:
   void FillBlock(
       const boost::iostreams::mapped_file& mapped_file, size_t offset,
-      Block* block) const;
+      Block* block);
 
   void HashData(
       const char* data_start, size_t data_length,
       string* sha1_digest) const;
 
+  void UpdateWholeFileHash(
+      const char* data_start, size_t data_length);
+
+  void WriteWholeFileHash(string* sha1_digest) const;
+  
+  boost::scoped_ptr<CryptoPP::SHA1> whole_file_sha1_engine_;
+  
   static const size_t kBlockSizeBytes;
   
   DISALLOW_COPY_AND_ASSIGN(ChunkHasherImpl);

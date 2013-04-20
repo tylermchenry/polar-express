@@ -12,7 +12,8 @@ namespace polar_express {
 const size_t ChunkHasherImpl::kBlockSizeBytes = 1024 * 1024;  // 1 MiB
 
 ChunkHasherImpl::ChunkHasherImpl()
-  : ChunkHasher(false) {
+  : ChunkHasher(false),
+    whole_file_sha1_engine_(new CryptoPP::SHA1) {
 }
 
 ChunkHasherImpl::~ChunkHasherImpl() {
@@ -37,15 +38,19 @@ void ChunkHasherImpl::GenerateAndHashChunks(
   } catch (...) {
     // TODO: Do something sane here.
   }
+
+  WriteWholeFileHash(snapshot->mutable_sha1_digest());
+  
   callback();
 }
 
 void ChunkHasherImpl::FillBlock(
     const boost::iostreams::mapped_file& mapped_file, size_t offset,
-    Block* block) const {
+    Block* block) {
   block->set_length(min(kBlockSizeBytes, mapped_file.size() - offset));
   HashData(mapped_file.const_data() + offset, block->length(),
            block->mutable_sha1_digest());
+  UpdateWholeFileHash(mapped_file.const_data() + offset, block->length());
 }
 
 void ChunkHasherImpl::HashData(
@@ -58,6 +63,23 @@ void ChunkHasherImpl::HashData(
       reinterpret_cast<const unsigned char*>(data_start),
       data_length);
 
+  CryptoPP::HexEncoder encoder;
+  encoder.Attach(new CryptoPP::StringSink(*sha1_digest));
+  encoder.Put(raw_digest, sizeof(raw_digest));
+  encoder.MessageEnd();
+}
+
+void ChunkHasherImpl::UpdateWholeFileHash(
+    const char* data_start, size_t data_length) {
+  whole_file_sha1_engine_->Update(
+      reinterpret_cast<const unsigned char*>(data_start),
+      data_length);
+}
+
+void ChunkHasherImpl::WriteWholeFileHash(string* sha1_digest) const {
+  unsigned char raw_digest[CryptoPP::SHA1::DIGESTSIZE];
+  whole_file_sha1_engine_->Final(raw_digest);
+  
   CryptoPP::HexEncoder encoder;
   encoder.Attach(new CryptoPP::StringSink(*sha1_digest));
   encoder.Put(raw_digest, sizeof(raw_digest));
