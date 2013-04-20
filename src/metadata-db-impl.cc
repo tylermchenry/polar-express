@@ -15,13 +15,31 @@
 
 #define COL_NAME(field_name) ":" #field_name
 
-#define BIND_IF_PRESENT(stmt, type, proto_ptr, field_name)    \
+#define BIND_IF_PRESENT(stmt, type, proto_ptr, field_name)           \
   do {                                                               \
     if ((proto_ptr)->HAS_FIELD(field_name)()) {                      \
       (stmt).BIND_TYPE(type)(COL_NAME(field_name),                   \
                              (proto_ptr)->field_name());             \
     }                                                                \
   } while(0)
+
+#define GET_TYPE(type) GetColumn ## type
+
+#define QUALIFIED_COL_NAME(tbl_name, field_name)                     \
+  #tbl_name "_" #field_name
+
+#define SET_FIELD(field_name) set_ ## field_name
+
+#define SET_IF_PRESENT(stmt, type, proto_ptr, tbl_name, field_name)  \
+  do {                                                               \
+    if (!(stmt).IsColumnNull(                                        \
+            QUALIFIED_COL_NAME(tbl_name, field_name))) {             \
+      (proto_ptr)->SET_FIELD(field_name)(                            \
+          (stmt).GET_TYPE(type)(                                     \
+              QUALIFIED_COL_NAME(tbl_name, field_name)));            \
+    }                                                                \
+  } while(0)
+                               
 
 namespace polar_express {
 
@@ -74,38 +92,34 @@ void MetadataDbImpl::GetLatestSnapshot(
   snapshot_select_stmt.BindInt64(":file_id", (*snapshot)->file().id());
 
   if (snapshot_select_stmt.StepUntilNotBusy() == SQLITE_ROW) {
-    (*snapshot)->set_id(snapshot_select_stmt.GetColumnInt64("snapshots_id"));
+    SET_IF_PRESENT(snapshot_select_stmt, Int64, *snapshot, snapshots, id);
     
     Attributes* attributes = (*snapshot)->mutable_attributes();
-    attributes->set_id(snapshot_select_stmt.GetColumnInt64("attributes_id"));
-    attributes->set_owner_user(
-        snapshot_select_stmt.GetColumnText("attributes_owner_user"));
-    attributes->set_owner_group(
-        snapshot_select_stmt.GetColumnText("attributes_owner_group"));
-    attributes->set_uid(
-        snapshot_select_stmt.GetColumnInt64("attributes_uid"));
-    attributes->set_gid(
-        snapshot_select_stmt.GetColumnInt64("attributes_gid"));
-    attributes->set_mode(
-        snapshot_select_stmt.GetColumnInt64("attributes_mode"));
-    
-    (*snapshot)->set_creation_time(
-        snapshot_select_stmt.GetColumnInt64("snapshots_creation_time"));
-    (*snapshot)->set_modification_time(
-        snapshot_select_stmt.GetColumnInt64("snapshots_modification_time"));
-    (*snapshot)->set_access_time(
-        snapshot_select_stmt.GetColumnInt64("snapshots_access_time"));
+    SET_IF_PRESENT(snapshot_select_stmt, Int64, attributes, attributes, id);
+    SET_IF_PRESENT(snapshot_select_stmt, Text, attributes,
+                   attributes, owner_user);
+    SET_IF_PRESENT(snapshot_select_stmt, Text, attributes,
+                   attributes, owner_group);
+    SET_IF_PRESENT(snapshot_select_stmt, Int64, attributes, attributes, uid);
+    SET_IF_PRESENT(snapshot_select_stmt, Int64, attributes, attributes, gid);
+    SET_IF_PRESENT(snapshot_select_stmt, Int64, attributes, attributes, mode);
+
+    SET_IF_PRESENT(snapshot_select_stmt, Int64, *snapshot,
+                   snapshots, creation_time);
+    SET_IF_PRESENT(snapshot_select_stmt, Int64, *snapshot,
+                   snapshots, modification_time);
+    SET_IF_PRESENT(snapshot_select_stmt, Int64, *snapshot,
+                   snapshots, access_time);
     // TODO: Extra attributes
-    (*snapshot)->set_is_regular(
-        snapshot_select_stmt.GetColumnBool("snapshots_is_regular"));
-    (*snapshot)->set_is_deleted(
-        snapshot_select_stmt.GetColumnBool("snapshots_is_deleted"));
-    (*snapshot)->set_sha1_digest(
-        snapshot_select_stmt.GetColumnText("snapshots_sha1_digest"));
-    (*snapshot)->set_length(
-        snapshot_select_stmt.GetColumnInt64("snapshots_length"));
-    (*snapshot)->set_observation_time(
-        snapshot_select_stmt.GetColumnInt64("snapshots_observation_time"));
+    SET_IF_PRESENT(snapshot_select_stmt, Bool, *snapshot,
+                   snapshots, is_regular);
+    SET_IF_PRESENT(snapshot_select_stmt, Bool, *snapshot,
+                   snapshots, is_deleted);
+    SET_IF_PRESENT(snapshot_select_stmt, Text, *snapshot,
+                   snapshots, sha1_digest);
+    SET_IF_PRESENT(snapshot_select_stmt, Int64, *snapshot, snapshots, length);
+    SET_IF_PRESENT(snapshot_select_stmt, Int64, *snapshot,
+                   snapshots, observation_time);
   }
   
   callback();
@@ -155,11 +169,12 @@ void MetadataDbImpl::FindExistingFileId(File* file) const {
   assert(!file->has_id());
 
   ScopedStatement file_select_stmt(db());
-  file_select_stmt.Prepare("select id from files where path = :path;");
+  file_select_stmt.Prepare(
+      "select files.id as files_id from files where path = :path;");
   file_select_stmt.BindText(":path", file->path());
 
   if (file_select_stmt.StepUntilNotBusy() == SQLITE_ROW) {
-    file->set_id(file_select_stmt.GetColumnInt64("id"));
+    SET_IF_PRESENT(file_select_stmt, Int64, file, files, id);
   }
 }
 

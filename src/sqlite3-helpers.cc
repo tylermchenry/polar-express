@@ -53,6 +53,10 @@ int ScopedStatement::StepUntilNotBusy() {
   return code;
 }
 
+bool ScopedStatement::IsColumnNull(const string& col_name) {
+  return (sqlite3_column_type(stmt_, GetColumnIdx(col_name)) == SQLITE_NULL);
+}
+
 string ScopedStatement::GetColumnText(const string& col_name) {
   const char* value_cstr = reinterpret_cast<const char*>(
       sqlite3_column_text(stmt_, GetColumnIdx(col_name)));
@@ -64,7 +68,7 @@ int64_t ScopedStatement::GetColumnInt64(const string& col_name) {
 }
 
 bool ScopedStatement::GetColumnBool(const string& col_name) {
-  return (sqlite3_column_int(stmt_, GetColumnIdx(col_name)) == 0);
+  return (sqlite3_column_int(stmt_, GetColumnIdx(col_name)) != 0);
 }
 
 int ScopedStatement::Reset() {

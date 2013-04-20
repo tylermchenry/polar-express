@@ -27,10 +27,12 @@ class ScopedStatement {
   int Step();
   int StepUntilNotBusy();
 
+  bool IsColumnNull(const string& col_name);
+  
   string GetColumnText(const string& col_name);
   int64_t GetColumnInt64(const string& col_name);
   bool GetColumnBool(const string& col_name);
-  
+ 
   int Reset();
   
  private:
