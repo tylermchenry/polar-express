@@ -54,8 +54,9 @@ int ScopedStatement::StepUntilNotBusy() {
 }
 
 string ScopedStatement::GetColumnText(const string& col_name) {
-  return reinterpret_cast<const char*>(
+  const char* value_cstr = reinterpret_cast<const char*>(
       sqlite3_column_text(stmt_, GetColumnIdx(col_name)));
+  return (value_cstr != nullptr) ? string(value_cstr) : "";
 }
 
 int64_t ScopedStatement::GetColumnInt64(const string& col_name) {

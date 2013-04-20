@@ -1,5 +1,7 @@
 #include "metadata-db-impl.h"
 
+#include <iostream>
+
 #include "boost/thread/once.hpp"
 #include "sqlite3.h"
 
@@ -36,51 +38,74 @@ void MetadataDbImpl::GetLatestSnapshot(
     const File& file, boost::shared_ptr<Snapshot>* snapshot,
     Callback callback) {
   CHECK_NOTNULL(snapshot)->reset(new Snapshot);
-  
+
+  (*snapshot)->mutable_file()->CopyFrom(file);
+
+  if (!(*snapshot)->file().has_id()) {
+    FindExistingFileId((*snapshot)->mutable_file());
+  }
+  if (!(*snapshot)->file().has_id()) {
+    callback();
+    return;
+  }
+
   ScopedStatement snapshot_select_stmt(db());
   snapshot_select_stmt.Prepare(
-      "select * from snapshots join attributes on "
-      "snapshots.attributes_id = attributes.id "
-      "where file_id = :file_id "
-      "order by observation_time desc limit 1;");
+      "select snapshots.id as snapshots_id, "
+      "       snapshots.creation_time as snapshots_creation_time, "
+      "       snapshots.modification_time as snapshots_modification_time, "
+      "       snapshots.access_time as snapshots_access_time, "
+      "       snapshots.is_regular as snapshots_is_regular, "
+      "       snapshots.is_deleted as snapshots_is_deleted, "
+      "       snapshots.sha1_digest as snapshots_sha1_digest, "
+      "       snapshots.length as snapshots_length, "
+      "       snapshots.observation_time as snapshots_observation_time, "
+      "       attributes.id as attributes_id, "
+      "       attributes.owner_user as attributes_owner_user, "
+      "       attributes.owner_group as attributes_owner_group,"
+      "       attributes.uid as attributes_uid, "
+      "       attributes.gid as attributes_gid, "
+      "       attributes.mode as attributes_mode "
+      "from snapshots join attributes on "
+      "  snapshots.attributes_id = attributes.id "
+      "where snapshots.file_id = :file_id "
+    "order by snapshots.observation_time desc limit 1;");
 
-  snapshot_select_stmt.BindInt64(":file_id", file.id());
+  snapshot_select_stmt.BindInt64(":file_id", (*snapshot)->file().id());
 
   if (snapshot_select_stmt.StepUntilNotBusy() == SQLITE_ROW) {
-    (*snapshot)->set_id(snapshot_select_stmt.GetColumnInt64("snapshots.id"));
-
-    (*snapshot)->mutable_file()->CopyFrom(file);
+    (*snapshot)->set_id(snapshot_select_stmt.GetColumnInt64("snapshots_id"));
     
     Attributes* attributes = (*snapshot)->mutable_attributes();
-    attributes->set_id(snapshot_select_stmt.GetColumnInt64("attributes.id"));
+    attributes->set_id(snapshot_select_stmt.GetColumnInt64("attributes_id"));
     attributes->set_owner_user(
-        snapshot_select_stmt.GetColumnText("attributes.owner_user"));
+        snapshot_select_stmt.GetColumnText("attributes_owner_user"));
     attributes->set_owner_group(
-        snapshot_select_stmt.GetColumnText("attributes.owner_group"));
+        snapshot_select_stmt.GetColumnText("attributes_owner_group"));
     attributes->set_uid(
-        snapshot_select_stmt.GetColumnInt64("attributes.uid"));
+        snapshot_select_stmt.GetColumnInt64("attributes_uid"));
     attributes->set_gid(
-        snapshot_select_stmt.GetColumnInt64("attributes.gid"));
+        snapshot_select_stmt.GetColumnInt64("attributes_gid"));
     attributes->set_mode(
-        snapshot_select_stmt.GetColumnInt64("attributes.mode"));
+        snapshot_select_stmt.GetColumnInt64("attributes_mode"));
     
     (*snapshot)->set_creation_time(
-        snapshot_select_stmt.GetColumnInt64("snapshots.creation_time"));
+        snapshot_select_stmt.GetColumnInt64("snapshots_creation_time"));
     (*snapshot)->set_modification_time(
-        snapshot_select_stmt.GetColumnInt64("snapshots.modification_time"));
+        snapshot_select_stmt.GetColumnInt64("snapshots_modification_time"));
     (*snapshot)->set_access_time(
-        snapshot_select_stmt.GetColumnInt64("snapshots.access_time"));
+        snapshot_select_stmt.GetColumnInt64("snapshots_access_time"));
     // TODO: Extra attributes
     (*snapshot)->set_is_regular(
-        snapshot_select_stmt.GetColumnBool("snapshots.is_regular"));
+        snapshot_select_stmt.GetColumnBool("snapshots_is_regular"));
     (*snapshot)->set_is_deleted(
-        snapshot_select_stmt.GetColumnBool("snapshots.is_deleted"));
+        snapshot_select_stmt.GetColumnBool("snapshots_is_deleted"));
     (*snapshot)->set_sha1_digest(
-        snapshot_select_stmt.GetColumnText("snapshots.sha1_digest"));
+        snapshot_select_stmt.GetColumnText("snapshots_sha1_digest"));
     (*snapshot)->set_length(
-        snapshot_select_stmt.GetColumnInt64("snapshots.length"));
+        snapshot_select_stmt.GetColumnInt64("snapshots_length"));
     (*snapshot)->set_observation_time(
-        snapshot_select_stmt.GetColumnInt64("snapshots.observation_time"));
+        snapshot_select_stmt.GetColumnInt64("snapshots_observation_time"));
   }
   
   callback();
