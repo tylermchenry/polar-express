@@ -14,6 +14,7 @@ class sqlite3;
 namespace polar_express {
 
 class Attributes;
+class Chunk;
 class File;
 class Snapshot;
 
@@ -34,11 +35,13 @@ class MetadataDbImpl : public MetadataDb {
   void FindExistingFileId(File* file) const;
   void FindExistingAttributesId(Attributes* attributes) const;
   void FindExistingBlockIds(boost::shared_ptr<Snapshot> snapshot) const;
+  void FindExistingChunkIds(boost::shared_ptr<Snapshot> snapshot) const;
   
   void WriteNewSnapshot(boost::shared_ptr<Snapshot> snapshot) const;
   void WriteNewFile(File* file) const;
   void WriteNewAttributes(Attributes* attributes) const;
   void WriteNewBlocks(boost::shared_ptr<Snapshot> snapshot) const;
+  void WriteNewChunks(boost::shared_ptr<Snapshot> snapshot) const;
   
   static sqlite3* db_;
   

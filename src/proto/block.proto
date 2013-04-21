@@ -8,13 +8,13 @@ message Block {
 }
 
 // A chunk is a block, tagged with an offset and an observation
-// time. These correspond to the files_to_block table in the metadata
-// db, although that table is not an exhaustive list of all chunks,
-// just a cache of chunks for the most recent snapshot.
+// time. These correspond to the files_to_blocks table in the metadata
+// db.
 //
-// Next tag: 3
+// Next tag: 4
 message Chunk {
-  optional int64 offset = 1;
-  optional Block block = 2;
-  optional int64 observation_time = 3;
+  optional int64 id = 1;
+  optional int64 offset = 2;
+  optional Block block = 3;
+  optional int64 observation_time = 4;
 }

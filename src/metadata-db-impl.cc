@@ -40,7 +40,6 @@
     }                                                                \
   } while(0)
                                
-
 namespace polar_express {
 
 sqlite3* MetadataDbImpl::db_ = nullptr;
@@ -144,9 +143,9 @@ void MetadataDbImpl::RecordNewSnapshot(
 
   WriteNewBlocks(snapshot);
 
+  WriteNewChunks(snapshot);
+  
   WriteNewSnapshot(snapshot);
-
-  // TODO: Also write block-to-file mappings.
   
   sqlite3_exec(db(), "commit;", nullptr, nullptr, nullptr);
 
@@ -162,6 +161,7 @@ void MetadataDbImpl::FindExistingIds(
     FindExistingAttributesId(snapshot->mutable_attributes());
   }
   FindExistingBlockIds(snapshot);
+  FindExistingChunkIds(snapshot);
 }
 
 void MetadataDbImpl::FindExistingFileId(File* file) const {
@@ -222,6 +222,49 @@ void MetadataDbImpl::FindExistingBlockIds(
   }
 }
 
+void MetadataDbImpl::FindExistingChunkIds(
+    boost::shared_ptr<Snapshot> snapshot) const {
+  // This finds the most recent file->block mappings for this file. If the most
+  // recent file->block mapping for a chunk's offset references the same block
+  // ID, then that chunk ID is re-used.
+  ScopedStatement mapping_select_stmt(db());
+  mapping_select_stmt.Prepare(
+      "select distinct id, block_id, offset, "
+      "                max(observation_time) as max_observation_time "
+      "from files_to_blocks where file_id = :file_id "
+      "group by offset;");
+
+  mapping_select_stmt.BindInt64(":file_id", snapshot->file().id());
+  
+  map<int64_t, boost::shared_ptr<Chunk> > offsets_to_latest_chunks;
+  while (mapping_select_stmt.StepUntilNotBusy() == SQLITE_ROW) {
+    boost::shared_ptr<Chunk> chunk(new Chunk);
+    chunk->set_id(mapping_select_stmt.GetColumnInt64("id"));
+    chunk->set_offset(mapping_select_stmt.GetColumnInt64("offset"));
+    chunk->mutable_block()->set_id(
+        mapping_select_stmt.GetColumnInt64("block_id"));
+    chunk->set_observation_time(
+        mapping_select_stmt.GetColumnInt64("max_observation_time"));
+    offsets_to_latest_chunks.insert(make_pair(chunk->offset(), chunk));
+  }
+  
+  for (Chunk& chunk : *(snapshot->mutable_chunks())) {
+    if (chunk.has_id()) {
+      continue;
+    }
+
+    auto latest_chunk_itr = offsets_to_latest_chunks.find(chunk.offset());
+    if (latest_chunk_itr == offsets_to_latest_chunks.end()) {
+      continue;
+    }
+
+    const Chunk& latest_chunk = *latest_chunk_itr->second;
+    if (chunk.block().id() == latest_chunk.block().id()) {
+      chunk.CopyFrom(latest_chunk);
+    }
+  }
+}
+  
 void MetadataDbImpl::WriteNewSnapshot(
     boost::shared_ptr<Snapshot> snapshot) const {
   assert(!snapshot->has_id());
@@ -338,6 +381,41 @@ void MetadataDbImpl::WriteNewBlocks(
   }
 }
 
+void MetadataDbImpl::WriteNewChunks(
+    boost::shared_ptr<Snapshot> snapshot) const {
+  ScopedStatement mapping_insert_stmt(db());
+
+  mapping_insert_stmt.Prepare(
+      "insert into files_to_blocks "
+      "('file_id', 'block_id', 'offset', 'observation_time') "
+      "values (:file_id, :block_id, :offset, :observation_time);");
+
+  for (Chunk& chunk : *(snapshot->mutable_chunks())) {
+    if (chunk.has_id()) {
+      continue;
+    }
+    
+    const Block* block = chunk.mutable_block();
+    chunk.set_observation_time(snapshot->observation_time());
+    
+    mapping_insert_stmt.Reset();
+    mapping_insert_stmt.BindInt64(":file_id", snapshot->file().id());
+    mapping_insert_stmt.BindInt64(":block_id", block->id());
+    mapping_insert_stmt.BindInt64(":offset", chunk.offset());
+    mapping_insert_stmt.BindInt64(
+        ":observation_time", chunk.observation_time());
+
+    int code = mapping_insert_stmt.StepUntilNotBusy();
+
+    if (code == SQLITE_DONE) {
+      chunk.set_id(sqlite3_last_insert_rowid(db()));
+    } else {
+      std::cerr << sqlite3_errmsg(db()) << std::endl;
+      std::cerr << chunk.DebugString() << std::endl;
+    }
+  }
+}
+  
 // static
 sqlite3* MetadataDbImpl::db() {
   static once_flag once = BOOST_ONCE_INIT;
