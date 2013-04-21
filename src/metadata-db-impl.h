@@ -31,6 +31,9 @@ class MetadataDbImpl : public MetadataDb {
       boost::shared_ptr<Snapshot> snapshot, Callback callback);
   
  private:
+  // TODO(tylermchenry): Might be useful for this to be public later.
+  int64_t GetLatestSnapshotId(const File& file) const;
+
   void FindExistingIds(boost::shared_ptr<Snapshot> snapshot) const;
   void FindExistingFileId(File* file) const;
   void FindExistingAttributesId(Attributes* attributes) const;
@@ -42,6 +45,10 @@ class MetadataDbImpl : public MetadataDb {
   void WriteNewAttributes(Attributes* attributes) const;
   void WriteNewBlocks(boost::shared_ptr<Snapshot> snapshot) const;
   void WriteNewChunks(boost::shared_ptr<Snapshot> snapshot) const;
+
+  void UpdateLatestChunksCache(
+      int64_t previous_snapshot_id,
+      boost::shared_ptr<Snapshot> snapshot) const;
   
   static sqlite3* db_;
   

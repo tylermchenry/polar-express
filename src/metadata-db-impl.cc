@@ -127,7 +127,8 @@ void MetadataDbImpl::GetLatestSnapshot(
 void MetadataDbImpl::RecordNewSnapshot(
     boost::shared_ptr<Snapshot> snapshot, Callback callback) {
   assert(!snapshot->has_id());
-
+  int64_t previous_snapshot_id = -1;
+  
   FindExistingIds(snapshot);
   
   sqlite3_exec(db(), "begin transaction;",
@@ -135,6 +136,8 @@ void MetadataDbImpl::RecordNewSnapshot(
 
   if (!snapshot->file().has_id()) {
     WriteNewFile(snapshot->mutable_file());
+  } else {
+    previous_snapshot_id = GetLatestSnapshotId(snapshot->file());
   }
   
   if (!snapshot->attributes().has_id()) {
@@ -146,10 +149,26 @@ void MetadataDbImpl::RecordNewSnapshot(
   WriteNewChunks(snapshot);
   
   WriteNewSnapshot(snapshot);
+
+  UpdateLatestChunksCache(previous_snapshot_id, snapshot);
   
   sqlite3_exec(db(), "commit;", nullptr, nullptr, nullptr);
 
   callback();
+}
+
+int64_t MetadataDbImpl::GetLatestSnapshotId(const File& file) const {
+  ScopedStatement snapshot_select_stmt(db());
+  snapshot_select_stmt.Prepare(
+      "select id from snapshots where file_id = :file_id "
+      "order by observation_time desc limit 1;");
+  snapshot_select_stmt.BindInt64(":file_id", file.id());
+
+  if (snapshot_select_stmt.StepUntilNotBusy() == SQLITE_ROW) {
+    return snapshot_select_stmt.GetColumnInt64("id");
+  }
+  
+  return -1;
 }
 
 void MetadataDbImpl::FindExistingIds(
@@ -414,7 +433,37 @@ void MetadataDbImpl::WriteNewChunks(
     }
   }
 }
+
+void MetadataDbImpl::UpdateLatestChunksCache(
+    int64_t previous_snapshot_id,
+    boost::shared_ptr<Snapshot> snapshot) const {
+  if (previous_snapshot_id > 0) {
+    ScopedStatement cache_delete_stmt(db());
+    cache_delete_stmt.Prepare(
+        "delete from local_snapshots_to_files_to_blocks "
+        "where snapshot_id = :snapshot_id;");
+    cache_delete_stmt.BindInt64(":snapshot_id", previous_snapshot_id);
+    cache_delete_stmt.StepUntilNotBusy();
+  }
   
+  ScopedStatement cache_insert_stmt(db());
+  cache_insert_stmt.Prepare(
+      "insert into local_snapshots_to_files_to_blocks "
+      "  (snapshot_id, files_to_block_id) values "
+      "  (:snapshot_id, :files_to_block_id);");
+
+  for (const Chunk& chunk : *(snapshot->mutable_chunks())) {
+    assert(chunk.has_id());
+    cache_insert_stmt.Reset();
+    cache_insert_stmt.BindInt64(":snapshot_id", snapshot->id());
+    cache_insert_stmt.BindInt64(":files_to_blocks_id", chunk.id());
+
+    if (cache_insert_stmt.StepUntilNotBusy() != SQLITE_DONE) {
+      std::cerr << sqlite3_errmsg(db()) << std::endl;
+    }
+  }
+}
+
 // static
 sqlite3* MetadataDbImpl::db() {
   static once_flag once = BOOST_ONCE_INIT;
