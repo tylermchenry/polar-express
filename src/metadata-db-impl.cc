@@ -260,7 +260,8 @@ void MetadataDbImpl::FindExistingChunkIds(
 
     const Chunk& latest_chunk = *latest_chunk_itr->second;
     if (chunk.block().id() == latest_chunk.block().id()) {
-      chunk.CopyFrom(latest_chunk);
+      chunk.set_id(latest_chunk.id());
+      chunk.set_observation_time(latest_chunk.observation_time());
     }
   }
 }
