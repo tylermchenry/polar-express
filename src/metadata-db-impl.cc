@@ -392,12 +392,10 @@ void MetadataDbImpl::WriteNewChunks(
       "values (:file_id, :block_id, :offset, :observation_time);");
 
   for (Chunk& chunk : *(snapshot->mutable_chunks())) {
+    const Block* block = chunk.mutable_block();
     if (chunk.has_id()) {
       continue;
     }
-    
-    const Block* block = chunk.mutable_block();
-    chunk.set_observation_time(snapshot->observation_time());
     
     mapping_insert_stmt.Reset();
     mapping_insert_stmt.BindInt64(":file_id", snapshot->file().id());
