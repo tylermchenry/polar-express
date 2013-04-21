@@ -34,11 +34,15 @@ class MetadataDbImpl : public MetadataDb {
   // TODO(tylermchenry): Might be useful for this to be public later.
   int64_t GetLatestSnapshotId(const File& file) const;
 
-  void FindExistingIds(boost::shared_ptr<Snapshot> snapshot) const;
+  void FindExistingIds(
+      boost::shared_ptr<Snapshot> snapshot,
+      int64_t* previous_snapshot_id) const;
   void FindExistingFileId(File* file) const;
   void FindExistingAttributesId(Attributes* attributes) const;
   void FindExistingBlockIds(boost::shared_ptr<Snapshot> snapshot) const;
-  void FindExistingChunkIds(boost::shared_ptr<Snapshot> snapshot) const;
+  void FindExistingChunkIds(
+      int64_t previous_snapshot_id,
+      boost::shared_ptr<Snapshot> snapshot) const;
   
   void WriteNewSnapshot(boost::shared_ptr<Snapshot> snapshot) const;
   void WriteNewFile(File* file) const;

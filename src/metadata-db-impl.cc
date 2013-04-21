@@ -129,16 +129,14 @@ void MetadataDbImpl::RecordNewSnapshot(
   assert(!snapshot->has_id());
   int64_t previous_snapshot_id = -1;
   
-  FindExistingIds(snapshot);
-  
+  FindExistingIds(snapshot, &previous_snapshot_id);
+
   sqlite3_exec(db(), "begin transaction;",
                nullptr, nullptr, nullptr);
 
   if (!snapshot->file().has_id()) {
     WriteNewFile(snapshot->mutable_file());
-  } else {
-    previous_snapshot_id = GetLatestSnapshotId(snapshot->file());
-  }
+  } 
   
   if (!snapshot->attributes().has_id()) {
     WriteNewAttributes(snapshot->mutable_attributes());
@@ -172,15 +170,25 @@ int64_t MetadataDbImpl::GetLatestSnapshotId(const File& file) const {
 }
 
 void MetadataDbImpl::FindExistingIds(
-    boost::shared_ptr<Snapshot> snapshot) const {
+    boost::shared_ptr<Snapshot> snapshot,
+    int64_t* previous_snapshot_id) const {
+  assert(previous_snapshot_id != nullptr);
+  
   if (!snapshot->file().has_id()) {
     FindExistingFileId(snapshot->mutable_file());
+  }
+  if (snapshot->file().has_id()) {
+    *previous_snapshot_id = GetLatestSnapshotId(snapshot->file());
+  } else {
+    *previous_snapshot_id = -1;
   }
   if (!snapshot->attributes().has_id()) {
     FindExistingAttributesId(snapshot->mutable_attributes());
   }
   FindExistingBlockIds(snapshot);
-  FindExistingChunkIds(snapshot);
+  if (previous_snapshot_id > 0) {
+    FindExistingChunkIds(*previous_snapshot_id, snapshot);
+  }
 }
 
 void MetadataDbImpl::FindExistingFileId(File* file) const {
@@ -242,28 +250,35 @@ void MetadataDbImpl::FindExistingBlockIds(
 }
 
 void MetadataDbImpl::FindExistingChunkIds(
+    int64_t previous_snapshot_id,
     boost::shared_ptr<Snapshot> snapshot) const {
-  // This finds the most recent file->block mappings for this file. If the most
-  // recent file->block mapping for a chunk's offset references the same block
-  // ID, then that chunk ID is re-used.
   ScopedStatement mapping_select_stmt(db());
   mapping_select_stmt.Prepare(
-      "select distinct id, block_id, offset, "
-      "                max(observation_time) as max_observation_time "
-      "from files_to_blocks where file_id = :file_id "
-      "group by offset;");
+      "select files_to_blocks.id as files_to_blocks_id, "
+      "       files_to_blocks.block_id as files_to_blocks_block_id, "
+      "       files_to_blocks.offset as files_to_blocks_offset, "
+      "       files_to_blocks.observation_time as "
+      "         files_to_blocks_observation_time "
+      "from files_to_blocks "
+      "  join local_snapshots_to_files_to_blocks "
+      "  on files_to_blocks.id = "
+      "    local_snapshots_to_files_to_blocks.files_to_blocks_id "
+      "where local_snapshots_to_files_to_blocks.snapshot_id = "
+      "  :snapshot_id;");
 
-  mapping_select_stmt.BindInt64(":file_id", snapshot->file().id());
+  mapping_select_stmt.BindInt64(":snapshot_id", previous_snapshot_id);
   
   map<int64_t, boost::shared_ptr<Chunk> > offsets_to_latest_chunks;
   while (mapping_select_stmt.StepUntilNotBusy() == SQLITE_ROW) {
     boost::shared_ptr<Chunk> chunk(new Chunk);
-    chunk->set_id(mapping_select_stmt.GetColumnInt64("id"));
-    chunk->set_offset(mapping_select_stmt.GetColumnInt64("offset"));
+    chunk->set_id(
+        mapping_select_stmt.GetColumnInt64("files_to_blocks_id"));
+    chunk->set_offset(
+        mapping_select_stmt.GetColumnInt64("files_to_blocks_offset"));
     chunk->mutable_block()->set_id(
-        mapping_select_stmt.GetColumnInt64("block_id"));
+        mapping_select_stmt.GetColumnInt64("files_to_blocks_block_id"));
     chunk->set_observation_time(
-        mapping_select_stmt.GetColumnInt64("max_observation_time"));
+        mapping_select_stmt.GetColumnInt64("files_to_blocks_observation_time"));
     offsets_to_latest_chunks.insert(make_pair(chunk->offset(), chunk));
   }
   
@@ -449,8 +464,8 @@ void MetadataDbImpl::UpdateLatestChunksCache(
   ScopedStatement cache_insert_stmt(db());
   cache_insert_stmt.Prepare(
       "insert into local_snapshots_to_files_to_blocks "
-      "  (snapshot_id, files_to_block_id) values "
-      "  (:snapshot_id, :files_to_block_id);");
+      "  (snapshot_id, files_to_blocks_id) values "
+      "  (:snapshot_id, :files_to_blocks_id);");
 
   for (const Chunk& chunk : *(snapshot->mutable_chunks())) {
     assert(chunk.has_id());
