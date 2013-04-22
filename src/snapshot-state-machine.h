@@ -5,7 +5,6 @@
 
 #include "boost/filesystem.hpp"
 #include "boost/shared_ptr.hpp"
-#include "boost/thread/condition_variable.hpp"
 
 #include "macros.h"
 #include "overrideable-scoped-ptr.h"
@@ -24,10 +23,6 @@ class SnapshotUtil;
 // A state machine which goes through the process of generating a snapshot of a
 // single file, comparing it with the previous snapshot (if any), and then
 // writing information about any updates to the database.
-//
-// TODO: Currently this is incomplete; it just reads the filesystem metadata and
-// prints it to standard output. Expand documentation as the class becomes more
-// complete.
 class SnapshotStateMachineImpl
   : public StateMachine<SnapshotStateMachineImpl, SnapshotStateMachine> {
  public:
