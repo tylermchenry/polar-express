@@ -42,6 +42,10 @@ class BackupExecutor {
   // Returns the number of files processed during the backup. Should be called
   // only after the backup has completed.
   virtual int GetNumFilesProcessed() const;
+
+  // Returns the number of new snapshots generated during the backup. Should be
+  // called only after the backup has completed.
+  virtual int GetNumSnapshotsGenerated() const;
   
  private:
   // Obtains new file paths from the directory scanner and enqueues them. Posts
@@ -72,7 +76,8 @@ class BackupExecutor {
   snapshot_state_machine_pool_;
   int num_running_snapshot_state_machines_;
   int num_finished_snapshot_state_machines_;
-
+  int num_snapshots_generated_;
+  
   enum class ScanState {
     kNotStarted,
     kInProgress,

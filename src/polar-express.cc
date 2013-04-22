@@ -17,6 +17,8 @@ int main(int argc, char** argv) {
     AsioDispatcher::GetInstance()->WaitForFinish();
     std::cout << "Processed " << backup_executor.GetNumFilesProcessed()
               << " files." << std::endl;
+    std::cout << "Generated " << backup_executor.GetNumSnapshotsGenerated()
+              << " new snapshots." << std::endl;
   }
   return 0;
 }

@@ -42,6 +42,12 @@ class SnapshotStateMachineImpl
   PE_STATE_MACHINE_DEFINE_STATE(HaveChunkHashes);
   PE_STATE_MACHINE_DEFINE_STATE(WaitForSnapshotToRecord);
   PE_STATE_MACHINE_DEFINE_STATE(Done);
+
+  // Returns the new snapshot generated as a result of invoking this state
+  // machine. If the state machine determined that no new snapshot was
+  // necessary, this returns null. This method should only be called after the
+  // state machine has finished and the done callback has been executed.
+  boost::shared_ptr<Snapshot> GetGeneratedSnapshot() const;
   
  protected:
   PE_STATE_MACHINE_DEFINE_EVENT(NewFilePathReady);

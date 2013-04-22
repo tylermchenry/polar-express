@@ -19,6 +19,7 @@ BackupExecutor::BackupExecutor()
         new boost::object_pool<SnapshotStateMachine>),
       num_running_snapshot_state_machines_(0),
       num_finished_snapshot_state_machines_(0),
+      num_snapshots_generated_(0),
       scan_state_(ScanState::kNotStarted),
       strand_dispatcher_(
           AsioDispatcher::GetInstance()->NewStrandDispatcherStateMachine()),
@@ -44,6 +45,10 @@ void BackupExecutor::Start(const string& root) {
 
 int BackupExecutor::GetNumFilesProcessed() const {
   return num_finished_snapshot_state_machines_;
+}
+
+int BackupExecutor::GetNumSnapshotsGenerated() const {
+  return num_snapshots_generated_;
 }
 
 void BackupExecutor::AddNewPendingSnapshotPaths() {
@@ -93,6 +98,10 @@ void BackupExecutor::RunNextSnapshotStateMachine() {
   
 void BackupExecutor::DeleteSnapshotStateMachine(
     SnapshotStateMachine* snapshot_state_machine) {
+  if (snapshot_state_machine->GetGeneratedSnapshot().get() != nullptr) {
+    ++num_snapshots_generated_;
+  }
+  
   snapshot_state_machine_pool_->destroy(snapshot_state_machine);
   --num_running_snapshot_state_machines_;
   ++num_finished_snapshot_state_machines_;

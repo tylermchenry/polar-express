@@ -30,6 +30,11 @@ SnapshotStateMachineImpl::SnapshotStateMachineImpl()
 SnapshotStateMachineImpl::~SnapshotStateMachineImpl() {
 }
 
+boost::shared_ptr<Snapshot>
+SnapshotStateMachineImpl::GetGeneratedSnapshot() const {
+  return candidate_snapshot_;
+}
+  
 PE_STATE_MACHINE_ACTION_HANDLER(
     SnapshotStateMachineImpl, RequestGenerateCandidateSnapshot) {
   candidate_snapshot_generator_->GenerateCandidateSnapshot(
@@ -48,6 +53,7 @@ PE_STATE_MACHINE_ACTION_HANDLER(
     SnapshotStateMachineImpl, InspectSnapshots) {
   if (snapshot_util_->AllMetadataEqual(
           *candidate_snapshot_, *previous_snapshot_)) {
+    candidate_snapshot_.reset();
     PostEvent<NoUpdatesNecessary>();
   } else if (snapshot_util_->FileContentsEqual(
       *candidate_snapshot_, *previous_snapshot_)) {
