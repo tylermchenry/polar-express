@@ -60,6 +60,9 @@ class BackupExecutor {
   // state, it tells the scanner to continue.
   void RunNextSnapshotStateMachine();
 
+  void HandleSnapshotStateMachineFinished(
+      SnapshotStateMachine* snapshot_state_machine);
+  
   // Deletes the given snapshot state machine, counts it as finished, and posts
   // a callback to try to start the next snapshot state machine.
   void DeleteSnapshotStateMachine(

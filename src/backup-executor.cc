@@ -78,7 +78,7 @@ void BackupExecutor::RunNextSnapshotStateMachine() {
   SnapshotStateMachine* snapshot_state_machine =
       snapshot_state_machine_pool_->construct();
   snapshot_state_machine->SetDoneCallback(CreateStrandCallback(
-      bind(&BackupExecutor::DeleteSnapshotStateMachine,
+      bind(&BackupExecutor::HandleSnapshotStateMachineFinished,
            this, snapshot_state_machine)));
   snapshot_state_machine->Start(root_, path);
 
@@ -96,12 +96,17 @@ void BackupExecutor::RunNextSnapshotStateMachine() {
   } 
 }
   
-void BackupExecutor::DeleteSnapshotStateMachine(
+void BackupExecutor::HandleSnapshotStateMachineFinished(
     SnapshotStateMachine* snapshot_state_machine) {
   if (snapshot_state_machine->GetGeneratedSnapshot().get() != nullptr) {
     ++num_snapshots_generated_;
   }
-  
+
+  DeleteSnapshotStateMachine(snapshot_state_machine);
+}
+
+void BackupExecutor::DeleteSnapshotStateMachine(
+    SnapshotStateMachine* snapshot_state_machine) {
   snapshot_state_machine_pool_->destroy(snapshot_state_machine);
   --num_running_snapshot_state_machines_;
   ++num_finished_snapshot_state_machines_;
