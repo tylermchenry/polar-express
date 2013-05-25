@@ -1,6 +1,7 @@
 #include "bundle-state-machine.h"
 
-#include "make-unique.h"
+#include "proto/block.pb.h"
+#include "proto/snapshot.pb.h"
 
 namespace polar_express {
 
@@ -19,9 +20,13 @@ BundleStateMachineImpl::BundleStateMachineImpl()
 BundleStateMachineImpl::~BundleStateMachineImpl() {
 }
 
+void BundleStateMachineImpl::SetBundleReadyCallback(Callback callback) {
+  bundle_ready_callback_ = callback;
+}
+
 void BundleStateMachineImpl::BundleSnapshot(
-    boost::shared_ptr<Snapshot> snapshot, Callback done_callback) {
-  PushPendingSnapshot(snapshot, done_callback);
+    boost::shared_ptr<Snapshot> snapshot) {
+  PushPendingSnapshot(snapshot);
   PostEvent<NewSnapshotReady>();
 }
 
@@ -37,6 +42,12 @@ void BundleStateMachineImpl::GetAndClearGeneratedBundles(
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, StartNewSnapshot) {
+  boost::shared_ptr<Snapshot> snapshot;
+  if (PopPendingSnapshot(&snapshot)) {
+    PushPendingChunksForSnapshot(snapshot);
+  } else if (exit_requested_) {
+    // ...
+  }
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, ResetForNextSnapshot) {
@@ -49,16 +60,16 @@ PE_STATE_MACHINE_ACTION_HANDLER(
     BundleStateMachineImpl, InspectExistingBundleInfo) {
 }
 
-PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, DiscardBlock) {
+PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, DiscardChunk) {
 }
 
-PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, ReadBlockContents) {
+PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, ReadChunkContents) {
 }
 
-PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, CompressBlockContents) {
+PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, CompressChunkContents) {
 }
 
-PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, FinishBlock) {
+PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, FinishChunk) {
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, FinalizeBundle) {
@@ -84,21 +95,45 @@ void BundleStateMachineImpl::InternalStart(const string& root) {
 }
 
 void BundleStateMachineImpl::PushPendingSnapshot(
-    boost::shared_ptr<Snapshot> snapshot, Callback done_callback) {
+    boost::shared_ptr<Snapshot> snapshot) {
   boost::mutex::scoped_lock snapshots_lock(snapshots_mu_);
-  pending_snapshots_.push(
-      make_unique<SnapshotBundlingInfo>(snapshot, done_callback));
+  pending_snapshots_.push(snapshot);
 }
 
 bool BundleStateMachineImpl::PopPendingSnapshot(
-    unique_ptr<SnapshotBundlingInfo>* snapshot) {
+    boost::shared_ptr<Snapshot>* snapshot) {
   boost::mutex::scoped_lock snapshots_lock(snapshots_mu_);
   if (pending_snapshots_.empty()) {
     return false;
   }
-  *CHECK_NOTNULL(snapshot) = std::move(pending_snapshots_.front());
+  *CHECK_NOTNULL(snapshot) = pending_snapshots_.front();
   pending_snapshots_.pop();
   return true;
+}
+
+void BundleStateMachineImpl::PushPendingChunksForSnapshot(
+    boost::shared_ptr<Snapshot> snapshot) {
+  const Chunk* chunk_ptr = nullptr;
+  for (const auto& chunk : snapshot->chunks()) {
+    chunk_ptr = &chunk;
+    pending_chunks_.push(chunk_ptr);
+  }
+  if (chunk_ptr != nullptr) {
+    last_chunk_to_snapshot_.insert(make_pair(chunk_ptr, snapshot));
+  }
+}
+
+bool BundleStateMachineImpl::PopPendingChunk(const Chunk** chunk) {
+  if (pending_chunks_.empty()) {
+    return false;
+  }
+  *CHECK_NOTNULL(chunk) = pending_chunks_.front();
+  pending_chunks_.pop();
+  return true;
+}
+
+void BundleStateMachineImpl::FinishChunk(const Chunk* chunk) {
+  last_chunk_to_snapshot_.erase(chunk);
 }
 
 void BundleStateMachineImpl::AppendFinishedBundle(

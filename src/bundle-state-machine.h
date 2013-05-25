@@ -1,8 +1,8 @@
 #ifndef BUNDLE_STATE_MACHINE_H
 #define BUNDLE_STATE_MACHINE_H
 
-#include <memory>
 #include <queue>
+#include <unordered_map>
 #include <vector>
 
 #include "boost/thread/mutex.hpp"
@@ -16,6 +16,7 @@ namespace polar_express {
 
 class Bundle;
 class BundleStateMachine;
+class Chunk;
 class Snapshot;
 
 // A state machine which goes through the process of generating new bundles as
@@ -24,37 +25,37 @@ class Snapshot;
 // The state machine generally operates like this:
 //
 //  - Waits for a new snapshot.
-//  - When a snapshot has arrived, queue its blocks for processing.
-//  - For the next block in the queue:
+//  - When a snapshot has arrived, queue its chunks for processing.
+//  - For the next chunk in the queue:
 //    - Check to see if it is in any bundles already, if so skip.
-//    - Read block contents into memory, compare to hash. If mismatch, skip.
-//    - Compress block contents, add to current bundle.
-//    - If current bundle is under max size, process next block (loop).
+//    - Read chunk contents into memory, compare to hash. If mismatch, skip.
+//    - Compress chunk contents, add to current bundle.
+//    - If current bundle is under max size, process next chunk (loop).
 //  - Once current bundle exceeds max size:
 //    - Encrypt the bundle.
 //    - Record the bundle to metadata DB.
 //    - Write the bundle to temp storage on disk.
-//    - Start a new bundle, and continue processing blocks (previous loop).
+//    - Start a new bundle, and continue processing chunks (previous loop).
 //
-// Once the block queue is emptied, it returns to waiting for the next
+// Once the chunk queue is emptied, it returns to waiting for the next
 // snapshot. The only way this state machine exits is if an external object
-// instructs it to. This instruction is only respected when in the HaveBlocks
-// state with no blocks remaining (so it will not pre-empt the processing of any
-// blocks that are already queued). When the instruction is noticed, the current
+// instructs it to. This instruction is only respected when in the HaveChunks
+// state with no chunks remaining (so it will not pre-empt the processing of any
+// chunks that are already queued). When the instruction is noticed, the current
 // bundle is immediately finalized (as if it had exceeded max size).
 //
 // If the current bundle is empty when finalized, the control flow
 // exits. Therefore, the exit mechanism does the following:
 //
-// - Notice that there are no blocks and that exit has been requested.
+// - Notice that there are no chunks and that exit has been requested.
 // - Force finalize current bundle.
 // - Encrypt, record, write the current bundle.
-// - Return to block processing.
-// - Notice that there are no blocks and that exit has been requested.
+// - Return to chunk processing.
+// - Notice that there are no chunks and that exit has been requested.
 // - Force finalize the current bundle.
 // - Notice that the curren bundle is empty, exit.
 //
-// TODO(tylermchenry): Add states to handle the case that the block has changed
+// TODO(tylermchenry): Add states to handle the case that the chunk has changed
 // in the file that the snapshot refers to, but exists elsewhere on disk.
 class BundleStateMachineImpl
     : public StateMachine<BundleStateMachineImpl, BundleStateMachine> {
@@ -62,13 +63,14 @@ class BundleStateMachineImpl
   BundleStateMachineImpl();
   virtual ~BundleStateMachineImpl();
 
-  // Provides a new snapshot to be bundled. Blocks that are different
+  // Sets a callback to be invoked whenever a new bundle is finished
+  // and ready to be picked up via a call to GetAndClearGeneratedBundles.
+  void SetBundleReadyCallback(Callback callback);
+
+  // Provides a new snapshot to be bundled. Chunks that are different
   // between this snapshot and the previous snapshot of the same file will
-  // be written into one or more bundles. The provided callback (if
-  // not null) will be invoked when the state machine has finished
-  // processing this snapshot.
-  void BundleSnapshot(
-      boost::shared_ptr<Snapshot> snapshot, Callback done_callback);
+  // be written into one or more bundles.
+  void BundleSnapshot(boost::shared_ptr<Snapshot> snapshot);
 
   // Instructs the state machine to exit once it finishes processing
   // its queue of snapshots. It is illegal to call BundleSnapshot
@@ -83,13 +85,13 @@ class BundleStateMachineImpl
       vector<boost::shared_ptr<Bundle>>* bundles) LOCKS_EXCLUDED(bundles_mu_);
 
   PE_STATE_MACHINE_DEFINE_INITIAL_STATE(WaitForNewSnapshot);
-  PE_STATE_MACHINE_DEFINE_STATE(HaveBlocks);
+  PE_STATE_MACHINE_DEFINE_STATE(HaveChunks);
   PE_STATE_MACHINE_DEFINE_STATE(WaitForExistingBundleInfo);
   PE_STATE_MACHINE_DEFINE_STATE(HaveExistingBundleInfo);
-  PE_STATE_MACHINE_DEFINE_STATE(WaitForBlockContents);
-  PE_STATE_MACHINE_DEFINE_STATE(HaveBlockContents);
+  PE_STATE_MACHINE_DEFINE_STATE(WaitForChunkContents);
+  PE_STATE_MACHINE_DEFINE_STATE(HaveChunkContents);
   PE_STATE_MACHINE_DEFINE_STATE(WaitForCompression);
-  PE_STATE_MACHINE_DEFINE_STATE(BlockFinished);
+  PE_STATE_MACHINE_DEFINE_STATE(ChunkFinished);
   PE_STATE_MACHINE_DEFINE_STATE(HaveBundle);
   PE_STATE_MACHINE_DEFINE_STATE(WaitForEncryption);
   PE_STATE_MACHINE_DEFINE_STATE(WaitForBundleToRecord);
@@ -99,14 +101,14 @@ class BundleStateMachineImpl
 
  protected:
   PE_STATE_MACHINE_DEFINE_EVENT(NewSnapshotReady);
-  PE_STATE_MACHINE_DEFINE_EVENT(NoBlocksRemaining);
-  PE_STATE_MACHINE_DEFINE_EVENT(NewBlockReady);
+  PE_STATE_MACHINE_DEFINE_EVENT(NoChunksRemaining);
+  PE_STATE_MACHINE_DEFINE_EVENT(NewChunkReady);
   PE_STATE_MACHINE_DEFINE_EVENT(ExistingBundleInfoReady);
-  PE_STATE_MACHINE_DEFINE_EVENT(BlockAlreadyInBundle);
-  PE_STATE_MACHINE_DEFINE_EVENT(BlockNotYetInBundle);
-  PE_STATE_MACHINE_DEFINE_EVENT(BlockContentsReady);
-  PE_STATE_MACHINE_DEFINE_EVENT(BlockContentsHashMismatch);
-  PE_STATE_MACHINE_DEFINE_EVENT(BlockContentsHashMatch);
+  PE_STATE_MACHINE_DEFINE_EVENT(ChunkAlreadyInBundle);
+  PE_STATE_MACHINE_DEFINE_EVENT(ChunkNotYetInBundle);
+  PE_STATE_MACHINE_DEFINE_EVENT(ChunkContentsReady);
+  PE_STATE_MACHINE_DEFINE_EVENT(ChunkContentsHashMismatch);
+  PE_STATE_MACHINE_DEFINE_EVENT(ChunkContentsHashMatch);
   PE_STATE_MACHINE_DEFINE_EVENT(CompressionDone);
   PE_STATE_MACHINE_DEFINE_EVENT(MaxBundleSizeNotReached);
   PE_STATE_MACHINE_DEFINE_EVENT(MaxBundleSizeReached);
@@ -121,11 +123,11 @@ class BundleStateMachineImpl
   PE_STATE_MACHINE_DEFINE_ACTION(ResetForNextSnapshot);
   PE_STATE_MACHINE_DEFINE_ACTION(GetExistingBundleInfo);
   PE_STATE_MACHINE_DEFINE_ACTION(InspectExistingBundleInfo);
-  PE_STATE_MACHINE_DEFINE_ACTION(DiscardBlock);
-  PE_STATE_MACHINE_DEFINE_ACTION(ReadBlockContents);
-  PE_STATE_MACHINE_DEFINE_ACTION(InspectBlockContents);
-  PE_STATE_MACHINE_DEFINE_ACTION(CompressBlockContents);
-  PE_STATE_MACHINE_DEFINE_ACTION(FinishBlock);
+  PE_STATE_MACHINE_DEFINE_ACTION(DiscardChunk);
+  PE_STATE_MACHINE_DEFINE_ACTION(ReadChunkContents);
+  PE_STATE_MACHINE_DEFINE_ACTION(InspectChunkContents);
+  PE_STATE_MACHINE_DEFINE_ACTION(CompressChunkContents);
+  PE_STATE_MACHINE_DEFINE_ACTION(FinishChunk);
   PE_STATE_MACHINE_DEFINE_ACTION(FinalizeBundle);
   PE_STATE_MACHINE_DEFINE_ACTION(EncryptBundle);
   PE_STATE_MACHINE_DEFINE_ACTION(RecordBundle);
@@ -138,20 +140,20 @@ class BundleStateMachineImpl
           WaitForNewSnapshot,
           NewSnapshotReady,
           StartNewSnapshot,
-          HaveBlocks),
+          HaveChunks),
       PE_STATE_MACHINE_TRANSITION(
-          HaveBlocks,
+          HaveChunks,
           FlushForced,
           FinalizeBundle,
           HaveBundle),
       PE_STATE_MACHINE_TRANSITION(
-          HaveBlocks,
-          NoBlocksRemaining,
+          HaveChunks,
+          NoChunksRemaining,
           ResetForNextSnapshot,
           WaitForNewSnapshot),
       PE_STATE_MACHINE_TRANSITION(
-          HaveBlocks,
-          NewBlockReady,
+          HaveChunks,
+          NewChunkReady,
           GetExistingBundleInfo,
           WaitForExistingBundleInfo),
       PE_STATE_MACHINE_TRANSITION(
@@ -161,41 +163,41 @@ class BundleStateMachineImpl
           HaveExistingBundleInfo),
       PE_STATE_MACHINE_TRANSITION(
           HaveExistingBundleInfo,
-          BlockAlreadyInBundle,
-          DiscardBlock,
-          HaveBlocks),
+          ChunkAlreadyInBundle,
+          DiscardChunk,
+          HaveChunks),
       PE_STATE_MACHINE_TRANSITION(
           HaveExistingBundleInfo,
-          BlockNotYetInBundle,
-          ReadBlockContents,
-          WaitForBlockContents),
+          ChunkNotYetInBundle,
+          ReadChunkContents,
+          WaitForChunkContents),
       PE_STATE_MACHINE_TRANSITION(
-          WaitForBlockContents,
-          BlockContentsReady,
-          InspectBlockContents,
-          HaveBlockContents),
+          WaitForChunkContents,
+          ChunkContentsReady,
+          InspectChunkContents,
+          HaveChunkContents),
       PE_STATE_MACHINE_TRANSITION(
-          HaveBlockContents,
-          BlockContentsHashMismatch,
-          DiscardBlock,
-          HaveBlocks),
+          HaveChunkContents,
+          ChunkContentsHashMismatch,
+          DiscardChunk,
+          HaveChunks),
       PE_STATE_MACHINE_TRANSITION(
-          HaveBlockContents,
-          BlockContentsHashMatch,
-          CompressBlockContents,
+          HaveChunkContents,
+          ChunkContentsHashMatch,
+          CompressChunkContents,
           WaitForCompression),
       PE_STATE_MACHINE_TRANSITION(
           WaitForCompression,
           CompressionDone,
-          FinishBlock,
-          BlockFinished),
+          FinishChunk,
+          ChunkFinished),
       PE_STATE_MACHINE_TRANSITION(
-          BlockFinished,
+          ChunkFinished,
           MaxBundleSizeNotReached,
-          DiscardBlock,
-          HaveBlocks),
+          DiscardChunk,
+          HaveChunks),
       PE_STATE_MACHINE_TRANSITION(
-          BlockFinished,
+          ChunkFinished,
           MaxBundleSizeReached,
           FinalizeBundle,
           HaveBundle),
@@ -223,40 +225,44 @@ class BundleStateMachineImpl
           WaitForBundleToWrite,
           BundleWritten,
           StartNewBundle,
-          HaveBlocks));
+          HaveChunks));
 
   void InternalStart(const string& root);
 
  private:
-  struct SnapshotBundlingInfo {
-    SnapshotBundlingInfo(
-        boost::shared_ptr<Snapshot> snapshot, Callback done_callback)
-      : snapshot_(snapshot),
-        done_callback_(done_callback) {
-    }
-
-    boost::shared_ptr<Snapshot> snapshot_;
-    Callback done_callback_;
-  };
-
   void PushPendingSnapshot(
-      boost::shared_ptr<Snapshot> snapshot,
-      Callback done_callback) LOCKS_EXCLUDED(snapshots_mu_);
+      boost::shared_ptr<Snapshot> snapshot) LOCKS_EXCLUDED(snapshots_mu_);
 
   // Returns false and does not modify argument if the pending
   // snapshots queue is empty.
-  bool PopPendingSnapshot(
-      unique_ptr<SnapshotBundlingInfo>* snapshot) LOCKS_EXCLUDED(snapshots_mu_);
+  bool PopPendingSnapshot(boost::shared_ptr<Snapshot>* snapshot)
+      LOCKS_EXCLUDED(snapshots_mu_);
+
+  void PushPendingChunksForSnapshot(boost::shared_ptr<Snapshot> snapshot);
+
+  // Returns false and does not modify argument if the pending
+  // snapshots queue is empty.
+  bool PopPendingChunk(const Chunk** chunk);
+
+  // If this is the last chunk for a snapshot, relinquishes the
+  // shared_ptr being held for this snapshot. It is illegal to access chunk
+  // after this call, since it may have been deleted.
+  void FinishChunk(const Chunk* chunk);
 
   void AppendFinishedBundle(
       boost::shared_ptr<Bundle> bundle) LOCKS_EXCLUDED(bundles_mu_);
 
   string root_;
+  Callback bundle_ready_callback_;
 
   boost::mutex snapshots_mu_;
-  queue<unique_ptr<SnapshotBundlingInfo>> pending_snapshots_
+  queue<boost::shared_ptr<Snapshot>> pending_snapshots_
       GUARDED_BY(snapshots_mu_);
-  unique_ptr<SnapshotBundlingInfo> active_snapshot_;
+
+  queue<const Chunk*> pending_chunks_;
+  unordered_map<const Chunk*, boost::shared_ptr<Snapshot>>
+      last_chunk_to_snapshot_;
+  const Chunk* active_chunk_;
 
   boost::mutex bundles_mu_;
   boost::shared_ptr<Bundle> active_bundle_;
