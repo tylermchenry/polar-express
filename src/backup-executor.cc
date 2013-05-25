@@ -71,10 +71,10 @@ void BackupExecutor::RunNextSnapshotStateMachine() {
       pending_snapshot_paths_.empty()) {
     return;
   }
-  
+
   boost::filesystem::path path = pending_snapshot_paths_.front();
   pending_snapshot_paths_.pop();
-  
+
   SnapshotStateMachine* snapshot_state_machine =
       snapshot_state_machine_pool_->construct();
   snapshot_state_machine->SetDoneCallback(CreateStrandCallback(
@@ -93,9 +93,9 @@ void BackupExecutor::RunNextSnapshotStateMachine() {
         CreateStrandCallback(
             bind(&BackupExecutor::AddNewPendingSnapshotPaths, this)));
     scan_state_ = ScanState::kInProgress;
-  } 
+  }
 }
-  
+
 void BackupExecutor::HandleSnapshotStateMachineFinished(
     SnapshotStateMachine* snapshot_state_machine) {
   if (snapshot_state_machine->GetGeneratedSnapshot().get() != nullptr) {
@@ -117,6 +117,6 @@ void BackupExecutor::DeleteSnapshotStateMachine(
 Callback BackupExecutor::CreateStrandCallback(Callback callback) {
   return bind(&AsioDispatcher::StrandDispatcher::Post,
               strand_dispatcher_.get(), callback);
-}  
+}
 
 }  // polar_express

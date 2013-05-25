@@ -34,5 +34,5 @@ bool FilesystemScannerImpl::GetPaths(
 void FilesystemScannerImpl::ClearPaths() {
   paths_.clear();
 }
-  
+
 }  // namespace polar_express

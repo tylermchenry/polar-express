@@ -24,7 +24,7 @@ class ChunkHasher {
   virtual void GenerateAndHashChunks(
       const boost::filesystem::path& path,
       boost::shared_ptr<Snapshot> snapshot, Callback callback);
-  
+
  protected:
   explicit ChunkHasher(bool create_impl);
 

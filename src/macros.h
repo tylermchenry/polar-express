@@ -15,7 +15,7 @@
 #define GUARDED_BY(x)
 #define LOCKS_EXCLUDED(x)
 #define SHARED_LOCKS_REQUIRED(x)
-#define EXCLUSIVE_LOCKS_REQUIRED(x) 
+#define EXCLUSIVE_LOCKS_REQUIRED(x)
 
 // TODO: Once boost::thread adds lockable annotations to mutex classes, enable
 // these macros if __clang__ is defined.

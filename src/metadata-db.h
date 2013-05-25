@@ -21,19 +21,19 @@ class MetadataDb {
   virtual void GetLatestSnapshot(
       const File& file, boost::shared_ptr<Snapshot>* snapshot,
       Callback callback);
-  
+
   // This also modifies the snapshot to add IDs for the snapshot itself as well
   // as any blocks that do not already have IDs.
   virtual void RecordNewSnapshot(
       boost::shared_ptr<Snapshot> snapshot, Callback callback);
-  
+
  protected:
   explicit MetadataDb(bool create_impl);
-  
- private:  
+
+ private:
   boost::scoped_ptr<MetadataDbImpl> impl_;
-  
-  DISALLOW_COPY_AND_ASSIGN(MetadataDb);  
+
+  DISALLOW_COPY_AND_ASSIGN(MetadataDb);
 };
 
 }  // namespace polar_express

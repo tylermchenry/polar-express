@@ -133,7 +133,7 @@ class StateMachine
   // The back end class for a state machine using this base class must implement
   // this method to return itself.
   virtual BackEnd* GetBackEnd() = 0;
-  
+
   // Call this method with an appropriate template argument to trigger a new
   // event. The event will enter the event queue and will be executed after any
   // previously-triggered events.
@@ -171,7 +171,7 @@ class StateMachine
   // Pushes callback into the event queue, and posts a task to the strand which
   // will invoke RunNextEvent with the is_external argument given.
   void PostEventCallback(Callback callback, bool is_external);
-  
+
   DISALLOW_COPY_AND_ASSIGN(StateMachine);
 };
 
@@ -202,7 +202,7 @@ class StateMachine
 #define PE_STATE_MACHINE_ACTION_HANDLER(                           \
     StateMachineName, ActionName)                                  \
   void StateMachineName::PE_STATE_MACHINE_ACTION_HANDLER_NAME(     \
-      ActionName)()                                                
+      ActionName)()
 
 #define PE_STATE_MACHINE_TRANSITION(                               \
     StartStateName, EventName, ActionName, EndStateName)           \

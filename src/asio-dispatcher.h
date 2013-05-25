@@ -84,7 +84,7 @@ class AsioDispatcher {
   virtual boost::shared_ptr<StrandDispatcher> NewStrandDispatcherUplinkBound();
   virtual boost::shared_ptr<StrandDispatcher> NewStrandDispatcherDownlinkBound();
   virtual boost::shared_ptr<StrandDispatcher> NewStrandDispatcherStateMachine();
-  
+
  private:
   AsioDispatcher();
 
@@ -94,14 +94,14 @@ class AsioDispatcher {
   void PostToService(
       Callback callback,
       boost::shared_ptr<asio::io_service> io_service);
-  
+
   static void InitInstance();
   static void WorkerThread(boost::shared_ptr<asio::io_service> io_service);
   static void RunCallbackAndDeleteWork(
       Callback callback, asio::io_service::work* work);
 
   boost::shared_ptr<asio::io_service> master_io_service_;
-  
+
   boost::shared_ptr<asio::io_service> cpu_io_service_;
   boost::shared_ptr<asio::io_service> disk_io_service_;
   boost::shared_ptr<asio::io_service> uplink_io_service_;
@@ -110,7 +110,7 @@ class AsioDispatcher {
 
   vector<boost::shared_ptr<asio::io_service::work> > work_;
   boost::shared_ptr<thread_group> worker_threads_;
-  
+
   static int kNumWorkersPerService;
   static boost::shared_ptr<AsioDispatcher> instance_;
 

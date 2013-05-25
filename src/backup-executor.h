@@ -46,7 +46,7 @@ class BackupExecutor {
   // Returns the number of new snapshots generated during the backup. Should be
   // called only after the backup has completed.
   virtual int GetNumSnapshotsGenerated() const;
-  
+
  private:
   // Obtains new file paths from the directory scanner and enqueues them. Posts
   // a callback to try to start the next snapshot state machine. If the
@@ -62,7 +62,7 @@ class BackupExecutor {
 
   void HandleSnapshotStateMachineFinished(
       SnapshotStateMachine* snapshot_state_machine);
-  
+
   // Deletes the given snapshot state machine, counts it as finished, and posts
   // a callback to try to start the next snapshot state machine.
   void DeleteSnapshotStateMachine(
@@ -71,7 +71,7 @@ class BackupExecutor {
   // Returns a callback that will post the given callback on this object's
   // strand.
   Callback CreateStrandCallback(Callback callback);
-  
+
   string root_;
 
   queue<boost::filesystem::path> pending_snapshot_paths_;
@@ -80,17 +80,17 @@ class BackupExecutor {
   int num_running_snapshot_state_machines_;
   int num_finished_snapshot_state_machines_;
   int num_snapshots_generated_;
-  
+
   enum class ScanState {
     kNotStarted,
     kInProgress,
     kWaitingToContinue,
     kFinished,
-  };        
+  };
   ScanState scan_state_;
 
   boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher_;
-  
+
   OverrideableScopedPtr<FilesystemScanner> filesystem_scanner_;
 
   static const int kMaxPendingSnapshots;

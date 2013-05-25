@@ -14,7 +14,7 @@
 namespace polar_express {
 
 class FilesystemScannerImpl;
-  
+
 // A class that asynchronously performs a recursive scan of a filesystem
 // hierarchy from a specified root directory and collects all of the file paths
 // found below the root.
@@ -47,16 +47,16 @@ class FilesystemScanner {
 
   // Clears all existing discovered paths.
   virtual void ClearPaths();
-  
+
  protected:
   explicit FilesystemScanner(bool create_impl);
-  
+
  private:
   scoped_ptr<FilesystemScannerImpl> impl_;
-  
+
   DISALLOW_COPY_AND_ASSIGN(FilesystemScanner);
 };
-  
+
 }  // namespace polar_express
 
 #endif  // FILESYSTEM_SCANNER_H

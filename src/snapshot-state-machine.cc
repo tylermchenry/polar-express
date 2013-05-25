@@ -34,7 +34,7 @@ boost::shared_ptr<Snapshot>
 SnapshotStateMachineImpl::GetGeneratedSnapshot() const {
   return candidate_snapshot_;
 }
-  
+
 PE_STATE_MACHINE_ACTION_HANDLER(
     SnapshotStateMachineImpl, RequestGenerateCandidateSnapshot) {
   candidate_snapshot_generator_->GenerateCandidateSnapshot(
@@ -48,7 +48,7 @@ PE_STATE_MACHINE_ACTION_HANDLER(
       candidate_snapshot_->file(), &previous_snapshot_,
       CreateExternalEventCallback<PreviousSnapshotReady>());
 }
-  
+
 PE_STATE_MACHINE_ACTION_HANDLER(
     SnapshotStateMachineImpl, InspectSnapshots) {
   if (snapshot_util_->AllMetadataEqual(

@@ -29,7 +29,7 @@ class MetadataDbImpl : public MetadataDb {
 
   virtual void RecordNewSnapshot(
       boost::shared_ptr<Snapshot> snapshot, Callback callback);
-  
+
  private:
   // TODO(tylermchenry): Might be useful for this to be public later.
   int64_t GetLatestSnapshotId(const File& file) const;
@@ -43,7 +43,7 @@ class MetadataDbImpl : public MetadataDb {
   void FindExistingChunkIds(
       int64_t previous_snapshot_id,
       boost::shared_ptr<Snapshot> snapshot) const;
-  
+
   void WriteNewSnapshot(boost::shared_ptr<Snapshot> snapshot) const;
   void WriteNewFile(File* file) const;
   void WriteNewAttributes(Attributes* attributes) const;
@@ -53,13 +53,13 @@ class MetadataDbImpl : public MetadataDb {
   void UpdateLatestChunksCache(
       int64_t previous_snapshot_id,
       boost::shared_ptr<Snapshot> snapshot) const;
-  
+
   static sqlite3* db_;
-  
+
   static sqlite3* db();
   static void InitDb();
 
-  DISALLOW_COPY_AND_ASSIGN(MetadataDbImpl);  
+  DISALLOW_COPY_AND_ASSIGN(MetadataDbImpl);
 };
 
 }  // namespace polar_express

@@ -21,7 +21,7 @@ CandidateSnapshotGenerator::~CandidateSnapshotGenerator() {
 void CandidateSnapshotGenerator::GenerateCandidateSnapshot(
     const string& root,
     const filesystem::path& path,
-    boost::shared_ptr<Snapshot>* snapshot_ptr,   
+    boost::shared_ptr<Snapshot>* snapshot_ptr,
     Callback callback) const {
   AsioDispatcher::GetInstance()->PostDiskBound(
       bind(&CandidateSnapshotGenerator::GenerateCandidateSnapshot,

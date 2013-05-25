@@ -18,7 +18,7 @@ bool SnapshotUtil::FileContentsEqual(
       lhs.is_deleted() == rhs.is_deleted() &&
       lhs.length() == rhs.length() &&
       (!lhs.has_sha1_digest() || !rhs.has_sha1_digest() ||
-       (lhs.sha1_digest() == rhs.sha1_digest())); 
+       (lhs.sha1_digest() == rhs.sha1_digest()));
 }
 
 bool SnapshotUtil::AllMetadataEqual(

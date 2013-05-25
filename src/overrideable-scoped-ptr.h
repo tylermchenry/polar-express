@@ -17,7 +17,7 @@ class OverrideableScopedPtr {
     : owned_ptr_(CHECK_NOTNULL(owned_ptr)),
       override_ptr_(nullptr) {
   }
-  
+
   T* get() const {
     return (override_ptr_ != nullptr) ? override_ptr_ : owned_ptr_.get();
   }

@@ -43,7 +43,7 @@ class SnapshotStateMachineImpl
   // necessary, this returns null. This method should only be called after the
   // state machine has finished and the done callback has been executed.
   boost::shared_ptr<Snapshot> GetGeneratedSnapshot() const;
-  
+
  protected:
   PE_STATE_MACHINE_DEFINE_EVENT(NewFilePathReady);
   PE_STATE_MACHINE_DEFINE_EVENT(CandidateSnapshotReady);
@@ -111,32 +111,32 @@ class SnapshotStateMachineImpl
 
   void InternalStart(
     const string& root, const filesystem::path& filepath);
-  
+
  private:
   OverrideableScopedPtr<SnapshotUtil> snapshot_util_;
   OverrideableScopedPtr<CandidateSnapshotGenerator>
   candidate_snapshot_generator_;
   OverrideableScopedPtr<ChunkHasher> chunk_hasher_;
   OverrideableScopedPtr<MetadataDb> metadata_db_;
-  
+
   boost::shared_ptr<Snapshot> candidate_snapshot_;
   boost::shared_ptr<Snapshot> previous_snapshot_;
-  
+
   string root_;
   filesystem::path filepath_;
-  
+
   DISALLOW_COPY_AND_ASSIGN(SnapshotStateMachineImpl);
 };
 
 class SnapshotStateMachine : public SnapshotStateMachineImpl::BackEnd {
- public:  
+ public:
   SnapshotStateMachine() {}
-  
+
   virtual void Start(const string& root, const filesystem::path& filepath);
 
  protected:
   virtual SnapshotStateMachineImpl::BackEnd* GetBackEnd();
-  
+
  private:
   DISALLOW_COPY_AND_ASSIGN(SnapshotStateMachine);
 };

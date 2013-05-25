@@ -34,13 +34,13 @@ bool CandidateSnapshotGeneratorImpl::GenerateCandidateSnapshot(
     const filesystem::path& path,
     Snapshot* candidate_snapshot) const {
   assert(candidate_snapshot != nullptr);
-  
+
   system::error_code ec;
   filesystem::path canonical_path = canonical(path, root, ec);
   if (ec) {
     return false;
   }
-  
+
   string canonical_path_str = canonical_path.string();
   if (canonical_path_str.empty()) {
     return false;
@@ -55,14 +55,14 @@ bool CandidateSnapshotGeneratorImpl::GenerateCandidateSnapshot(
 
   File* file = candidate_snapshot->mutable_file();
   file->set_path(RemoveRootFromPath(root, canonical_path_str));
-  
+
   Attributes* attribs = candidate_snapshot->mutable_attributes();
   attribs->set_owner_user(GetUserNameFromUid(unix_stat.st_uid));
   attribs->set_owner_group(GetGroupNameFromGid(unix_stat.st_gid));
   attribs->set_uid(unix_stat.st_uid);
   attribs->set_gid(unix_stat.st_gid);
   attribs->set_mode(file_stat.permissions());
-  
+
   candidate_snapshot->set_modification_time(last_write_time(canonical_path));
   candidate_snapshot->set_is_regular(is_regular_file(canonical_path));
   candidate_snapshot->set_is_deleted(!exists(canonical_path));

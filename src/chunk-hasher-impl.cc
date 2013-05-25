@@ -51,7 +51,7 @@ void ChunkHasherImpl::GenerateAndHashChunks(
   }
 
   WriteWholeFileHash(snapshot->mutable_sha1_digest());
-  
+
   callback();
 }
 

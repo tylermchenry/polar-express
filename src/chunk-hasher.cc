@@ -23,6 +23,6 @@ void ChunkHasher::GenerateAndHashChunks(
       bind(&ChunkHasher::GenerateAndHashChunks,
            impl_.get(), path, snapshot, callback));
 }
- 
+
 }  // namespace polar_express
 

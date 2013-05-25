@@ -39,7 +39,7 @@
               QUALIFIED_COL_NAME(tbl_name, field_name)));            \
     }                                                                \
   } while(0)
-                               
+
 namespace polar_express {
 
 sqlite3* MetadataDbImpl::db_ = nullptr;
@@ -92,7 +92,7 @@ void MetadataDbImpl::GetLatestSnapshot(
 
   if (snapshot_select_stmt.StepUntilNotBusy() == SQLITE_ROW) {
     SET_IF_PRESENT(snapshot_select_stmt, Int64, *snapshot, snapshots, id);
-    
+
     Attributes* attributes = (*snapshot)->mutable_attributes();
     SET_IF_PRESENT(snapshot_select_stmt, Int64, attributes, attributes, id);
     SET_IF_PRESENT(snapshot_select_stmt, Text, attributes,
@@ -120,7 +120,7 @@ void MetadataDbImpl::GetLatestSnapshot(
     SET_IF_PRESENT(snapshot_select_stmt, Int64, *snapshot,
                    snapshots, observation_time);
   }
-  
+
   callback();
 }
 
@@ -128,7 +128,7 @@ void MetadataDbImpl::RecordNewSnapshot(
     boost::shared_ptr<Snapshot> snapshot, Callback callback) {
   assert(!snapshot->has_id());
   int64_t previous_snapshot_id = -1;
-  
+
   FindExistingIds(snapshot, &previous_snapshot_id);
 
   sqlite3_exec(db(), "begin transaction;",
@@ -136,8 +136,8 @@ void MetadataDbImpl::RecordNewSnapshot(
 
   if (!snapshot->file().has_id()) {
     WriteNewFile(snapshot->mutable_file());
-  } 
-  
+  }
+
   if (!snapshot->attributes().has_id()) {
     WriteNewAttributes(snapshot->mutable_attributes());
   }
@@ -145,11 +145,11 @@ void MetadataDbImpl::RecordNewSnapshot(
   WriteNewBlocks(snapshot);
 
   WriteNewChunks(snapshot);
-  
+
   WriteNewSnapshot(snapshot);
 
   UpdateLatestChunksCache(previous_snapshot_id, snapshot);
-  
+
   sqlite3_exec(db(), "commit;", nullptr, nullptr, nullptr);
 
   callback();
@@ -165,7 +165,7 @@ int64_t MetadataDbImpl::GetLatestSnapshotId(const File& file) const {
   if (snapshot_select_stmt.StepUntilNotBusy() == SQLITE_ROW) {
     return snapshot_select_stmt.GetColumnInt64("id");
   }
-  
+
   return -1;
 }
 
@@ -173,7 +173,7 @@ void MetadataDbImpl::FindExistingIds(
     boost::shared_ptr<Snapshot> snapshot,
     int64_t* previous_snapshot_id) const {
   assert(previous_snapshot_id != nullptr);
-  
+
   if (!snapshot->file().has_id()) {
     FindExistingFileId(snapshot->mutable_file());
   }
@@ -267,7 +267,7 @@ void MetadataDbImpl::FindExistingChunkIds(
       "  :snapshot_id;");
 
   mapping_select_stmt.BindInt64(":snapshot_id", previous_snapshot_id);
-  
+
   map<int64_t, boost::shared_ptr<Chunk> > offsets_to_latest_chunks;
   while (mapping_select_stmt.StepUntilNotBusy() == SQLITE_ROW) {
     boost::shared_ptr<Chunk> chunk(new Chunk);
@@ -281,7 +281,7 @@ void MetadataDbImpl::FindExistingChunkIds(
         mapping_select_stmt.GetColumnInt64("files_to_blocks_observation_time"));
     offsets_to_latest_chunks.insert(make_pair(chunk->offset(), chunk));
   }
-  
+
   for (Chunk& chunk : *(snapshot->mutable_chunks())) {
     if (chunk.has_id()) {
       continue;
@@ -299,7 +299,7 @@ void MetadataDbImpl::FindExistingChunkIds(
     }
   }
 }
-  
+
 void MetadataDbImpl::WriteNewSnapshot(
     boost::shared_ptr<Snapshot> snapshot) const {
   assert(!snapshot->has_id());
@@ -351,7 +351,7 @@ void MetadataDbImpl::WriteNewFile(File* file) const {
   file_insert_stmt.BindText(":path", file->path());
 
   int code = file_insert_stmt.StepUntilNotBusy();
-    
+
   if (code == SQLITE_DONE) {
     file->set_id(sqlite3_last_insert_rowid(db()));
   } else {
@@ -376,7 +376,7 @@ void MetadataDbImpl::WriteNewAttributes(Attributes* attributes) const {
   BIND_IF_PRESENT(attributes_insert_stmt, Int, attributes, uid);
   BIND_IF_PRESENT(attributes_insert_stmt, Int, attributes, gid);
   BIND_IF_PRESENT(attributes_insert_stmt, Int, attributes, mode);
-  
+
   int code = attributes_insert_stmt.StepUntilNotBusy();
 
   if (code == SQLITE_DONE) {
@@ -404,7 +404,7 @@ void MetadataDbImpl::WriteNewBlocks(
     block_insert_stmt.Reset();
     block_insert_stmt.BindText(":sha1_digest", block->sha1_digest());
     block_insert_stmt.BindInt64(":length", block->length());
-    
+
     int code = block_insert_stmt.StepUntilNotBusy();
 
     if (code == SQLITE_DONE) {
@@ -430,7 +430,7 @@ void MetadataDbImpl::WriteNewChunks(
     if (chunk.has_id()) {
       continue;
     }
-    
+
     mapping_insert_stmt.Reset();
     mapping_insert_stmt.BindInt64(":file_id", snapshot->file().id());
     mapping_insert_stmt.BindInt64(":block_id", block->id());
@@ -460,7 +460,7 @@ void MetadataDbImpl::UpdateLatestChunksCache(
     cache_delete_stmt.BindInt64(":snapshot_id", previous_snapshot_id);
     cache_delete_stmt.StepUntilNotBusy();
   }
-  
+
   ScopedStatement cache_insert_stmt(db());
   cache_insert_stmt.Prepare(
       "insert into local_snapshots_to_files_to_blocks "

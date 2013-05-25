@@ -47,10 +47,10 @@ class CandidateSnapshotGeneratorImpl : public CandidateSnapshotGenerator {
   string GetUserNameFromUid(int uid) const;
 
   string GetGroupNameFromGid(int gid) const;
-  
+
   DISALLOW_COPY_AND_ASSIGN(CandidateSnapshotGeneratorImpl);
 };
-  
+
 }  // namespace polar_express
 
 #endif  // CANDIDATE_SNAPSHOT_GENERATOR_IMPL_H

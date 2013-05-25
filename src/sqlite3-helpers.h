@@ -28,22 +28,22 @@ class ScopedStatement {
   int StepUntilNotBusy();
 
   bool IsColumnNull(const string& col_name);
-  
+
   string GetColumnText(const string& col_name);
   int64_t GetColumnInt64(const string& col_name);
   bool GetColumnBool(const string& col_name);
- 
+
   int Reset();
-  
+
  private:
   void GenerateColumnIdxs();
   int GetColumnIdx(const string& col_name);
-  
+
   sqlite3* db_;
   sqlite3_stmt* stmt_;
 
   unordered_map<string, int> column_idxs;
-  
+
   DISALLOW_COPY_AND_ASSIGN(ScopedStatement);
 };
 

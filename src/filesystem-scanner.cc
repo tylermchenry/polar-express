@@ -13,7 +13,7 @@ FilesystemScanner::FilesystemScanner()
     : impl_(new FilesystemScannerImpl) {
 }
 
-FilesystemScanner::FilesystemScanner(bool create_impl) 
+FilesystemScanner::FilesystemScanner(bool create_impl)
     : impl_(create_impl ? new FilesystemScannerImpl : nullptr) {
 }
 
@@ -41,5 +41,5 @@ bool FilesystemScanner::GetPaths(
 void FilesystemScanner::ClearPaths() {
   impl_->ClearPaths();
 }
-  
+
 }  // namespace polar_express

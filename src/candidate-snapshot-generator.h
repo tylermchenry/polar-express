@@ -33,16 +33,16 @@ class CandidateSnapshotGenerator {
       const filesystem::path& path,
       boost::shared_ptr<Snapshot>* snapshot_ptr,
       Callback callback) const;
-  
+
  protected:
   explicit CandidateSnapshotGenerator(bool create_impl);
-  
+
  private:
   scoped_ptr<CandidateSnapshotGeneratorImpl> impl_;
-  
+
   DISALLOW_COPY_AND_ASSIGN(CandidateSnapshotGenerator);
 };
-  
+
 }  // namespace polar_express
 
 #endif  // CANDIDATE_SNAPSHOT_GENERATOR_H

@@ -24,7 +24,7 @@ class SnapshotUtil {
   // snapshots. This is a superset of the equality checks in FileContentsEqual.
   virtual bool AllMetadataEqual(
       const Snapshot& lhs, const Snapshot& rhs) const;
-  
+
  private:
   DISALLOW_COPY_AND_ASSIGN(SnapshotUtil);
 };
