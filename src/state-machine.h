@@ -251,8 +251,9 @@ template <typename EventT>
 Callback
 StateMachine<StateMachineImplT, StateMachineT>::CreateExternalEventCallback() {
   ++num_active_external_callbacks_;
-  return bind(&StateMachine<StateMachineImplT, StateMachineT>::PostEventCallback,
-              this, CreateEventCallback<EventT>(), true);
+  return bind(
+      &StateMachine<StateMachineImplT, StateMachineT>::PostEventCallback,
+      this, CreateEventCallback<EventT>(), true);
 }
 
 template <typename StateMachineImplT, typename StateMachineT>
