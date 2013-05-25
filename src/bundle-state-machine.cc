@@ -45,12 +45,12 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, StartNewSnapshot) {
   boost::shared_ptr<Snapshot> snapshot;
   if (PopPendingSnapshot(&snapshot)) {
     PushPendingChunksForSnapshot(snapshot);
-  } else if (exit_requested_) {
-    // ...
   }
+  NextChunk();
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, ResetForNextSnapshot) {
+  // Nothing to do in current implementation.
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, GetExistingBundleInfo) {
@@ -61,6 +61,7 @@ PE_STATE_MACHINE_ACTION_HANDLER(
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, DiscardChunk) {
+  NextChunk();
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, ReadChunkContents) {
@@ -88,6 +89,7 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, StartNewBundle) {
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, CleanUp) {
+  // Nothing to do in current implementation.
 }
 
 void BundleStateMachineImpl::InternalStart(const string& root) {
@@ -132,8 +134,18 @@ bool BundleStateMachineImpl::PopPendingChunk(const Chunk** chunk) {
   return true;
 }
 
-void BundleStateMachineImpl::FinishChunk(const Chunk* chunk) {
-  last_chunk_to_snapshot_.erase(chunk);
+void BundleStateMachineImpl::NextChunk() {
+  if (active_chunk_ != nullptr) {
+    last_chunk_to_snapshot_.erase(active_chunk_);
+    active_chunk_ = nullptr;
+  }
+  if (PopPendingChunk(&active_chunk_)) {
+    PostEvent<NewChunkReady>();
+  } else if (exit_requested_) {
+    PostEvent<FlushForced>();
+  } else {
+    PostEvent<NoChunksRemaining>();
+  }
 }
 
 void BundleStateMachineImpl::AppendFinishedBundle(

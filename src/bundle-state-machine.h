@@ -244,16 +244,24 @@ class BundleStateMachineImpl
   // snapshots queue is empty.
   bool PopPendingChunk(const Chunk** chunk);
 
-  // If this is the last chunk for a snapshot, relinquishes the
-  // shared_ptr being held for this snapshot. It is illegal to access chunk
-  // after this call, since it may have been deleted.
-  void FinishChunk(const Chunk* chunk);
+  // This method should be called whenever transitioning into the
+  // HaveChunks state. Discards the current active chunk (if any), and
+  // makes the next pending chunk (if any) the active chunk.
+  //
+  // If the previously active chunk was the last chunk for a snapshot,
+  // this relinquishes the shared_ptr being held for this snapshot.
+  //
+  // This method will always conclude by posting one of the three
+  // events with an outbound edge from the HaveChunks state (new chunk
+  // ready, no chunks remaining, or flush forced).
+  void NextChunk();
 
   void AppendFinishedBundle(
       boost::shared_ptr<Bundle> bundle) LOCKS_EXCLUDED(bundles_mu_);
 
   string root_;
   Callback bundle_ready_callback_;
+  bool exit_requested_;
 
   boost::mutex snapshots_mu_;
   queue<boost::shared_ptr<Snapshot>> pending_snapshots_
@@ -267,8 +275,6 @@ class BundleStateMachineImpl
   boost::mutex bundles_mu_;
   boost::shared_ptr<Bundle> active_bundle_;
   vector<boost::shared_ptr<Bundle>> finished_bundles_ GUARDED_BY(bundles_mu_);
-
-  bool exit_requested_;
 
   DISALLOW_COPY_AND_ASSIGN(BundleStateMachineImpl);
 };
