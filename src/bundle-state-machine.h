@@ -52,7 +52,7 @@ class BundleStateMachineImpl
   BundleStateMachineImpl();
   virtual ~BundleStateMachineImpl();
 
-  PE_STATE_MACHINE_DEFINE_INITAL_STATE(WaitForNewSnapshot);
+  PE_STATE_MACHINE_DEFINE_INITIAL_STATE(WaitForNewSnapshot);
   PE_STATE_MACHINE_DEFINE_STATE(HaveBlocks);
   PE_STATE_MACHINE_DEFINE_STATE(WaitForExistingBundleInfo);
   PE_STATE_MACHINE_DEFINE_STATE(HaveExistingBundleInfo);
@@ -195,7 +195,11 @@ class BundleStateMachineImpl
           StartNewBundle,
           HaveBlocks));
 
+  void InternalStart(const string& root);
+
  private:
+  string root_;
+
   DISALLOW_COPY_AND_ASSIGN(BundleStateMachineImpl);
 };
 
@@ -203,7 +207,7 @@ class BundleStateMachine : public BundleStateMachineImpl::BackEnd {
  public:
   BundleStateMachine() {}
 
-  virtual void Start();
+  virtual void Start(const string& root);
 
  protected:
   virtual BundleStateMachineImpl::BackEnd* GetBackEnd();

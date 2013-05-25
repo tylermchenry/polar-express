@@ -1,3 +1,5 @@
+#  -*- mode: python-*-
+
 SConscript('proto/SConscript')
 
 import os
@@ -6,7 +8,8 @@ env = Environment()
 env['ENV']['TERM'] = os.environ['TERM']
 env['CXX'] = 'clang++'
 env.Append(CCFLAGS='-std=c++11')
-env.Append(CPPFLAGS='-I. -DSQLITE_THREADSAFE')
+env.Append(CPPFLAGS=('-I. -DSQLITE_THREADSAFE -DFUSION_MAX_SET_SIZE=20 '
+                     '-DFUSION_MAX_VECTOR_SIZE=20'))
 env.Append(LIBPATH='.')
 env.Append(LIBPATH='./src/proto')
 
@@ -16,7 +19,7 @@ asio_dispatcher_deplibs = [
     'boost_thread',
     ];
 asio_dispatcher = env.Library(
-    target='asio-dispatcher', 
+    target='asio-dispatcher',
     source=[
         'asio-dispatcher.cc',
         ],
@@ -29,7 +32,7 @@ snapshot_util_deplibs = [
     'protobuf',
     ];
 snapshot_util = env.Library(
-    target='snapshot-util', 
+    target='snapshot-util',
     source=[
         'snapshot-util.cc',
         ],
@@ -46,7 +49,7 @@ candidate_snapshot_generator_deplibs = [
     'boost_thread',
     ];
 candidate_snapshot_generator = env.Library(
-    target='candidate-snapshot-generator', 
+    target='candidate-snapshot-generator',
     source=[
         'candidate-snapshot-generator.cc',
         'candidate-snapshot-generator-impl.cc',
@@ -63,7 +66,7 @@ chunk_hasher_deplibs = [
     'crypto++',
     ];
 chunk_hasher = env.Library(
-    target='chunk-hasher', 
+    target='chunk-hasher',
     source=[
         'chunk-hasher.cc',
         'chunk-hasher-impl.cc',
@@ -79,7 +82,7 @@ filesystem_scanner_deplibs = [
     'boost_thread',
     ];
 filesystem_scanner = env.Library(
-    target='filesystem-scanner', 
+    target='filesystem-scanner',
     source=[
         'filesystem-scanner.cc',
         'filesystem-scanner-impl.cc',
@@ -98,7 +101,7 @@ metadata_db_deplibs = [
     'sqlite3',
     ];
 metadata_db = env.Library(
-    target='metadata-db', 
+    target='metadata-db',
     source=[
         'metadata-db.cc',
         'metadata-db-impl.cc',
@@ -124,25 +127,45 @@ snapshot_state_machine_deplibs = [
     'protobuf',
     ];
 snapshot_state_machine = env.Library(
-    target='snapshot-state-machine', 
+    target='snapshot-state-machine',
     source=[
         'snapshot-state-machine.cc',
         ],
     LIBS=snapshot_state_machine_deplibs,
     )
 
+bundle_state_machine_deplibs = [
+    metadata_db,
+    asio_dispatcher,
+    asio_dispatcher_deplibs,
+    metadata_db_deplibs,
+    'block_proto',
+    'snapshot_proto',
+    'file_proto',
+    'protobuf',
+    ];
+bundle_state_machine = env.Library(
+    target='bundle-state-machine',
+    source=[
+        'bundle-state-machine.cc',
+        ],
+    LIBS=bundle_state_machine_deplibs,
+    )
+
 backup_executor_deplibs = [
+    bundle_state_machine,
     snapshot_state_machine,
     filesystem_scanner,
     asio_dispatcher,
     asio_dispatcher_deplibs,
     filesystem_scanner_deplibs,
     snapshot_state_machine_deplibs,
+    bundle_state_machine_deplibs,
     'boost_filesystem-mt',
     'boost_thread',
     ];
 backup_executor = env.Library(
-    target='backup-executor', 
+    target='backup-executor',
     source=[
         'backup-executor.cc',
         ],
@@ -152,7 +175,7 @@ backup_executor = env.Library(
 ### Binaries
 
 polar_express = env.Program(
-    target='polar-express', 
+    target='polar-express',
     source=[
         'polar-express.cc',
         ],
@@ -161,6 +184,7 @@ polar_express = env.Program(
         asio_dispatcher,
         asio_dispatcher_deplibs,
         backup_executor_deplibs,
+        'pthread',
         ],
     )
 
@@ -184,8 +208,8 @@ testlibs = ['gmock', 'gtest', 'gtest_main']
 #         ],
 #     )
 # run_filesystem_scanner_test = Alias(
-#     'run_filesystem_scanner_test', 
-#     [filesystem_scanner_test], 
+#     'run_filesystem_scanner_test',
+#     [filesystem_scanner_test],
 #     filesystem_scanner_test[0].path)
 # AlwaysBuild(run_filesystem_scanner_test)
 
