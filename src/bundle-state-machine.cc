@@ -25,8 +25,7 @@ void BundleStateMachineImpl::BundleSnapshot(
   PostEvent<NewSnapshotReady>();
 }
 
-void BundleStateMachineImpl::FinishAndExit(Callback exit_callback) {
-  exit_callback_ = exit_callback;
+void BundleStateMachineImpl::FinishAndExit() {
   exit_requested_ = true;
   PostEvent<NewSnapshotReady>();
 }

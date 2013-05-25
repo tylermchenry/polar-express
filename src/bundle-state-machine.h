@@ -72,10 +72,8 @@ class BundleStateMachineImpl
 
   // Instructs the state machine to exit once it finishes processing
   // its queue of snapshots. It is illegal to call BundleSnapshot
-  // after calling FinishAndExit, or to call this method twice. The
-  // provided callback (if not null) will be invoked once the state
-  // machine has finished all work.
-  void FinishAndExit(Callback exit_callback);
+  // after calling FinishAndExit, or to call this method twice.
+  void FinishAndExit();
 
   // Fills all finished bundles into the bundles argument and then
   // clears its internal collection of finished bundles so that subsequent
@@ -265,7 +263,6 @@ class BundleStateMachineImpl
   vector<boost::shared_ptr<Bundle>> finished_bundles_ GUARDED_BY(bundles_mu_);
 
   bool exit_requested_;
-  Callback exit_callback_;
 
   DISALLOW_COPY_AND_ASSIGN(BundleStateMachineImpl);
 };
