@@ -1,12 +1,22 @@
 #ifndef BUNDLE_STATE_MACHINE_H
 #define BUNDLE_STATE_MACHINE_H
 
+#include <memory>
+#include <queue>
+#include <vector>
+
+#include "boost/thread/mutex.hpp"
+#include "boost/shared_ptr.hpp"
+
+#include "callback.h"
 #include "macros.h"
 #include "state-machine.h"
 
 namespace polar_express {
 
+class Bundle;
 class BundleStateMachine;
+class Snapshot;
 
 // A state machine which goes through the process of generating new bundles as
 // new snapshots are provided to it.
@@ -51,6 +61,28 @@ class BundleStateMachineImpl
  public:
   BundleStateMachineImpl();
   virtual ~BundleStateMachineImpl();
+
+  // Provides a new snapshot to be bundled. Blocks that are different
+  // between this snapshot and the previous snapshot of the same file will
+  // be written into one or more bundles. The provided callback (if
+  // not null) will be invoked when the state machine has finished
+  // processing this snapshot.
+  void BundleSnapshot(
+      boost::shared_ptr<Snapshot> snapshot, Callback done_callback);
+
+  // Instructs the state machine to exit once it finishes processing
+  // its queue of snapshots. It is illegal to call BundleSnapshot
+  // after calling FinishAndExit, or to call this method twice. The
+  // provided callback (if not null) will be invoked once the state
+  // machine has finished all work.
+  void FinishAndExit(Callback exit_callback);
+
+  // Fills all finished bundles into the bundles argument and then
+  // clears its internal collection of finished bundles so that subsequent
+  // calls to this method will retrieve none of the same bundles that were
+  // already returned.
+  void GetAndClearGeneratedBundles(
+      vector<boost::shared_ptr<Bundle>>* bundles) LOCKS_EXCLUDED(bundles_mu_);
 
   PE_STATE_MACHINE_DEFINE_INITIAL_STATE(WaitForNewSnapshot);
   PE_STATE_MACHINE_DEFINE_STATE(HaveBlocks);
@@ -198,7 +230,42 @@ class BundleStateMachineImpl
   void InternalStart(const string& root);
 
  private:
+  struct SnapshotBundlingInfo {
+    SnapshotBundlingInfo(
+        boost::shared_ptr<Snapshot> snapshot, Callback done_callback)
+      : snapshot_(snapshot),
+        done_callback_(done_callback) {
+    }
+
+    boost::shared_ptr<Snapshot> snapshot_;
+    Callback done_callback_;
+  };
+
+  void PushPendingSnapshot(
+      boost::shared_ptr<Snapshot> snapshot,
+      Callback done_callback) LOCKS_EXCLUDED(snapshots_mu_);
+
+  // Returns false and does not modify argument if the pending
+  // snapshots queue is empty.
+  bool PopPendingSnapshot(
+      unique_ptr<SnapshotBundlingInfo>* snapshot) LOCKS_EXCLUDED(snapshots_mu_);
+
+  void AppendFinishedBundle(
+      boost::shared_ptr<Bundle> bundle) LOCKS_EXCLUDED(bundles_mu_);
+
   string root_;
+
+  boost::mutex snapshots_mu_;
+  queue<unique_ptr<SnapshotBundlingInfo>> pending_snapshots_
+      GUARDED_BY(snapshots_mu_);
+  unique_ptr<SnapshotBundlingInfo> active_snapshot_;
+
+  boost::mutex bundles_mu_;
+  boost::shared_ptr<Bundle> active_bundle_;
+  vector<boost::shared_ptr<Bundle>> finished_bundles_ GUARDED_BY(bundles_mu_);
+
+  bool exit_requested_;
+  Callback exit_callback_;
 
   DISALLOW_COPY_AND_ASSIGN(BundleStateMachineImpl);
 };
