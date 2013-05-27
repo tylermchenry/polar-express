@@ -12,7 +12,7 @@ FileWriterImpl::~FileWriterImpl() {
 }
 
 void FileWriterImpl::WriteDataToPath(
-    const vector<char>& data, const boost::filesystem::path& path,
+    const string& data, const boost::filesystem::path& path,
     Callback callback) {
   boost::filesystem::resize_file(path, data.size());
   {
@@ -27,10 +27,10 @@ void FileWriterImpl::WriteDataToPath(
 }
 
 void FileWriterImpl::WriteDataToTemporaryFile(
-    const vector<char>& data, boost::filesystem::path* path,
-    Callback callback) {
-  *CHECK_NOTNULL(path) = boost::filesystem::unique_path();
-  WriteDataToPath(data, *path, callback);
+    const string& data, string* path_str, Callback callback) {
+  boost::filesystem::path path = boost::filesystem::unique_path();
+  *CHECK_NOTNULL(path_str) = path.string();
+  WriteDataToPath(data, path, callback);
 }
 
 }  // namespace polar_express

@@ -20,12 +20,11 @@ class FileWriter {
   virtual ~FileWriter();
 
   virtual void WriteDataToPath(
-      const vector<char>& data, const boost::filesystem::path& path,
+      const string& data, const boost::filesystem::path& path,
       Callback callback);
 
   virtual void WriteDataToTemporaryFile(
-      const vector<char>& data, boost::filesystem::path* path,
-      Callback callback);
+      const string& data, string* path_str, Callback callback);
 
  protected:
   FileWriter(bool create_impl);

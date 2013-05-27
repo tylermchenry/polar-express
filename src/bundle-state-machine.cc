@@ -3,6 +3,7 @@
 #include "bundle.h"
 #include "chunk-hasher.h"
 #include "chunk-reader.h"
+#include "file-writer.h"
 #include "proto/block.pb.h"
 #include "proto/file.pb.h"
 #include "proto/snapshot.pb.h"
@@ -28,7 +29,8 @@ BundleStateMachineImpl::BundleStateMachineImpl()
       active_chunk_(nullptr),
       active_chunk_hash_is_valid_(false),
       active_bundle_(new Bundle),
-      chunk_hasher_(new ChunkHasher) {
+      chunk_hasher_(new ChunkHasher),
+      file_writer_(new FileWriter) {
 }
 
 BundleStateMachineImpl::~BundleStateMachineImpl() {
@@ -193,8 +195,11 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, RecordBundle) {
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, WriteBundle) {
-  // TODO: Write bundle to disk.
-  PostEvent<BundleWritten>();
+  assert(generated_bundle_ != nullptr);
+  file_writer_->WriteDataToTemporaryFile(
+      generated_bundle_->raw_data(),
+      generated_bundle_->mutable_persistence_file_path(),
+      CreateExternalEventCallback<BundleWritten>());
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(

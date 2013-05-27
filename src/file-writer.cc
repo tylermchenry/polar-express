@@ -17,7 +17,7 @@ FileWriter::~FileWriter() {
 }
 
 void FileWriter::WriteDataToPath(
-    const vector<char>& data, const boost::filesystem::path& path,
+    const string& data, const boost::filesystem::path& path,
     Callback callback) {
   AsioDispatcher::GetInstance()->PostDiskBound(
       bind(&FileWriter::WriteDataToPath,
@@ -25,11 +25,10 @@ void FileWriter::WriteDataToPath(
 }
 
 void FileWriter::WriteDataToTemporaryFile(
-    const vector<char>& data, boost::filesystem::path* path,
-    Callback callback) {
+    const string& data, string* path_str, Callback callback) {
   AsioDispatcher::GetInstance()->PostDiskBound(
       bind(&FileWriter::WriteDataToTemporaryFile,
-           impl_.get(), data, path, callback));
+           impl_.get(), data, path_str, callback));
 }
 
 }  // namespace polar_express
