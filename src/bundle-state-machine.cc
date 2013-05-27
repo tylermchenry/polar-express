@@ -35,10 +35,11 @@ void BundleStateMachineImpl::FinishAndExit() {
   PostEvent<NewSnapshotReady>();
 }
 
-void BundleStateMachineImpl::GetAndClearGeneratedBundles(
-    vector<boost::shared_ptr<Bundle>>* bundles) {
-  boost::mutex::scoped_lock bundles_lock(bundles_mu_);
-  CHECK_NOTNULL(bundles)->swap(finished_bundles_);
+boost::shared_ptr<FinalizedBundle>
+BundleStateMachineImpl::RetrieveGeneratedBundle() {
+  boost::shared_ptr<FinalizedBundle> ret_bundle = generated_bundle_;
+  generated_bundle_.reset();
+  return ret_bundle;
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, StartNewSnapshot) {
@@ -146,12 +147,6 @@ void BundleStateMachineImpl::NextChunk() {
   } else {
     PostEvent<NoChunksRemaining>();
   }
-}
-
-void BundleStateMachineImpl::AppendFinishedBundle(
-    boost::shared_ptr<Bundle> bundle) {
-  boost::mutex::scoped_lock bundles_lock(bundles_mu_);
-  finished_bundles_.push_back(bundle);
 }
 
 }  // namespace polar_express

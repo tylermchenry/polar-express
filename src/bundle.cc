@@ -42,6 +42,10 @@ const vector<char>& Bundle::data() const {
   return *data_;
 }
 
+bool Bundle::is_finalized() const {
+  return is_finalized_;
+}
+
 void Bundle::StartNewPayload(BundlePayload::CompressionType compression_type) {
   assert(!is_finalized_);
   EndCurrentPayload();
@@ -134,5 +138,32 @@ void Bundle::AppendSerializedManifest() {
                serialized_manifest_sha1_digest.end());
   EndCurrentFile(serialized_manifest_sha1_digest.length());
 }
+
+FinalizedBundle::FinalizedBundle(boost::shared_ptr<const Bundle> bundle)
+  : bundle_(bundle),
+    id_(-1) {
+  assert(bundle->is_finalized());
+}
+
+const Bundle& FinalizedBundle::bundle() const {
+  return *bundle_;
+}
+
+int64_t FinalizedBundle::id() const {
+  return id_;
+}
+
+void FinalizedBundle::set_id(int64_t id) {
+  id_ = id;
+}
+
+const string& FinalizedBundle::persistence_file_path() const {
+  return persistence_file_path_;
+}
+
+void FinalizedBundle::set_persistence_file_path(const string& path) {
+  persistence_file_path_ = path;
+}
+
 
 }  // namespace polar_express

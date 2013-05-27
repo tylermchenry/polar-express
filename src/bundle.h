@@ -69,6 +69,9 @@ class Bundle {
   // serialized manifest being appended to the bundle.
   size_t size() const;
 
+  // Returns true if Finalize has been called.
+  bool is_finalized() const;
+
   // Begins a new payload which subsequent calls to AppendBlock will
   // be added to. It is not necessary to call this before the first call to
   // AppendBlock, since there is always an implicit first
@@ -95,8 +98,8 @@ class Bundle {
 
   // Serializes the manifest to the bundle, closes out the TAR file
   // and returns a pointer to the contents of the completed bundle, which
-  // is now immutable. After Finalize is called, calls to any of the other
-  // mutator methods are illegal.
+  // is now immutable. After Finalize is called, it is illegal to add
+  // any new payload data.
   void Finalize();
 
  private:
@@ -117,6 +120,7 @@ class Bundle {
   // files to data_. All payloads must be closed before calling this.
   void AppendSerializedManifest();
 
+  int64_t id_;
   BundleManifest manifest_;
   bool is_finalized_;
 
@@ -127,6 +131,30 @@ class Bundle {
   boost::shared_ptr<vector<char> > data_;
 
   DISALLOW_COPY_AND_ASSIGN(Bundle);
+};
+
+// A bundle which has been finalized and is no longer mutable. This
+// also contain additional metadata about what ID has been assigned to
+// the bundle, and what file on disk contains its persisted contents.
+class FinalizedBundle {
+ public:
+  // The bundle given as the argument must have been finalized.
+  explicit FinalizedBundle(boost::shared_ptr<const Bundle> bundle);
+
+  const Bundle& bundle() const;
+
+  int64_t id() const;
+  void set_id(int64_t id);
+
+  const string& persistence_file_path() const;
+  void set_persistence_file_path(const string& path);
+
+ private:
+  const boost::shared_ptr<const Bundle> bundle_;
+  int64_t id_;
+  string persistence_file_path_;
+
+  DISALLOW_COPY_AND_ASSIGN(FinalizedBundle);
 };
 
 }  // namespace polar_express
