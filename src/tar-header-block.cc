@@ -54,7 +54,7 @@ void WriteIntegerAsOctalWithLeadingZeros(
 template <typename IntT, int N>
 IntT ReadOctalWithLeadingZerosAsInteger(const char (&c_str)[N]) {
   IntT value;
-  istringstream is(c_str);
+  istringstream is(string(c_str, N));
   is >> oct >> value;
   return value;
 }
