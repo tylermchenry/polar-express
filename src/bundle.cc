@@ -69,7 +69,7 @@ void Bundle::AppendBlockContents(const vector<char>& compressed_contents) {
 void Bundle::Finalize() {
   assert(!is_finalized_);
   EndCurrentPayload();
-  AppendSerializedMetadata();
+  AppendSerializedManifest();
   is_finalized_ = true;
 }
 
@@ -107,7 +107,7 @@ void Bundle::EndCurrentPayload() {
   current_payload_ = nullptr;
 }
 
-void Bundle::AppendSerializedMetadata() {
+void Bundle::AppendSerializedManifest() {
   string serialized_manifest;
   manifest_.SerializeToString(&serialized_manifest);
 

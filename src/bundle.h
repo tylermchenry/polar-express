@@ -113,9 +113,9 @@ class Bundle {
   // resets current_payload_ to null.
   void EndCurrentPayload();
 
-  // Writes the serialized metadata and its checksum as two separate
+  // Writes the serialized manifest and its checksum as two separate
   // files to data_. All payloads must be closed before calling this.
-  void AppendSerializedMetadata();
+  void AppendSerializedManifest();
 
   BundleManifest manifest_;
   bool is_finalized_;
