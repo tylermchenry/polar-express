@@ -1,3 +1,5 @@
+#  -*- mode: python -*-
+
 import os
 
 env = Environment(
@@ -10,6 +12,7 @@ proto_files = env.Protoc(
     [],
     [
       "block.proto",
+      "bundle-manifest.proto",
       "snapshot.proto",
       "file.proto",
     ],
@@ -22,7 +25,7 @@ Default(proto_files)
 ### Libraries
 
 block_proto = env.Library(
-    target='block_proto', 
+    target='block_proto',
     source=[
         'block.pb.cc',
         ],
@@ -32,8 +35,20 @@ block_proto = env.Library(
     )
 Depends(block_proto, proto_files)
 
+block_proto = env.Library(
+    target='bundle_manifest_proto',
+    source=[
+        'bundle-manifest.pb.cc',
+        ],
+    LIBS=[
+         block_proto,
+        'protobuf'
+        ],
+    )
+Depends(block_proto, proto_files)
+
 file_proto = env.Library(
-    target='file_proto', 
+    target='file_proto',
     source=[
         'file.pb.cc',
         ],
@@ -44,7 +59,7 @@ file_proto = env.Library(
 Depends(file_proto, proto_files)
 
 snapshot_proto = env.Library(
-    target='snapshot_proto', 
+    target='snapshot_proto',
     source=[
         'snapshot.pb.cc',
         ],

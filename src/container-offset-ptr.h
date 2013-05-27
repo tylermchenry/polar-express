@@ -55,14 +55,14 @@ class ContainerOffsetPtr {
 
  private:
   ContainerOffsetPtr(
-      boost::shared_ptr<internal::ContainerOffsetPtrImpl<ValueT> > impl)
+      boost::shared_ptr<internal::ContainerOffsetPtrImplBase<ValueT> > impl)
       : impl_(impl) {
   }
 
   boost::shared_ptr<internal::ContainerOffsetPtrImplBase<ValueT> > impl_;
 
-  template<typename ContainerT>
-  friend ContainerOffsetPtr make_offset_ptr(
+  template <typename ContainerT>
+  friend ContainerOffsetPtr<typename ContainerT::value_type> make_offset_ptr(
       boost::shared_ptr<ContainerT> container, size_t offset);
 };
 

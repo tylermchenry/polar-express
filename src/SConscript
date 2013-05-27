@@ -1,4 +1,4 @@
-#  -*- mode: python-*-
+#  -*- mode: python -*-
 
 SConscript('proto/SConscript')
 
@@ -20,6 +20,20 @@ tar_header_block = env.Library(
     source=[
         'tar-header-block.cc',
         ],
+    )
+
+bundle_deplibs = [
+    tar_header_block,
+    'block_proto',
+    'bundle_manifest_proto',
+    'crypto++',
+    ];
+bundle = env.Library(
+    target='bundle',
+    source=[
+        'bundle.cc',
+        ],
+    LIBS=bundle_deplibs,
     )
 
 asio_dispatcher_deplibs = [
@@ -144,7 +158,8 @@ snapshot_state_machine = env.Library(
 bundle_state_machine_deplibs = [
     metadata_db,
     asio_dispatcher,
-    tar_header_block,
+    bundle,
+    bundle_deplibs,
     asio_dispatcher_deplibs,
     metadata_db_deplibs,
     'block_proto',
