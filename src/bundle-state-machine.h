@@ -13,10 +13,10 @@
 
 namespace polar_express {
 
+class AnnotatedBundleData;
 class Bundle;
 class BundleStateMachine;
 class Chunk;
-class FinalizedBundle;
 class Snapshot;
 
 // A state machine which goes through the process of generating new bundles as
@@ -89,7 +89,7 @@ class BundleStateMachineImpl
   //
   // It is only legal to call this method exactly once in response to
   // each invocation of the bundle ready callback.
-  boost::shared_ptr<FinalizedBundle> RetrieveGeneratedBundle();
+  boost::shared_ptr<AnnotatedBundleData> RetrieveGeneratedBundle();
 
   // Instructs the state machine to exit once it finishes processing
   // its queue of snapshots. It is illegal to call BundleSnapshot
@@ -271,7 +271,7 @@ class BundleStateMachineImpl
   const Chunk* active_chunk_;
 
   boost::shared_ptr<Bundle> active_bundle_;
-  boost::shared_ptr<FinalizedBundle> generated_bundle_;
+  boost::shared_ptr<AnnotatedBundleData> generated_bundle_;
 
   DISALLOW_COPY_AND_ASSIGN(BundleStateMachineImpl);
 };
