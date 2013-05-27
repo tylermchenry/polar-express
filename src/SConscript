@@ -111,6 +111,22 @@ chunk_hasher = env.Library(
     LIBS=chunk_hasher_deplibs,
     )
 
+file_writer_deplibs = [
+    asio_dispatcher,
+    asio_dispatcher_deplibs,
+    'block_proto',
+    'boost_filesystem-mt',
+    'boost_iostreams-mt',
+    ];
+file_writer = env.Library(
+    target='file-writer',
+    source=[
+        'file-writer.cc',
+        'file-writer-impl.cc',
+        ],
+    LIBS=file_writer_deplibs,
+    )
+
 filesystem_scanner_deplibs = [
     asio_dispatcher,
     asio_dispatcher_deplibs,
@@ -174,12 +190,14 @@ snapshot_state_machine = env.Library(
 bundle_state_machine_deplibs = [
     chunk_hasher,
     chunk_reader,
+    file_writer,
     metadata_db,
     asio_dispatcher,
     bundle,
     bundle_deplibs,
     asio_dispatcher_deplibs,
     metadata_db_deplibs,
+    file_writer_deplibs,
     chunk_reader_deplibs,
     chunk_hasher_deplibs,
     'block_proto',
