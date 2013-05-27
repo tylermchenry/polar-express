@@ -19,7 +19,7 @@ ChunkHasher::~ChunkHasher() {
 void ChunkHasher::GenerateAndHashChunks(
     const boost::filesystem::path& path,
     boost::shared_ptr<Snapshot> snapshot, Callback callback) {
-  AsioDispatcher::GetInstance()->PostDiskBound(
+  AsioDispatcher::GetInstance()->PostCpuBound(
       bind(&ChunkHasher::GenerateAndHashChunks,
            impl_.get(), path, snapshot, callback));
 }

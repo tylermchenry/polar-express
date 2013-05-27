@@ -1,14 +1,19 @@
 #include "chunk-hasher-impl.h"
 
 #include <ctime>
+#include <cstdlib>
 
 #include "crypto++/hex.h"
 #include "crypto++/sha.h"
 
+#include "chunk-reader.h"
 #include "proto/snapshot.pb.h"
 
 namespace polar_express {
 namespace {
+
+// TODO: Should be configurable.
+const size_t kBlockSizeBytes = 1024 * 1024;  // 1 MiB
 
 template <int N>
 void WriteHashToString(unsigned char (&raw_digest)[N], string* str) {
@@ -19,8 +24,6 @@ void WriteHashToString(unsigned char (&raw_digest)[N], string* str) {
 }
 
 }  // namespace
-
-const size_t ChunkHasherImpl::kBlockSizeBytes = 1024 * 1024;  // 1 MiB
 
 ChunkHasherImpl::ChunkHasherImpl()
   : ChunkHasher(false),
@@ -33,60 +36,88 @@ ChunkHasherImpl::~ChunkHasherImpl() {
 void ChunkHasherImpl::GenerateAndHashChunks(
     const boost::filesystem::path& path,
     boost::shared_ptr<Snapshot> snapshot, Callback callback) {
-  CHECK_NOTNULL(snapshot.get());
-  try {
-    boost::iostreams::mapped_file mapped_file(path.string(), ios_base::in);
-    if (mapped_file.is_open()) {
-      size_t offset = 0;
-      while (offset < mapped_file.size()) {
-        Chunk* chunk = snapshot->add_chunks();
-        chunk->set_offset(offset);
-        FillBlock(mapped_file, offset, chunk->mutable_block());
-        chunk->set_observation_time(time(NULL));
-        offset += kBlockSizeBytes;
-      }
-    }
-  } catch (...) {
-    // TODO: Do something sane here.
-  }
-
-  WriteWholeFileHash(snapshot->mutable_sha1_digest());
-
-  callback();
+  ContinueGeneratingAndHashingChunks(
+      boost::shared_ptr<Context>(new Context(path, snapshot, callback)));
 }
 
-void ChunkHasherImpl::FillBlock(
-    const boost::iostreams::mapped_file& mapped_file, size_t offset,
-    Block* block) {
-  block->set_length(min(kBlockSizeBytes, mapped_file.size() - offset));
-  HashData(mapped_file.const_data() + offset, block->length(),
-           block->mutable_sha1_digest());
-  UpdateWholeFileHash(mapped_file.const_data() + offset, block->length());
+void ChunkHasherImpl::ContinueGeneratingAndHashingChunks(
+    boost::shared_ptr<Context> context) {
+  int64_t offset = 0;
+  if (context->current_chunk_ != nullptr) {
+    offset = context->current_chunk_->offset() +
+        context->current_chunk_->block().length();
+  }
+
+  context->current_chunk_ = context->snapshot_->add_chunks();
+  context->current_chunk_->set_offset(offset);
+
+  // Ask for a block of the default size. If EOF is reached, then the
+  // reader will return less than this many bytes.
+  context->current_chunk_->mutable_block()->set_length(kBlockSizeBytes);
+
+  context->block_data_buffer_.clear();
+  context->chunk_reader_->ReadBlockDataForChunk(
+      *context->current_chunk_, &context->block_data_buffer_,
+      bind(&ChunkHasherImpl::UpdateHashesFromBlockData, this, context));
+}
+
+void ChunkHasherImpl::UpdateHashesFromBlockData(
+    boost::shared_ptr<Context> context) {
+  // If the chunk reader returned less data than we requested, this
+  // means that it hit EOF.
+  size_t expected_data_length = context->current_chunk_->block().length();
+
+  if (context->block_data_buffer_.empty()) {
+    // Do not generate chunks for empty blocks.
+    context->snapshot_->mutable_chunks()->RemoveLast();
+  } else {
+    context->current_chunk_->set_observation_time(time(nullptr));
+
+    Block* current_block = context->current_chunk_->mutable_block();
+    current_block->set_length(context->block_data_buffer_.size());
+
+    HashData(context->block_data_buffer_, current_block->mutable_sha1_digest());
+    UpdateWholeFileHash(context->block_data_buffer_);
+  }
+
+  if (context->block_data_buffer_.size() < expected_data_length) {
+    WriteWholeFileHash(context->snapshot_->mutable_sha1_digest());
+    context->callback_();
+  } else {
+    ContinueGeneratingAndHashingChunks(context);
+  }
 }
 
 void ChunkHasherImpl::HashData(
-    const char* data_start, size_t data_length,
-    string* sha1_digest) const {
+    const vector<char>& data, string* sha1_digest) const {
   CryptoPP::SHA1 sha1_engine;
   unsigned char raw_digest[CryptoPP::SHA1::DIGESTSIZE];
   sha1_engine.CalculateDigest(
       raw_digest,
-      reinterpret_cast<const unsigned char*>(data_start),
-      data_length);
+      reinterpret_cast<const unsigned char*>(data.data()),
+      data.size());
   WriteHashToString(raw_digest, sha1_digest);
 }
 
-void ChunkHasherImpl::UpdateWholeFileHash(
-    const char* data_start, size_t data_length) {
+void ChunkHasherImpl::UpdateWholeFileHash(const vector<char>& data) {
   whole_file_sha1_engine_->Update(
-      reinterpret_cast<const unsigned char*>(data_start),
-      data_length);
+      reinterpret_cast<const unsigned char*>(data.data()), data.size());
 }
 
 void ChunkHasherImpl::WriteWholeFileHash(string* sha1_digest) const {
   unsigned char raw_digest[CryptoPP::SHA1::DIGESTSIZE];
   whole_file_sha1_engine_->Final(raw_digest);
   WriteHashToString(raw_digest, sha1_digest);
+}
+
+ChunkHasherImpl::Context::Context(
+    const boost::filesystem::path& path, boost::shared_ptr<Snapshot> snapshot,
+    Callback callback)
+    : path_(path),
+      snapshot_(snapshot),
+      chunk_reader_(new ChunkReader(path)),
+      current_chunk_(nullptr),
+      callback_(callback) {
 }
 
 }  // namespace polar_express

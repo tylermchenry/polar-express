@@ -1,12 +1,10 @@
 #ifndef CHUNK_HASHER_IMPL_H
 #define CHUNK_HASHER_IMPL_H
 
-#include <cstdlib>
+#include <memory>
 #include <vector>
 
 #include "boost/filesystem.hpp"
-#include "boost/iostreams/device/mapped_file.hpp"
-#include "boost/scoped_ptr.hpp"
 #include "boost/shared_ptr.hpp"
 
 #include "callback.h"
@@ -21,6 +19,7 @@ namespace polar_express {
 
 class Block;
 class Chunk;
+class ChunkReader;
 
 class ChunkHasherImpl : public ChunkHasher {
  public:
@@ -32,22 +31,32 @@ class ChunkHasherImpl : public ChunkHasher {
       boost::shared_ptr<Snapshot> snapshot, Callback callback);
 
  private:
-  void FillBlock(
-      const boost::iostreams::mapped_file& mapped_file, size_t offset,
-      Block* block);
+  struct Context {
+    Context(const boost::filesystem::path& path,
+            boost::shared_ptr<Snapshot> snapshot,
+            Callback callback);
 
-  void HashData(
-      const char* data_start, size_t data_length,
-      string* sha1_digest) const;
+    boost::filesystem::path path_;
+    boost::shared_ptr<Snapshot> snapshot_;
+    boost::shared_ptr<ChunkReader> chunk_reader_;
+    Chunk* current_chunk_;
+    vector<char> block_data_buffer_;
+    Callback callback_;
+  };
 
-  void UpdateWholeFileHash(
-      const char* data_start, size_t data_length);
+  void ContinueGeneratingAndHashingChunks(
+      boost::shared_ptr<Context> context);
+
+  void UpdateHashesFromBlockData(
+      boost::shared_ptr<Context> context);
+
+  void HashData(const vector<char>& data, string* sha1_digest) const;
+
+  void UpdateWholeFileHash(const vector<char>& data);
 
   void WriteWholeFileHash(string* sha1_digest) const;
 
-  boost::scoped_ptr<CryptoPP::SHA1> whole_file_sha1_engine_;
-
-  static const size_t kBlockSizeBytes;
+  unique_ptr<CryptoPP::SHA1> whole_file_sha1_engine_;
 
   DISALLOW_COPY_AND_ASSIGN(ChunkHasherImpl);
 };
