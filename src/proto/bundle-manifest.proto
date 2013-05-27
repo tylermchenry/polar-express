@@ -31,7 +31,7 @@ message BundleManifest {
 //
 // Next tag: 5
 message AnnotatedBundleData {
-  optional int64 id = 1;
+  optional int64 id = 1 [default = -1];
   optional BundleManifest manifest = 2;
   optional bytes raw_data = 3;
   optional string persistence_file_path = 4;

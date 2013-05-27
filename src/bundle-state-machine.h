@@ -92,7 +92,11 @@ class BundleStateMachineImpl
   boost::shared_ptr<AnnotatedBundleData> RetrieveGeneratedBundle();
 
   // Instructs the state machine to exit once it finishes processing
-  // its queue of snapshots. It is illegal to call BundleSnapshot
+  // its queue of snapshots.
+  //
+  // Once BundleSnapshot has been invoked at least once, it is only
+  // legal to call this method in response to an invocation of the
+  // snapshot done callback. It is illegal to call BundleSnapshot
   // after calling FinishAndExit, or to call this method twice.
   void FinishAndExit();
 
@@ -267,8 +271,12 @@ class BundleStateMachineImpl
 
   boost::shared_ptr<Snapshot> pending_snapshot_;
 
+  // Pending chunk pointers are owned by pending_shapshot_.
   queue<const Chunk*> pending_chunks_;
   const Chunk* active_chunk_;
+  boost::shared_ptr<AnnotatedBundleData> existing_bundle_for_active_chunk_;
+  vector<char> block_data_for_active_chunk_;
+  vector<char> compressed_block_data_for_active_chunk_;
 
   boost::shared_ptr<Bundle> active_bundle_;
   boost::shared_ptr<AnnotatedBundleData> generated_bundle_;

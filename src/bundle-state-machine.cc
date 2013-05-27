@@ -5,6 +5,12 @@
 #include "proto/snapshot.pb.h"
 
 namespace polar_express {
+namespace {
+
+// TODO: This should be configurable.
+const size_t kMaxBundleSize = 100 * (1 << 20);  // 100 MiB
+
+}  // namespace
 
 void BundleStateMachine::Start(const string& root) {
   InternalStart(root);
@@ -15,7 +21,9 @@ BundleStateMachineImpl::BackEnd* BundleStateMachine::GetBackEnd() {
 }
 
 BundleStateMachineImpl::BundleStateMachineImpl()
-    : exit_requested_(false) {
+    : exit_requested_(false),
+      active_chunk_(nullptr),
+      active_bundle_(new Bundle) {
 }
 
 BundleStateMachineImpl::~BundleStateMachineImpl() {
@@ -64,10 +72,18 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, ResetForNextSnapshot) {
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, GetExistingBundleInfo) {
+  // TODO: Retrieve existing bundle info for this block from metadata DB.
+  PostEvent<ExistingBundleInfoReady>();
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(
     BundleStateMachineImpl, InspectExistingBundleInfo) {
+  if (existing_bundle_for_active_chunk_ != nullptr &&
+      existing_bundle_for_active_chunk_->id() >= 0) {
+    PostEvent<ChunkAlreadyInBundle>();
+  } else {
+    PostEvent<ChunkNotYetInBundle>();
+  }
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, DiscardChunk) {
@@ -75,12 +91,43 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, DiscardChunk) {
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, ReadChunkContents) {
+  // TODO: Read block data from disk.
+  PostEvent<ChunkContentsReady>();
+}
+
+PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, InspectChunkContents) {
+  // TODO: Compare hash, post mismatch event if hashes mismatch.
+  PostEvent<ChunkContentsHashMatch>();
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, CompressChunkContents) {
+  // TODO: Actually compress chunk contents! :)
+  compressed_block_data_for_active_chunk_ = block_data_for_active_chunk_;
+  PostEvent<CompressionDone>();
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, FinishChunk) {
+  assert(active_chunk_ != nullptr);
+  assert(active_bundle_ != nullptr);
+  assert(!active_bundle_->is_finalized());
+
+  // Compression is finished; get rid of uncompressed data to free memory.
+  block_data_for_active_chunk_.clear();
+
+  if (active_bundle_->manifest().payloads_size() == 0) {
+    // TODO: use real compression type.
+    active_bundle_->StartNewPayload(BundlePayload::COMPRESSION_TYPE_NONE);
+  }
+  active_bundle_->AddBlockMetadata(active_chunk_->block());
+  active_bundle_->AppendBlockContents(compressed_block_data_for_active_chunk_);
+
+  compressed_block_data_for_active_chunk_.clear();
+
+  if (active_bundle_->size() >= kMaxBundleSize) {
+    PostEvent<MaxBundleSizeReached>();
+  } else {
+    PostEvent<MaxBundleSizeNotReached>();
+  }
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, FinalizeBundle) {
@@ -107,16 +154,24 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, EncryptBundle) {
 
   // TODO: Actually encrypt! :)
   cyphertext->assign(plaintext.begin(), plaintext.end());
-
-  // Get rid of plaintext.
-  active_bundle_.reset();
+  PostEvent<EncryptionDone>();
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, RecordBundle) {
+  assert(active_bundle_ != nullptr);
+  assert(active_bundle_->is_finalized());
+  assert(generated_bundle_ != nullptr);
 
+  // Encryption is finished; get rid of plaintext to free memory.
+  active_bundle_.reset();
+
+  // TODO: Record to metadata DB.
+  PostEvent<BundleRecorded>();
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, WriteBundle) {
+  // TODO: Write bundle to disk.
+  PostEvent<BundleWritten>();
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, StartNewBundle) {
