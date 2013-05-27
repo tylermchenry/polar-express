@@ -52,7 +52,7 @@ void BundleStateMachineImpl::FinishAndExit() {
 boost::shared_ptr<AnnotatedBundleData>
 BundleStateMachineImpl::RetrieveGeneratedBundle() {
   boost::shared_ptr<AnnotatedBundleData> ret_bundle = generated_bundle_;
-  generated_bundle_.reset();
+  PostEvent<BundleRetrieved>();
   return ret_bundle;
 }
 
@@ -174,7 +174,17 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, WriteBundle) {
   PostEvent<BundleWritten>();
 }
 
-PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, StartNewBundle) {
+PE_STATE_MACHINE_ACTION_HANDLER(
+    BundleStateMachineImpl, ExecuteBundleReadyCallback) {
+  if (bundle_ready_callback_) {
+    bundle_ready_callback_();
+  }
+}
+
+PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, ResetForNextBundle) {
+  assert(active_bundle_ == nullptr);
+  generated_bundle_.reset();
+  NextChunk();
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, CleanUp) {

@@ -112,7 +112,7 @@ class BundleStateMachineImpl
   PE_STATE_MACHINE_DEFINE_STATE(WaitForEncryption);
   PE_STATE_MACHINE_DEFINE_STATE(WaitForBundleToRecord);
   PE_STATE_MACHINE_DEFINE_STATE(WaitForBundleToWrite);
-  PE_STATE_MACHINE_DEFINE_STATE(BundleFinished);
+  PE_STATE_MACHINE_DEFINE_STATE(WaitForBundleRetrieval);
   PE_STATE_MACHINE_DEFINE_STATE(Done);
 
  protected:
@@ -133,6 +133,7 @@ class BundleStateMachineImpl
   PE_STATE_MACHINE_DEFINE_EVENT(EncryptionDone);
   PE_STATE_MACHINE_DEFINE_EVENT(BundleRecorded);
   PE_STATE_MACHINE_DEFINE_EVENT(BundleWritten);
+  PE_STATE_MACHINE_DEFINE_EVENT(BundleRetrieved);
   PE_STATE_MACHINE_DEFINE_EVENT(FlushForced);
 
   PE_STATE_MACHINE_DEFINE_ACTION(StartNewSnapshot);
@@ -148,7 +149,8 @@ class BundleStateMachineImpl
   PE_STATE_MACHINE_DEFINE_ACTION(EncryptBundle);
   PE_STATE_MACHINE_DEFINE_ACTION(RecordBundle);
   PE_STATE_MACHINE_DEFINE_ACTION(WriteBundle);
-  PE_STATE_MACHINE_DEFINE_ACTION(StartNewBundle);
+  PE_STATE_MACHINE_DEFINE_ACTION(ExecuteBundleReadyCallback);
+  PE_STATE_MACHINE_DEFINE_ACTION(ResetForNextBundle);
   PE_STATE_MACHINE_DEFINE_ACTION(CleanUp);
 
   PE_STATE_MACHINE_TRANSITION_TABLE(
@@ -240,7 +242,12 @@ class BundleStateMachineImpl
       PE_STATE_MACHINE_TRANSITION(
           WaitForBundleToWrite,
           BundleWritten,
-          StartNewBundle,
+          ExecuteBundleReadyCallback,
+          WaitForBundleRetrieval),
+      PE_STATE_MACHINE_TRANSITION(
+          WaitForBundleRetrieval,
+          BundleRetrieved,
+          ResetForNextBundle,
           HaveChunks));
 
   void InternalStart(const string& root);
