@@ -172,15 +172,19 @@ snapshot_state_machine = env.Library(
     )
 
 bundle_state_machine_deplibs = [
+    chunk_hasher,
+    chunk_reader,
     metadata_db,
     asio_dispatcher,
     bundle,
     bundle_deplibs,
     asio_dispatcher_deplibs,
     metadata_db_deplibs,
+    chunk_reader_deplibs,
+    chunk_hasher_deplibs,
     'block_proto',
-    'snapshot_proto',
     'file_proto',
+    'snapshot_proto',
     'protobuf',
     ];
 bundle_state_machine = env.Library(

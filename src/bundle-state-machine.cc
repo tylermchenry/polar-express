@@ -1,7 +1,10 @@
 #include "bundle-state-machine.h"
 
 #include "bundle.h"
+#include "chunk-hasher.h"
+#include "chunk-reader.h"
 #include "proto/block.pb.h"
+#include "proto/file.pb.h"
 #include "proto/snapshot.pb.h"
 
 namespace polar_express {
@@ -23,7 +26,9 @@ BundleStateMachineImpl::BackEnd* BundleStateMachine::GetBackEnd() {
 BundleStateMachineImpl::BundleStateMachineImpl()
     : exit_requested_(false),
       active_chunk_(nullptr),
-      active_bundle_(new Bundle) {
+      active_chunk_hash_is_valid_(false),
+      active_bundle_(new Bundle),
+      chunk_hasher_(new ChunkHasher) {
 }
 
 BundleStateMachineImpl::~BundleStateMachineImpl() {
@@ -57,8 +62,11 @@ BundleStateMachineImpl::RetrieveGeneratedBundle() {
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, StartNewSnapshot) {
+  chunk_reader_.reset();
   if (pending_snapshot_ != nullptr) {
     PushPendingChunksForSnapshot(pending_snapshot_);
+    chunk_reader_ = ChunkReader::CreateChunkReaderForPath(
+        root_ + pending_snapshot_->file().path());
   }
   NextChunk();
 }
@@ -91,13 +99,28 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, DiscardChunk) {
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, ReadChunkContents) {
-  // TODO: Read block data from disk.
-  PostEvent<ChunkContentsReady>();
+  block_data_for_active_chunk_.clear();
+  chunk_reader_->ReadBlockDataForChunk(
+      *active_chunk_, &block_data_for_active_chunk_,
+      CreateExternalEventCallback<ChunkContentsReady>());
+}
+
+PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, HashChunkContents) {
+  active_chunk_hash_is_valid_ = false;
+  chunk_hasher_->ValidateHash(
+      *active_chunk_, block_data_for_active_chunk_,
+      &active_chunk_hash_is_valid_,
+      CreateExternalEventCallback<ChunkContentsHashReady>());
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, InspectChunkContents) {
-  // TODO: Compare hash, post mismatch event if hashes mismatch.
-  PostEvent<ChunkContentsHashMatch>();
+  if (active_chunk_hash_is_valid_) {
+    PostEvent<ChunkContentsHashMatch>();
+  } else {
+    // TODO: Some way to signal back to the executor that this file
+    // needs to be snapshotted again.
+    PostEvent<ChunkContentsHashMismatch>();
+  }
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, CompressChunkContents) {

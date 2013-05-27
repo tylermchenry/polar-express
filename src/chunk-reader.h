@@ -1,6 +1,7 @@
 #ifndef CHUNK_READER_H
 #define CHUNK_READER_H
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -18,7 +19,9 @@ class ChunkReaderImpl;
 
 class ChunkReader {
  public:
-  explicit ChunkReader(const boost::filesystem::path& path);
+  // Factory method so that we can mock these later.
+  static unique_ptr<ChunkReader> CreateChunkReaderForPath(
+      const boost::filesystem::path& path);
   virtual ~ChunkReader();
 
   virtual void ReadBlockDataForChunk(
@@ -26,6 +29,7 @@ class ChunkReader {
       Callback callback);
 
  protected:
+  explicit ChunkReader(const boost::filesystem::path& path);
   ChunkReader(const boost::filesystem::path& path, bool create_impl);
 
  private:

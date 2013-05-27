@@ -125,7 +125,7 @@ ChunkHasherImpl::Context::Context(
     Callback callback)
     : path_(path),
       snapshot_(snapshot),
-      chunk_reader_(new ChunkReader(path)),
+      chunk_reader_(ChunkReader::CreateChunkReaderForPath(path).release()),
       current_chunk_(nullptr),
       callback_(callback) {
 }

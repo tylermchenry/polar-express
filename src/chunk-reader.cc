@@ -6,6 +6,12 @@
 
 namespace polar_express {
 
+// static
+unique_ptr<ChunkReader> ChunkReader::CreateChunkReaderForPath(
+    const boost::filesystem::path& path) {
+  return unique_ptr<ChunkReader>(new ChunkReader(path));
+}
+
 ChunkReader::ChunkReader(const boost::filesystem::path& path)
     : impl_(new ChunkReaderImpl(path)) {
 }

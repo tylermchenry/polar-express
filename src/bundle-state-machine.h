@@ -1,6 +1,7 @@
 #ifndef BUNDLE_STATE_MACHINE_H
 #define BUNDLE_STATE_MACHINE_H
 
+#include <memory>
 #include <queue>
 #include <unordered_map>
 #include <vector>
@@ -9,6 +10,7 @@
 
 #include "callback.h"
 #include "macros.h"
+#include "overrideable-scoped-ptr.h"
 #include "state-machine.h"
 
 namespace polar_express {
@@ -17,6 +19,8 @@ class AnnotatedBundleData;
 class Bundle;
 class BundleStateMachine;
 class Chunk;
+class ChunkHasher;
+class ChunkReader;
 class Snapshot;
 
 // A state machine which goes through the process of generating new bundles as
@@ -106,6 +110,7 @@ class BundleStateMachineImpl
   PE_STATE_MACHINE_DEFINE_STATE(HaveExistingBundleInfo);
   PE_STATE_MACHINE_DEFINE_STATE(WaitForChunkContents);
   PE_STATE_MACHINE_DEFINE_STATE(HaveChunkContents);
+  PE_STATE_MACHINE_DEFINE_STATE(HaveChunkContentsAndHashValidity);
   PE_STATE_MACHINE_DEFINE_STATE(WaitForCompression);
   PE_STATE_MACHINE_DEFINE_STATE(ChunkFinished);
   PE_STATE_MACHINE_DEFINE_STATE(HaveBundle);
@@ -123,6 +128,7 @@ class BundleStateMachineImpl
   PE_STATE_MACHINE_DEFINE_EVENT(ChunkAlreadyInBundle);
   PE_STATE_MACHINE_DEFINE_EVENT(ChunkNotYetInBundle);
   PE_STATE_MACHINE_DEFINE_EVENT(ChunkContentsReady);
+  PE_STATE_MACHINE_DEFINE_EVENT(ChunkContentsHashReady);
   PE_STATE_MACHINE_DEFINE_EVENT(ChunkContentsHashMismatch);
   PE_STATE_MACHINE_DEFINE_EVENT(ChunkContentsHashMatch);
   PE_STATE_MACHINE_DEFINE_EVENT(CompressionDone);
@@ -142,6 +148,7 @@ class BundleStateMachineImpl
   PE_STATE_MACHINE_DEFINE_ACTION(InspectExistingBundleInfo);
   PE_STATE_MACHINE_DEFINE_ACTION(DiscardChunk);
   PE_STATE_MACHINE_DEFINE_ACTION(ReadChunkContents);
+  PE_STATE_MACHINE_DEFINE_ACTION(HashChunkContents);
   PE_STATE_MACHINE_DEFINE_ACTION(InspectChunkContents);
   PE_STATE_MACHINE_DEFINE_ACTION(CompressChunkContents);
   PE_STATE_MACHINE_DEFINE_ACTION(FinishChunk);
@@ -192,8 +199,13 @@ class BundleStateMachineImpl
       PE_STATE_MACHINE_TRANSITION(
           WaitForChunkContents,
           ChunkContentsReady,
-          InspectChunkContents,
+          HashChunkContents,
           HaveChunkContents),
+      PE_STATE_MACHINE_TRANSITION(
+          WaitForChunkContents,
+          ChunkContentsHashReady,
+          InspectChunkContents,
+          HaveChunkContentsAndHashValidity),
       PE_STATE_MACHINE_TRANSITION(
           HaveChunkContents,
           ChunkContentsHashMismatch,
@@ -283,10 +295,14 @@ class BundleStateMachineImpl
   const Chunk* active_chunk_;
   boost::shared_ptr<AnnotatedBundleData> existing_bundle_for_active_chunk_;
   vector<char> block_data_for_active_chunk_;
+  bool active_chunk_hash_is_valid_;
   vector<char> compressed_block_data_for_active_chunk_;
 
   boost::shared_ptr<Bundle> active_bundle_;
   boost::shared_ptr<AnnotatedBundleData> generated_bundle_;
+
+  unique_ptr<ChunkReader> chunk_reader_;
+  OverrideableScopedPtr<ChunkHasher> chunk_hasher_;
 
   DISALLOW_COPY_AND_ASSIGN(BundleStateMachineImpl);
 };
