@@ -1,19 +1,19 @@
-#ifndef OVERRIDEABLE_SCOPED_PTR_H
-#define OVERRIDEABLE_SCOPED_PTR_H
+#ifndef OVERRIDEABLE_UNIQUE_PTR_H
+#define OVERRIDEABLE_UNIQUE_PTR_H
 
-#include "boost/scoped_ptr.hpp"
+#include <memory>
 
 #include "macros.h"
 
 namespace polar_express {
 
-// A wrapper around boost::scoped_ptr which must be initialized with a non-null
+// A wrapper around boost::unique_ptr which must be initialized with a non-null
 // value, and which can be temporarily overridden (usually by a pointer to a
 // mock).
 template <typename T>
-class OverrideableScopedPtr {
+class OverrideableUniquePtr {
  public:
-  explicit OverrideableScopedPtr(T* owned_ptr)
+  explicit OverrideableUniquePtr(T* owned_ptr)
     : owned_ptr_(CHECK_NOTNULL(owned_ptr)),
       override_ptr_(nullptr) {
   }
@@ -43,12 +43,12 @@ class OverrideableScopedPtr {
   }
 
  private:
-  const scoped_ptr<T> owned_ptr_;
+  const unique_ptr<T> owned_ptr_;
   T* override_ptr_;
 
-  DISALLOW_COPY_AND_ASSIGN(OverrideableScopedPtr);
+  DISALLOW_COPY_AND_ASSIGN(OverrideableUniquePtr);
 };
 
 }  // namespace polar_express
 
-#endif  // OVERRIDEABLE_SCOPED_PTR_H
+#endif  // OVERRIDEABLE_UNIQUE_PTR_H

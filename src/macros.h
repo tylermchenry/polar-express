@@ -3,7 +3,7 @@
 
 #include <cassert>
 
-#include "boost/scoped_ptr.hpp"
+#include "boost/shared_ptr.hpp"  // To get boost namespace for 'using' below.
 
 #define DISALLOW_COPY_AND_ASSIGN(TypeName) \
   TypeName(const TypeName&);               \

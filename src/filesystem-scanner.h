@@ -1,12 +1,12 @@
 #ifndef FILESYSTEM_SCANNER_H
 #define FILESYSTEM_SCANNER_H
 
-#include <vector>
+#include <memory>
 #include <string>
+#include <vector>
 
 #include "boost/filesystem.hpp"
 #include "boost/function.hpp"
-#include "boost/scoped_ptr.hpp"
 
 #include "callback.h"
 #include "macros.h"
@@ -52,7 +52,7 @@ class FilesystemScanner {
   explicit FilesystemScanner(bool create_impl);
 
  private:
-  scoped_ptr<FilesystemScannerImpl> impl_;
+  unique_ptr<FilesystemScannerImpl> impl_;
 
   DISALLOW_COPY_AND_ASSIGN(FilesystemScanner);
 };

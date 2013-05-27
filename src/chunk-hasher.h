@@ -1,11 +1,11 @@
 #ifndef CHUNK_HASHER_H
 #define CHUNK_HASHER_H
 
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "boost/filesystem.hpp"
-#include "boost/scoped_ptr.hpp"
 #include "boost/shared_ptr.hpp"
 
 #include "callback.h"
@@ -34,7 +34,7 @@ class ChunkHasher {
   explicit ChunkHasher(bool create_impl);
 
  private:
-  scoped_ptr<ChunkHasherImpl> impl_;
+  unique_ptr<ChunkHasherImpl> impl_;
 
   DISALLOW_COPY_AND_ASSIGN(ChunkHasher);
 };

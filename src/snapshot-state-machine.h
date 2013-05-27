@@ -7,7 +7,7 @@
 #include "boost/shared_ptr.hpp"
 
 #include "macros.h"
-#include "overrideable-scoped-ptr.h"
+#include "overrideable-unique-ptr.h"
 #include "state-machine.h"
 
 namespace polar_express {
@@ -113,11 +113,11 @@ class SnapshotStateMachineImpl
     const string& root, const filesystem::path& filepath);
 
  private:
-  OverrideableScopedPtr<SnapshotUtil> snapshot_util_;
-  OverrideableScopedPtr<CandidateSnapshotGenerator>
+  OverrideableUniquePtr<SnapshotUtil> snapshot_util_;
+  OverrideableUniquePtr<CandidateSnapshotGenerator>
   candidate_snapshot_generator_;
-  OverrideableScopedPtr<ChunkHasher> chunk_hasher_;
-  OverrideableScopedPtr<MetadataDb> metadata_db_;
+  OverrideableUniquePtr<ChunkHasher> chunk_hasher_;
+  OverrideableUniquePtr<MetadataDb> metadata_db_;
 
   boost::shared_ptr<Snapshot> candidate_snapshot_;
   boost::shared_ptr<Snapshot> previous_snapshot_;

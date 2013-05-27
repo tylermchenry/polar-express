@@ -1,10 +1,10 @@
 #ifndef CANDIDATE_SNAPSHOT_GENERATOR_H
 #define CANDIDATE_SNAPSHOT_GENERATOR_H
 
+#include <memory>
 #include <string>
 
 #include "boost/filesystem.hpp"
-#include "boost/scoped_ptr.hpp"
 #include "boost/shared_ptr.hpp"
 
 #include "callback.h"
@@ -38,7 +38,7 @@ class CandidateSnapshotGenerator {
   explicit CandidateSnapshotGenerator(bool create_impl);
 
  private:
-  scoped_ptr<CandidateSnapshotGeneratorImpl> impl_;
+  unique_ptr<CandidateSnapshotGeneratorImpl> impl_;
 
   DISALLOW_COPY_AND_ASSIGN(CandidateSnapshotGenerator);
 };

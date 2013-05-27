@@ -1,7 +1,8 @@
 #ifndef METADATA_DB_H
 #define METADATA_DB_H
 
-#include "boost/scoped_ptr.hpp"
+#include <memory>
+
 #include "boost/shared_ptr.hpp"
 
 #include "callback.h"
@@ -31,7 +32,7 @@ class MetadataDb {
   explicit MetadataDb(bool create_impl);
 
  private:
-  boost::scoped_ptr<MetadataDbImpl> impl_;
+  unique_ptr<MetadataDbImpl> impl_;
 
   DISALLOW_COPY_AND_ASSIGN(MetadataDb);
 };

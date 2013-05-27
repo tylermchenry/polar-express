@@ -10,7 +10,7 @@
 
 #include "callback.h"
 #include "macros.h"
-#include "overrideable-scoped-ptr.h"
+#include "overrideable-unique-ptr.h"
 #include "state-machine.h"
 
 namespace polar_express {
@@ -302,7 +302,7 @@ class BundleStateMachineImpl
   boost::shared_ptr<AnnotatedBundleData> generated_bundle_;
 
   unique_ptr<ChunkReader> chunk_reader_;
-  OverrideableScopedPtr<ChunkHasher> chunk_hasher_;
+  OverrideableUniquePtr<ChunkHasher> chunk_hasher_;
 
   DISALLOW_COPY_AND_ASSIGN(BundleStateMachineImpl);
 };

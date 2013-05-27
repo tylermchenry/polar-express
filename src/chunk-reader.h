@@ -6,7 +6,6 @@
 #include <vector>
 
 #include "boost/filesystem.hpp"
-#include "boost/scoped_ptr.hpp"
 #include "boost/shared_ptr.hpp"
 
 #include "callback.h"
@@ -33,7 +32,7 @@ class ChunkReader {
   ChunkReader(const boost::filesystem::path& path, bool create_impl);
 
  private:
-  scoped_ptr<ChunkReaderImpl> impl_;
+  unique_ptr<ChunkReaderImpl> impl_;
 
   DISALLOW_COPY_AND_ASSIGN(ChunkReader);
 };

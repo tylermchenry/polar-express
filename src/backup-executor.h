@@ -1,18 +1,18 @@
 #ifndef BACKUP_EXECUTOR_H
 #define BACKUP_EXECUTOR_H
 
+#include <memory>
 #include <queue>
 #include <string>
 
 #include "boost/filesystem.hpp"
 #include "boost/pool/poolfwd.hpp"
-#include "boost/scoped_ptr.hpp"
 #include "boost/shared_ptr.hpp"
 
 #include "asio-dispatcher.h"
 #include "callback.h"
 #include "macros.h"
-#include "overrideable-scoped-ptr.h"
+#include "overrideable-unique-ptr.h"
 
 namespace polar_express {
 
@@ -75,7 +75,7 @@ class BackupExecutor {
   string root_;
 
   queue<boost::filesystem::path> pending_snapshot_paths_;
-  boost::scoped_ptr<boost::object_pool<SnapshotStateMachine> >
+  unique_ptr<boost::object_pool<SnapshotStateMachine> >
   snapshot_state_machine_pool_;
   int num_running_snapshot_state_machines_;
   int num_finished_snapshot_state_machines_;
@@ -91,7 +91,7 @@ class BackupExecutor {
 
   boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher_;
 
-  OverrideableScopedPtr<FilesystemScanner> filesystem_scanner_;
+  OverrideableUniquePtr<FilesystemScanner> filesystem_scanner_;
 
   static const int kMaxPendingSnapshots;
   static const int kMaxSimultaneousSnapshots;
