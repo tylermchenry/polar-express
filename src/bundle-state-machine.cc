@@ -20,13 +20,18 @@ BundleStateMachineImpl::BundleStateMachineImpl()
 BundleStateMachineImpl::~BundleStateMachineImpl() {
 }
 
+void BundleStateMachineImpl::SetSnapshotDoneCallback(Callback callback) {
+  snapshot_done_callback_ = callback;
+}
+
 void BundleStateMachineImpl::SetBundleReadyCallback(Callback callback) {
   bundle_ready_callback_ = callback;
 }
 
 void BundleStateMachineImpl::BundleSnapshot(
     boost::shared_ptr<Snapshot> snapshot) {
-  PushPendingSnapshot(snapshot);
+  assert(pending_snapshot_ == nullptr);
+  pending_snapshot_ = snapshot;
   PostEvent<NewSnapshotReady>();
 }
 
@@ -43,9 +48,8 @@ BundleStateMachineImpl::RetrieveGeneratedBundle() {
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, StartNewSnapshot) {
-  boost::shared_ptr<Snapshot> snapshot;
-  if (PopPendingSnapshot(&snapshot)) {
-    PushPendingChunksForSnapshot(snapshot);
+  if (pending_snapshot_ != nullptr) {
+    PushPendingChunksForSnapshot(pending_snapshot_);
   }
   NextChunk();
 }
@@ -97,32 +101,12 @@ void BundleStateMachineImpl::InternalStart(const string& root) {
   root_ = root;
 }
 
-void BundleStateMachineImpl::PushPendingSnapshot(
-    boost::shared_ptr<Snapshot> snapshot) {
-  boost::mutex::scoped_lock snapshots_lock(snapshots_mu_);
-  pending_snapshots_.push(snapshot);
-}
-
-bool BundleStateMachineImpl::PopPendingSnapshot(
-    boost::shared_ptr<Snapshot>* snapshot) {
-  boost::mutex::scoped_lock snapshots_lock(snapshots_mu_);
-  if (pending_snapshots_.empty()) {
-    return false;
-  }
-  *CHECK_NOTNULL(snapshot) = pending_snapshots_.front();
-  pending_snapshots_.pop();
-  return true;
-}
-
 void BundleStateMachineImpl::PushPendingChunksForSnapshot(
     boost::shared_ptr<Snapshot> snapshot) {
   const Chunk* chunk_ptr = nullptr;
   for (const auto& chunk : snapshot->chunks()) {
     chunk_ptr = &chunk;
     pending_chunks_.push(chunk_ptr);
-  }
-  if (chunk_ptr != nullptr) {
-    last_chunk_to_snapshot_.insert(make_pair(chunk_ptr, snapshot));
   }
 }
 
@@ -136,16 +120,15 @@ bool BundleStateMachineImpl::PopPendingChunk(const Chunk** chunk) {
 }
 
 void BundleStateMachineImpl::NextChunk() {
-  if (active_chunk_ != nullptr) {
-    last_chunk_to_snapshot_.erase(active_chunk_);
-    active_chunk_ = nullptr;
-  }
   if (PopPendingChunk(&active_chunk_)) {
     PostEvent<NewChunkReady>();
-  } else if (exit_requested_) {
-    PostEvent<FlushForced>();
   } else {
-    PostEvent<NoChunksRemaining>();
+    pending_snapshot_.reset();
+    if (exit_requested_) {
+      PostEvent<FlushForced>();
+    } else {
+      PostEvent<NoChunksRemaining>();
+    }
   }
 }
 

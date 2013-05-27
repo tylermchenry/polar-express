@@ -5,7 +5,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "boost/thread/mutex.hpp"
 #include "boost/shared_ptr.hpp"
 
 #include "callback.h"
@@ -243,14 +242,6 @@ class BundleStateMachineImpl
   void InternalStart(const string& root);
 
  private:
-  void PushPendingSnapshot(
-      boost::shared_ptr<Snapshot> snapshot) LOCKS_EXCLUDED(snapshots_mu_);
-
-  // Returns false and does not modify argument if the pending
-  // snapshots queue is empty.
-  bool PopPendingSnapshot(boost::shared_ptr<Snapshot>* snapshot)
-      LOCKS_EXCLUDED(snapshots_mu_);
-
   void PushPendingChunksForSnapshot(boost::shared_ptr<Snapshot> snapshot);
 
   // Returns false and does not modify argument if the pending
@@ -270,19 +261,15 @@ class BundleStateMachineImpl
   void NextChunk();
 
   string root_;
+  Callback snapshot_done_callback_;
   Callback bundle_ready_callback_;
   bool exit_requested_;
 
-  boost::mutex snapshots_mu_;
-  queue<boost::shared_ptr<Snapshot>> pending_snapshots_
-      GUARDED_BY(snapshots_mu_);
+  boost::shared_ptr<Snapshot> pending_snapshot_;
 
   queue<const Chunk*> pending_chunks_;
-  unordered_map<const Chunk*, boost::shared_ptr<Snapshot>>
-      last_chunk_to_snapshot_;
   const Chunk* active_chunk_;
 
-  boost::mutex bundles_mu_;
   boost::shared_ptr<Bundle> active_bundle_;
   boost::shared_ptr<FinalizedBundle> generated_bundle_;
 
