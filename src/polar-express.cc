@@ -19,6 +19,9 @@ int main(int argc, char** argv) {
               << " files." << std::endl;
     std::cout << "Generated " << backup_executor.GetNumSnapshotsGenerated()
               << " new snapshots." << std::endl;
+    std::cout << "Generated " << backup_executor.GetNumBundlesGenerated()
+              << " new bundles." << std::endl;
+
   }
   return 0;
 }

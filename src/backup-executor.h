@@ -1,8 +1,10 @@
 #ifndef BACKUP_EXECUTOR_H
 #define BACKUP_EXECUTOR_H
 
+#include <deque>
 #include <memory>
 #include <queue>
+#include <set>
 #include <string>
 
 #include "boost/filesystem.hpp"
@@ -16,7 +18,9 @@
 
 namespace polar_express {
 
+class BundleStateMachine;
 class FilesystemScanner;
+class Snapshot;
 class SnapshotStateMachine;
 
 // Class which coordinates the execution of a backup: scanning for files,
@@ -47,6 +51,10 @@ class BackupExecutor {
   // called only after the backup has completed.
   virtual int GetNumSnapshotsGenerated() const;
 
+  // Returns the number of bundles generated during the backup. Should
+  // be called only after the backup has completed.
+  virtual int GetNumBundlesGenerated() const;
+
  private:
   // Obtains new file paths from the directory scanner and enqueues them. Posts
   // a callback to try to start the next snapshot state machine. If the
@@ -68,6 +76,24 @@ class BackupExecutor {
   void DeleteSnapshotStateMachine(
       SnapshotStateMachine* snapshot_state_machine);
 
+  void AddNewSnapshotToBundle(boost::shared_ptr<Snapshot> snapshot);
+
+  // Attempts to active a bundle state machine from the idle queue, or
+  // to create a new one. If this is not possible (due to the limit on
+  // the number of simultaneous bundle state machines) return null.
+  boost::shared_ptr<BundleStateMachine> TryActivateBundleStateMachine();
+
+  void BundleNextSnapshot(
+      boost::shared_ptr<BundleStateMachine> bundle_state_machine);
+
+  void HandleBundleStateMachineBundleReady(
+      boost::shared_ptr<BundleStateMachine> bundle_state_machine);
+
+  void HandleBundleStateMachineFinished(
+      boost::shared_ptr<BundleStateMachine> bundle_state_machine);
+
+  void FlushAllBundleStateMachines();
+
   // Returns a callback that will post the given callback on this object's
   // strand.
   Callback CreateStrandCallback(Callback callback);
@@ -80,6 +106,11 @@ class BackupExecutor {
   int num_running_snapshot_state_machines_;
   int num_finished_snapshot_state_machines_;
   int num_snapshots_generated_;
+
+  queue<boost::shared_ptr<Snapshot> > snapshots_waiting_to_bundle_;
+  queue<boost::shared_ptr<BundleStateMachine> > idle_bundle_state_machines_;
+  set<boost::shared_ptr<BundleStateMachine> > active_bundle_state_machines_;
+  int num_bundles_generated_;
 
   enum class ScanState {
     kNotStarted,
@@ -95,6 +126,8 @@ class BackupExecutor {
 
   static const int kMaxPendingSnapshots;
   static const int kMaxSimultaneousSnapshots;
+  static const int kMaxSnapshotsWaitingToBundle;
+  static const int kMaxSimultaneousBundles;
 
   DISALLOW_COPY_AND_ASSIGN(BackupExecutor);
 };

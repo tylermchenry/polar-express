@@ -6,13 +6,17 @@
 
 #include "boost/pool/object_pool.hpp"
 
+#include "bundle-state-machine.h"
 #include "filesystem-scanner.h"
+#include "make-unique.h"
 #include "snapshot-state-machine.h"
 
 namespace polar_express {
 
 const int BackupExecutor::kMaxPendingSnapshots = 200;
 const int BackupExecutor::kMaxSimultaneousSnapshots = 5;
+const int BackupExecutor::kMaxSnapshotsWaitingToBundle = 100;
+const int BackupExecutor::kMaxSimultaneousBundles = 1;
 
 BackupExecutor::BackupExecutor()
     : snapshot_state_machine_pool_(
@@ -20,6 +24,7 @@ BackupExecutor::BackupExecutor()
       num_running_snapshot_state_machines_(0),
       num_finished_snapshot_state_machines_(0),
       num_snapshots_generated_(0),
+      num_bundles_generated_(0),
       scan_state_(ScanState::kNotStarted),
       strand_dispatcher_(
           AsioDispatcher::GetInstance()->NewStrandDispatcherStateMachine()),
@@ -49,6 +54,10 @@ int BackupExecutor::GetNumFilesProcessed() const {
 
 int BackupExecutor::GetNumSnapshotsGenerated() const {
   return num_snapshots_generated_;
+}
+
+int BackupExecutor::GetNumBundlesGenerated() const {
+  return num_bundles_generated_;
 }
 
 void BackupExecutor::AddNewPendingSnapshotPaths() {
@@ -98,8 +107,11 @@ void BackupExecutor::RunNextSnapshotStateMachine() {
 
 void BackupExecutor::HandleSnapshotStateMachineFinished(
     SnapshotStateMachine* snapshot_state_machine) {
-  if (snapshot_state_machine->GetGeneratedSnapshot().get() != nullptr) {
+  boost::shared_ptr<Snapshot> generated_snapshot =
+      snapshot_state_machine->GetGeneratedSnapshot();
+  if (generated_snapshot != nullptr) {
     ++num_snapshots_generated_;
+    AddNewSnapshotToBundle(generated_snapshot);
   }
 
   DeleteSnapshotStateMachine(snapshot_state_machine);
@@ -112,6 +124,96 @@ void BackupExecutor::DeleteSnapshotStateMachine(
   ++num_finished_snapshot_state_machines_;
   strand_dispatcher_->Post(
       bind(&BackupExecutor::RunNextSnapshotStateMachine, this));
+}
+
+void BackupExecutor::AddNewSnapshotToBundle(
+    boost::shared_ptr<Snapshot> snapshot) {
+  snapshots_waiting_to_bundle_.push(snapshot);
+
+  // If possible, activate a new state machine to handle this snapshot
+  // right away.
+  boost::shared_ptr<BundleStateMachine> activated_bundle_state_machine =
+      TryActivateBundleStateMachine();
+  if (activated_bundle_state_machine != nullptr) {
+    BundleNextSnapshot(activated_bundle_state_machine);
+  }
+}
+
+boost::shared_ptr<BundleStateMachine>
+BackupExecutor::TryActivateBundleStateMachine() {
+  boost::shared_ptr<BundleStateMachine> activated_bundle_state_machine;
+  if (!idle_bundle_state_machines_.empty()) {
+    activated_bundle_state_machine = idle_bundle_state_machines_.front();
+    idle_bundle_state_machines_.pop();
+  } else if (active_bundle_state_machines_.size() < kMaxSimultaneousBundles) {
+    activated_bundle_state_machine.reset(new BundleStateMachine);
+    activated_bundle_state_machine->SetSnapshotDoneCallback(
+        CreateStrandCallback(
+            bind(&BackupExecutor::BundleNextSnapshot,
+                 this, activated_bundle_state_machine)));
+    activated_bundle_state_machine->SetBundleReadyCallback(
+        CreateStrandCallback(
+            bind(&BackupExecutor::HandleBundleStateMachineBundleReady,
+                 this, activated_bundle_state_machine)));
+    activated_bundle_state_machine->SetDoneCallback(
+        CreateStrandCallback(
+            bind(&BackupExecutor::HandleBundleStateMachineFinished,
+                 this, activated_bundle_state_machine)));
+  }
+
+  if (activated_bundle_state_machine != nullptr) {
+    active_bundle_state_machines_.insert(activated_bundle_state_machine);
+  }
+  return activated_bundle_state_machine;
+}
+
+void BackupExecutor::BundleNextSnapshot(
+    boost::shared_ptr<BundleStateMachine> bundle_state_machine) {
+  assert(bundle_state_machine != nullptr);
+
+  boost::shared_ptr<Snapshot> snapshot;
+  if (!snapshots_waiting_to_bundle_.empty()) {
+    snapshot = snapshots_waiting_to_bundle_.front();
+    snapshots_waiting_to_bundle_.pop();
+  }
+
+  if (snapshot != nullptr) {
+    bundle_state_machine->BundleSnapshot(snapshot);
+  } else {
+    active_bundle_state_machines_.erase(bundle_state_machine);
+    idle_bundle_state_machines_.push(bundle_state_machine);
+  }
+
+  if (active_bundle_state_machines_.empty() &&
+      num_running_snapshot_state_machines_ == 0 &&
+      scan_state_ == ScanState::kFinished) {
+    FlushAllBundleStateMachines();
+  }
+}
+
+void BackupExecutor::HandleBundleStateMachineBundleReady(
+    boost::shared_ptr<BundleStateMachine> bundle_state_machine) {
+  boost::shared_ptr<AnnotatedBundleData> bundle_data =
+      bundle_state_machine->RetrieveGeneratedBundle();
+  if (bundle_data != nullptr) {
+    ++num_bundles_generated_;
+  }
+}
+
+void BackupExecutor::HandleBundleStateMachineFinished(
+    boost::shared_ptr<BundleStateMachine> bundle_state_machine) {
+  active_bundle_state_machines_.erase(bundle_state_machine);
+}
+
+void BackupExecutor::FlushAllBundleStateMachines() {
+  assert(active_bundle_state_machines_.empty());
+  while (!idle_bundle_state_machines_.empty()) {
+    boost::shared_ptr<BundleStateMachine> bundle_state_machine =
+        idle_bundle_state_machines_.front();
+    idle_bundle_state_machines_.pop();
+    active_bundle_state_machines_.insert(bundle_state_machine);
+    bundle_state_machine->FinishAndExit();
+  }
 }
 
 Callback BackupExecutor::CreateStrandCallback(Callback callback) {
