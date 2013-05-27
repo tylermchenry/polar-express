@@ -30,6 +30,10 @@ class ChunkHasherImpl : public ChunkHasher {
       const boost::filesystem::path& path,
       boost::shared_ptr<Snapshot> snapshot, Callback callback);
 
+  virtual void ValidateHash(
+      const Chunk& chunk, const vector<char>& block_data_for_chunk,
+      bool* is_valid, Callback callback);
+
  private:
   struct Context {
     Context(const boost::filesystem::path& path,

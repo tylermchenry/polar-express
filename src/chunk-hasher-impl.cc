@@ -40,6 +40,16 @@ void ChunkHasherImpl::GenerateAndHashChunks(
       boost::shared_ptr<Context>(new Context(path, snapshot, callback)));
 }
 
+void ChunkHasherImpl::ValidateHash(
+    const Chunk& chunk, const vector<char>& block_data_for_chunk,
+    bool* is_valid, Callback callback) {
+  string block_data_sha1_digest;
+  HashData(block_data_for_chunk, &block_data_sha1_digest);
+  *CHECK_NOTNULL(is_valid) =
+      (block_data_sha1_digest == chunk.block().sha1_digest());
+  callback();
+}
+
 void ChunkHasherImpl::ContinueGeneratingAndHashingChunks(
     boost::shared_ptr<Context> context) {
   int64_t offset = 0;

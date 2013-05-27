@@ -2,6 +2,7 @@
 
 #include "asio-dispatcher.h"
 #include "chunk-hasher-impl.h"
+#include "proto/block.pb.h"
 
 namespace polar_express {
 
@@ -22,6 +23,14 @@ void ChunkHasher::GenerateAndHashChunks(
   AsioDispatcher::GetInstance()->PostCpuBound(
       bind(&ChunkHasher::GenerateAndHashChunks,
            impl_.get(), path, snapshot, callback));
+}
+
+void ChunkHasher::ValidateHash(
+    const Chunk& chunk, const vector<char>& block_data_for_chunk,
+    bool* is_valid, Callback callback) {
+  AsioDispatcher::GetInstance()->PostCpuBound(
+      bind(&ChunkHasher::ValidateHash,
+           impl_.get(), chunk, block_data_for_chunk, is_valid, callback));
 }
 
 }  // namespace polar_express
