@@ -15,6 +15,13 @@ env.Append(LIBPATH='./src/proto')
 
 ### Libraries
 
+tar_header_block = env.Library(
+    target='tar-header-block',
+    source=[
+        'tar-header-block.cc',
+        ],
+    )
+
 asio_dispatcher_deplibs = [
     'boost_thread',
     ];
@@ -137,6 +144,7 @@ snapshot_state_machine = env.Library(
 bundle_state_machine_deplibs = [
     metadata_db,
     asio_dispatcher,
+    tar_header_block,
     asio_dispatcher_deplibs,
     metadata_db_deplibs,
     'block_proto',
