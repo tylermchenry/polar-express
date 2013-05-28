@@ -212,6 +212,7 @@ PE_STATE_MACHINE_ACTION_HANDLER(
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, ResetForNextBundle) {
   assert(active_bundle_ == nullptr);
   generated_bundle_.reset();
+  active_bundle_.reset(new Bundle);
   NextChunk();
 }
 
