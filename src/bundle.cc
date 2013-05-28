@@ -81,7 +81,7 @@ void Bundle::StartNewFile(const string& filename) {
   assert(current_tar_header_block_ == nullptr);
   size_t offset = size();
 
-  data_->insert(data_->begin() + current_payload_->offset(),
+  data_->insert(data_->begin() + offset,
                 TarHeaderBlock::kTarHeaderBlockLength, '\0');
   current_tar_header_block_.reset(
       new TarHeaderBlock(make_offset_ptr(data_, offset)));
