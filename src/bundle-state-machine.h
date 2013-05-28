@@ -203,17 +203,17 @@ class BundleStateMachineImpl
           HashChunkContents,
           HaveChunkContents),
       PE_STATE_MACHINE_TRANSITION(
-          WaitForChunkContents,
+          HaveChunkContents,
           ChunkContentsHashReady,
           InspectChunkContents,
           HaveChunkContentsAndHashValidity),
       PE_STATE_MACHINE_TRANSITION(
-          HaveChunkContents,
+          HaveChunkContentsAndHashValidity,
           ChunkContentsHashMismatch,
           DiscardChunk,
           HaveChunks),
       PE_STATE_MACHINE_TRANSITION(
-          HaveChunkContents,
+          HaveChunkContentsAndHashValidity,
           ChunkContentsHashMatch,
           CompressChunkContents,
           WaitForCompression),
