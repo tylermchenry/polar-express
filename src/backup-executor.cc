@@ -9,6 +9,8 @@
 #include "bundle-state-machine.h"
 #include "filesystem-scanner.h"
 #include "make-unique.h"
+#include "proto/bundle-manifest.pb.h"
+#include "proto/snapshot.pb.h"
 #include "snapshot-state-machine.h"
 
 namespace polar_express {
@@ -111,7 +113,11 @@ void BackupExecutor::HandleSnapshotStateMachineFinished(
       snapshot_state_machine->GetGeneratedSnapshot();
   if (generated_snapshot != nullptr) {
     ++num_snapshots_generated_;
-    AddNewSnapshotToBundle(generated_snapshot);
+    if (generated_snapshot->is_regular() &&
+        generated_snapshot->length() > 0) {
+      AddNewSnapshotToBundle(generated_snapshot);
+    }
+    // TODO: Handle non-regular files (directories, deletions, etc.)
   }
 
   DeleteSnapshotStateMachine(snapshot_state_machine);
@@ -159,6 +165,7 @@ BackupExecutor::TryActivateBundleStateMachine() {
         CreateStrandCallback(
             bind(&BackupExecutor::HandleBundleStateMachineFinished,
                  this, activated_bundle_state_machine)));
+    activated_bundle_state_machine->Start(root_);
   }
 
   if (activated_bundle_state_machine != nullptr) {
@@ -197,6 +204,8 @@ void BackupExecutor::HandleBundleStateMachineBundleReady(
       bundle_state_machine->RetrieveGeneratedBundle();
   if (bundle_data != nullptr) {
     ++num_bundles_generated_;
+    std::cerr << "Wrote bundle to: " << bundle_data->persistence_file_path()
+              << std::endl;
   }
 }
 

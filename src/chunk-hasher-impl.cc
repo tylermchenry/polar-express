@@ -36,8 +36,12 @@ ChunkHasherImpl::~ChunkHasherImpl() {
 void ChunkHasherImpl::GenerateAndHashChunks(
     const boost::filesystem::path& path,
     boost::shared_ptr<Snapshot> snapshot, Callback callback) {
-  ContinueGeneratingAndHashingChunks(
-      boost::shared_ptr<Context>(new Context(path, snapshot, callback)));
+  if (!snapshot->is_regular() || snapshot->length() <= 0) {
+    callback();
+  } else {
+    ContinueGeneratingAndHashingChunks(
+        boost::shared_ptr<Context>(new Context(path, snapshot, callback)));
+  }
 }
 
 void ChunkHasherImpl::ValidateHash(
