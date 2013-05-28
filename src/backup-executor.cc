@@ -128,8 +128,10 @@ void BackupExecutor::DeleteSnapshotStateMachine(
   snapshot_state_machine_pool_->destroy(snapshot_state_machine);
   --num_running_snapshot_state_machines_;
   ++num_finished_snapshot_state_machines_;
-  strand_dispatcher_->Post(
-      bind(&BackupExecutor::RunNextSnapshotStateMachine, this));
+  if (snapshots_waiting_to_bundle_.size() < kMaxSnapshotsWaitingToBundle) {
+    strand_dispatcher_->Post(
+        bind(&BackupExecutor::RunNextSnapshotStateMachine, this));
+  }
 }
 
 void BackupExecutor::AddNewSnapshotToBundle(
@@ -192,9 +194,22 @@ void BackupExecutor::BundleNextSnapshot(
   }
 
   if (active_bundle_state_machines_.empty() &&
+      snapshots_waiting_to_bundle_.empty() &&
       num_running_snapshot_state_machines_ == 0 &&
       scan_state_ == ScanState::kFinished) {
     FlushAllBundleStateMachines();
+  }
+
+  // If we just reduced the wait queue to below maximum, allow the
+  // snapshot state machines to start running again.
+  if (snapshots_waiting_to_bundle_.size() == kMaxSnapshotsWaitingToBundle - 1) {
+    int snapshot_state_machines_to_start = min<int>(
+        kMaxSimultaneousSnapshots - num_running_snapshot_state_machines_,
+        pending_snapshot_paths_.size());
+    for (int i = 0; i < snapshot_state_machines_to_start; ++i) {
+      strand_dispatcher_->Post(
+          bind(&BackupExecutor::RunNextSnapshotStateMachine, this));
+    }
   }
 }
 
