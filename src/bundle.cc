@@ -74,6 +74,11 @@ void Bundle::Finalize() {
   assert(!is_finalized_);
   EndCurrentPayload();
   AppendSerializedManifest();
+
+  // TAR files must end with two empty blocks.
+  data_->insert(data_->begin() + size(),
+                TarHeaderBlock::kTarHeaderBlockLength * 2, '\0');
+
   is_finalized_ = true;
 }
 
@@ -101,12 +106,20 @@ void Bundle::EndCurrentFile(size_t final_size) {
   current_tar_header_block_->set_modification_time(time(nullptr));
   current_tar_header_block_->ComputeAndSetChecksum();
 
+  // TAR records need to be a multiple of the header block length. Pad
+  // out to this will nul bytes.
+  size_t record_padding_size =
+      TarHeaderBlock::kTarHeaderBlockLength -
+      (final_size % TarHeaderBlock::kTarHeaderBlockLength);
+  data_->insert(data_->begin() + size(), record_padding_size, '\0');
+
   current_tar_header_block_.reset();
 }
 
 void Bundle::EndCurrentPayload() {
   if (current_payload_ != nullptr) {
-    EndCurrentFile(size() - current_payload_->offset());
+    EndCurrentFile(size() - current_payload_->offset() -
+                   TarHeaderBlock::kTarHeaderBlockLength);
   }
   current_payload_ = nullptr;
 }
@@ -129,9 +142,10 @@ void Bundle::AppendSerializedManifest() {
       serialized_manifest.length());
 
   CryptoPP::HexEncoder encoder;
-  encoder.Attach(new CryptoPP::StringSink(serialized_manifest));
+  encoder.Attach(new CryptoPP::StringSink(serialized_manifest_sha1_digest));
   encoder.Put(raw_digest, sizeof(raw_digest));
   encoder.MessageEnd();
+  serialized_manifest_sha1_digest += '\n';
 
   StartNewFile(kManifestDigestFilename);
   data_->insert(data_->end(), serialized_manifest_sha1_digest.begin(),
