@@ -18,7 +18,7 @@ namespace polar_express {
 const int BackupExecutor::kMaxPendingSnapshots = 200;
 const int BackupExecutor::kMaxSimultaneousSnapshots = 5;
 const int BackupExecutor::kMaxSnapshotsWaitingToBundle = 100;
-const int BackupExecutor::kMaxSimultaneousBundles = 1;
+const int BackupExecutor::kMaxSimultaneousBundles = 2;
 
 BackupExecutor::BackupExecutor()
     : snapshot_state_machine_pool_(
