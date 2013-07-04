@@ -163,12 +163,14 @@ compressors_deplibs = [
     asio_dispatcher_deplibs,
     'bundle_manifest_proto',
     'protobuf',
+    'z',
     ];
 compressors = env.Library(
     target='compressors',
     source=[
         'compressor.cc',
-        'null-compressor-impl.cc'
+        'null-compressor-impl.cc',
+        'zlib-compressor-impl.cc',
         ],
     libs=compressors_deplibs,
     )

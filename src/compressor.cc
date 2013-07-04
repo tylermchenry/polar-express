@@ -2,6 +2,7 @@
 
 #include "asio-dispatcher.h"
 #include "null-compressor-impl.h"
+#include "zlib-compressor-impl.h"
 
 namespace polar_express {
 
@@ -23,7 +24,7 @@ unique_ptr<Compressor> Compressor::CreateCompressor(
     case BundlePayload::COMPRESSION_TYPE_NONE:
       return CreateCompressorWithImpl<NullCompressorImpl>();
     case BundlePayload::COMPRESSION_TYPE_ZLIB:
-      // Not yet supported.
+      return CreateCompressorWithImpl<ZlibCompressorImpl>();
     default:
       assert(false);
       return nullptr;

@@ -37,7 +37,7 @@ BundleStateMachineImpl::BundleStateMachineImpl()
       chunk_hasher_(new ChunkHasher),
       compressor_(
           // TODO(tylermchenry): Compression type should be configurable.
-          Compressor::CreateCompressor(BundlePayload::COMPRESSION_TYPE_NONE)),
+          Compressor::CreateCompressor(BundlePayload::COMPRESSION_TYPE_ZLIB)),
       hasher_(new Hasher),
       metadata_db_(new MetadataDb),
       file_writer_(new FileWriter) {
@@ -150,8 +150,7 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, FinishChunk) {
   block_data_for_active_chunk_.clear();
 
   if (active_bundle_->manifest().payloads_size() == 0) {
-    // TODO: use real compression type.
-    active_bundle_->StartNewPayload(BundlePayload::COMPRESSION_TYPE_NONE);
+    active_bundle_->StartNewPayload(compressor_->compression_type());
   }
   active_bundle_->AddBlockMetadata(active_chunk_->block());
   active_bundle_->AppendBlockContents(compressed_block_data_for_active_chunk_);
