@@ -3,6 +3,7 @@
 #include "bundle.h"
 #include "chunk-hasher.h"
 #include "chunk-reader.h"
+#include "compressor.h"
 #include "file-writer.h"
 #include "hasher.h"
 #include "metadata-db.h"
@@ -34,6 +35,9 @@ BundleStateMachineImpl::BundleStateMachineImpl()
       active_chunk_hash_is_valid_(false),
       active_bundle_(new Bundle),
       chunk_hasher_(new ChunkHasher),
+      compressor_(
+          // TODO(tylermchenry): Compression type should be configurable.
+          Compressor::CreateCompressor(BundlePayload::COMPRESSION_TYPE_NONE)),
       hasher_(new Hasher),
       metadata_db_(new MetadataDb),
       file_writer_(new FileWriter) {
@@ -132,9 +136,9 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, InspectChunkContents) {
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, CompressChunkContents) {
-  // TODO: Actually compress chunk contents! :)
-  compressed_block_data_for_active_chunk_ = block_data_for_active_chunk_;
-  PostEvent<CompressionDone>();
+  compressor_->CompressData(
+      block_data_for_active_chunk_, &compressed_block_data_for_active_chunk_,
+      CreateExternalEventCallback<CompressionDone>());
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, FinishChunk) {

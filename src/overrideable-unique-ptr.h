@@ -18,6 +18,11 @@ class OverrideableUniquePtr {
       override_ptr_(nullptr) {
   }
 
+  explicit OverrideableUniquePtr(unique_ptr<T>&& owned_ptr)
+    : owned_ptr_(std::move(CHECK_NOTNULL(owned_ptr))),
+      override_ptr_(nullptr) {
+  }
+
   T* get() const {
     return (override_ptr_ != nullptr) ? override_ptr_ : owned_ptr_.get();
   }

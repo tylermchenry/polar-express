@@ -21,6 +21,7 @@ class BundleStateMachine;
 class Chunk;
 class ChunkHasher;
 class ChunkReader;
+class Compressor;
 class FileWriter;
 class Hasher;
 class MetadataDb;
@@ -314,6 +315,7 @@ class BundleStateMachineImpl
 
   unique_ptr<ChunkReader> chunk_reader_;
   OverrideableUniquePtr<ChunkHasher> chunk_hasher_;
+  OverrideableUniquePtr<Compressor> compressor_;
   OverrideableUniquePtr<Hasher> hasher_;
   OverrideableUniquePtr<MetadataDb> metadata_db_;
   OverrideableUniquePtr<FileWriter> file_writer_;

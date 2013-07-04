@@ -158,6 +158,21 @@ filesystem_scanner = env.Library(
     LIBS=filesystem_scanner_deplibs,
     )
 
+compressors_deplibs = [
+    asio_dispatcher,
+    asio_dispatcher_deplibs,
+    'bundle_manifest_proto',
+    'protobuf',
+    ];
+compressors = env.Library(
+    target='compressors',
+    source=[
+        'compressor.cc',
+        'null-compressor-impl.cc'
+        ],
+    libs=compressors_deplibs,
+    )
+
 metadata_db_deplibs = [
     asio_dispatcher,
     asio_dispatcher_deplibs,
@@ -203,6 +218,7 @@ snapshot_state_machine = env.Library(
     )
 
 bundle_state_machine_deplibs = [
+    compressors,
     hasher,
     chunk_hasher,
     chunk_reader,
@@ -217,6 +233,7 @@ bundle_state_machine_deplibs = [
     chunk_reader_deplibs,
     chunk_hasher_deplibs,
     hasher_deplibs,
+    compressors_deplibs,
     'block_proto',
     'file_proto',
     'snapshot_proto',
