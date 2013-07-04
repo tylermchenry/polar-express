@@ -533,6 +533,7 @@ void MetadataDbImpl::WriteNewBlockToBundleMappings(
 
   for (const auto& payload : bundle->manifest().payloads()) {
     for (const auto& block : payload.blocks()) {
+      mapping_insert_stmt.Reset();
       mapping_insert_stmt.BindInt64(":block_id", block.id());
       mapping_insert_stmt.BindInt64(":bundle_id", bundle->id());
 
