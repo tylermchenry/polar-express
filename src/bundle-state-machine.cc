@@ -4,6 +4,7 @@
 #include "chunk-hasher.h"
 #include "chunk-reader.h"
 #include "file-writer.h"
+#include "hasher.h"
 #include "proto/block.pb.h"
 #include "proto/file.pb.h"
 #include "proto/snapshot.pb.h"
@@ -30,6 +31,7 @@ BundleStateMachineImpl::BundleStateMachineImpl()
       active_chunk_hash_is_valid_(false),
       active_bundle_(new Bundle),
       chunk_hasher_(new ChunkHasher),
+      hasher_(new Hasher),
       file_writer_(new FileWriter) {
 }
 
@@ -182,7 +184,7 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, EncryptBundle) {
   PostEvent<EncryptionDone>();
 }
 
-PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, RecordBundle) {
+PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, HashBundle) {
   assert(active_bundle_ != nullptr);
   assert(active_bundle_->is_finalized());
   assert(generated_bundle_ != nullptr);
@@ -190,7 +192,16 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, RecordBundle) {
   // Encryption is finished; get rid of plaintext to free memory.
   active_bundle_.reset();
 
+  hasher_->ComputeHash(generated_bundle_->raw_data(),
+                       generated_bundle_->mutable_sha1_digest(),
+                       CreateExternalEventCallback<BundleHashed>());
+}
+
+PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, RecordBundle) {
+  assert(generated_bundle_ != nullptr);
+
   // TODO: Record to metadata DB.
+
   PostEvent<BundleRecorded>();
 }
 

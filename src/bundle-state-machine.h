@@ -22,6 +22,7 @@ class Chunk;
 class ChunkHasher;
 class ChunkReader;
 class FileWriter;
+class Hasher;
 class Snapshot;
 
 // A state machine which goes through the process of generating new bundles as
@@ -116,6 +117,7 @@ class BundleStateMachineImpl
   PE_STATE_MACHINE_DEFINE_STATE(ChunkFinished);
   PE_STATE_MACHINE_DEFINE_STATE(HaveBundle);
   PE_STATE_MACHINE_DEFINE_STATE(WaitForEncryption);
+  PE_STATE_MACHINE_DEFINE_STATE(WaitForBundleHash);
   PE_STATE_MACHINE_DEFINE_STATE(WaitForBundleToRecord);
   PE_STATE_MACHINE_DEFINE_STATE(WaitForBundleToWrite);
   PE_STATE_MACHINE_DEFINE_STATE(WaitForBundleRetrieval);
@@ -138,6 +140,7 @@ class BundleStateMachineImpl
   PE_STATE_MACHINE_DEFINE_EVENT(BundleEmpty);
   PE_STATE_MACHINE_DEFINE_EVENT(BundleReady);
   PE_STATE_MACHINE_DEFINE_EVENT(EncryptionDone);
+  PE_STATE_MACHINE_DEFINE_EVENT(BundleHashed);
   PE_STATE_MACHINE_DEFINE_EVENT(BundleRecorded);
   PE_STATE_MACHINE_DEFINE_EVENT(BundleWritten);
   PE_STATE_MACHINE_DEFINE_EVENT(BundleRetrieved);
@@ -155,6 +158,7 @@ class BundleStateMachineImpl
   PE_STATE_MACHINE_DEFINE_ACTION(FinishChunk);
   PE_STATE_MACHINE_DEFINE_ACTION(FinalizeBundle);
   PE_STATE_MACHINE_DEFINE_ACTION(EncryptBundle);
+  PE_STATE_MACHINE_DEFINE_ACTION(HashBundle);
   PE_STATE_MACHINE_DEFINE_ACTION(RecordBundle);
   PE_STATE_MACHINE_DEFINE_ACTION(WriteBundle);
   PE_STATE_MACHINE_DEFINE_ACTION(ExecuteBundleReadyCallback);
@@ -245,6 +249,11 @@ class BundleStateMachineImpl
       PE_STATE_MACHINE_TRANSITION(
           WaitForEncryption,
           EncryptionDone,
+          HashBundle,
+          WaitForBundleHash),
+      PE_STATE_MACHINE_TRANSITION(
+          WaitForBundleHash,
+          BundleHashed,
           RecordBundle,
           WaitForBundleToRecord),
       PE_STATE_MACHINE_TRANSITION(
@@ -304,6 +313,7 @@ class BundleStateMachineImpl
 
   unique_ptr<ChunkReader> chunk_reader_;
   OverrideableUniquePtr<ChunkHasher> chunk_hasher_;
+  OverrideableUniquePtr<Hasher> hasher_;
   OverrideableUniquePtr<FileWriter> file_writer_;
 
   DISALLOW_COPY_AND_ASSIGN(BundleStateMachineImpl);

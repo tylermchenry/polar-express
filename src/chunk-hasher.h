@@ -17,6 +17,12 @@ class Chunk;
 class ChunkHasherImpl;
 class Snapshot;
 
+// Class for generating and hashing chunks from a file. NOT
+// implemented in terms of Hasher, because it simultaneously generates a
+// per-chunk hash and an overall file hash.
+//
+// TODO(tylermchenry): May be worthwhile to try to implement in terms
+// of Hasher by adding incremental methods to Hasher.
 class ChunkHasher {
  public:
   ChunkHasher();
