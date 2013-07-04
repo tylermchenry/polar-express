@@ -13,6 +13,7 @@ class sqlite3;
 
 namespace polar_express {
 
+class AnnotatedBundleData;
 class Attributes;
 class Chunk;
 class File;
@@ -29,6 +30,9 @@ class MetadataDbImpl : public MetadataDb {
 
   virtual void RecordNewSnapshot(
       boost::shared_ptr<Snapshot> snapshot, Callback callback);
+
+  virtual void RecordNewBundle(
+      boost::shared_ptr<AnnotatedBundleData> bundle, Callback callback);
 
  private:
   // TODO(tylermchenry): Might be useful for this to be public later.
@@ -53,6 +57,10 @@ class MetadataDbImpl : public MetadataDb {
   void UpdateLatestChunksCache(
       int64_t previous_snapshot_id,
       boost::shared_ptr<Snapshot> snapshot) const;
+
+  void WriteNewBundle(boost::shared_ptr<AnnotatedBundleData> bundle) const;
+  void WriteNewBlockToBundleMappings(
+      boost::shared_ptr<AnnotatedBundleData> bundle) const;
 
   static sqlite3* db_;
 

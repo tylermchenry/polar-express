@@ -23,6 +23,7 @@ class ChunkHasher;
 class ChunkReader;
 class FileWriter;
 class Hasher;
+class MetadataDb;
 class Snapshot;
 
 // A state machine which goes through the process of generating new bundles as
@@ -314,6 +315,7 @@ class BundleStateMachineImpl
   unique_ptr<ChunkReader> chunk_reader_;
   OverrideableUniquePtr<ChunkHasher> chunk_hasher_;
   OverrideableUniquePtr<Hasher> hasher_;
+  OverrideableUniquePtr<MetadataDb> metadata_db_;
   OverrideableUniquePtr<FileWriter> file_writer_;
 
   DISALLOW_COPY_AND_ASSIGN(BundleStateMachineImpl);

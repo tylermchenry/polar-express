@@ -5,6 +5,7 @@
 #include "boost/thread/once.hpp"
 #include "sqlite3.h"
 
+#include "proto/bundle-manifest.pb.h"
 #include "proto/file.pb.h"
 #include "proto/snapshot.pb.h"
 #include "sqlite3-helpers.h"
@@ -149,6 +150,26 @@ void MetadataDbImpl::RecordNewSnapshot(
   WriteNewSnapshot(snapshot);
 
   UpdateLatestChunksCache(previous_snapshot_id, snapshot);
+
+  sqlite3_exec(db(), "commit;", nullptr, nullptr, nullptr);
+
+  callback();
+}
+
+void MetadataDbImpl::RecordNewBundle(
+    boost::shared_ptr<AnnotatedBundleData> bundle, Callback callback) {
+  assert(!bundle->has_id());
+
+  sqlite3_exec(db(), "begin transaction;",
+               nullptr, nullptr, nullptr);
+
+  WriteNewBundle(bundle);
+
+  WriteNewBlockToBundleMappings(bundle);
+
+  // TODO(tylermchenry): Write new mappings for attributes-to-bundle
+  // and snapshots-to-bundle when backups of these metadata objects
+  // are stored in bundles.
 
   sqlite3_exec(db(), "commit;", nullptr, nullptr, nullptr);
 
@@ -475,6 +496,50 @@ void MetadataDbImpl::UpdateLatestChunksCache(
 
     if (cache_insert_stmt.StepUntilNotBusy() != SQLITE_DONE) {
       std::cerr << sqlite3_errmsg(db()) << std::endl;
+    }
+  }
+}
+
+void MetadataDbImpl::WriteNewBundle(
+    boost::shared_ptr<AnnotatedBundleData> bundle) const {
+  assert(!bundle->has_id());
+
+  ScopedStatement bundle_insert_stmt(db());
+
+  bundle_insert_stmt.Prepare(
+      "insert into local_bundles ('sha1_digest', 'length') "
+      "values (:sha1_digest, :length);");
+
+  bundle_insert_stmt.BindText(":sha1_digest", bundle->sha1_digest());
+  bundle_insert_stmt.BindInt64(":length", bundle->raw_data().length());
+
+  int code = bundle_insert_stmt.StepUntilNotBusy();
+
+  if (code == SQLITE_DONE) {
+    bundle->set_id(sqlite3_last_insert_rowid(db()));
+  } else {
+    std::cerr << sqlite3_errmsg(db()) << std::endl;
+    std::cerr << bundle->DebugString() << std::endl;
+  }
+}
+
+void MetadataDbImpl::WriteNewBlockToBundleMappings(
+    boost::shared_ptr<AnnotatedBundleData> bundle) const {
+  ScopedStatement mapping_insert_stmt(db());
+
+  mapping_insert_stmt.Prepare(
+      "insert into local_blocks_to_bundles ('block_id', 'bundle_id') "
+      "values (:block_id, :bundle_id);");
+
+  for (const auto& payload : bundle->manifest().payloads()) {
+    for (const auto& block : payload.blocks()) {
+      mapping_insert_stmt.BindInt64(":block_id", block.id());
+      mapping_insert_stmt.BindInt64(":bundle_id", bundle->id());
+
+      if (mapping_insert_stmt.StepUntilNotBusy() != SQLITE_DONE) {
+        std::cerr << sqlite3_errmsg(db()) << std::endl;
+        std::cerr << bundle->DebugString() << std::endl;
+      }
     }
   }
 }

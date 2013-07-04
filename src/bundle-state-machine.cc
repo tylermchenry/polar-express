@@ -5,9 +5,12 @@
 #include "chunk-reader.h"
 #include "file-writer.h"
 #include "hasher.h"
+#include "metadata-db.h"
 #include "proto/block.pb.h"
 #include "proto/file.pb.h"
 #include "proto/snapshot.pb.h"
+
+#include "boost/lexical_cast.hpp"
 
 namespace polar_express {
 namespace {
@@ -32,6 +35,7 @@ BundleStateMachineImpl::BundleStateMachineImpl()
       active_bundle_(new Bundle),
       chunk_hasher_(new ChunkHasher),
       hasher_(new Hasher),
+      metadata_db_(new MetadataDb),
       file_writer_(new FileWriter) {
 }
 
@@ -192,23 +196,31 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, HashBundle) {
   // Encryption is finished; get rid of plaintext to free memory.
   active_bundle_.reset();
 
-  hasher_->ComputeHash(generated_bundle_->raw_data(),
-                       generated_bundle_->mutable_sha1_digest(),
-                       CreateExternalEventCallback<BundleHashed>());
+  hasher_->ComputeHash(
+      generated_bundle_->raw_data(),
+      generated_bundle_->mutable_sha1_digest(),
+      CreateExternalEventCallback<BundleHashed>());
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, RecordBundle) {
   assert(generated_bundle_ != nullptr);
-
-  // TODO: Record to metadata DB.
-
-  PostEvent<BundleRecorded>();
+  metadata_db_->RecordNewBundle(
+      generated_bundle_,
+      CreateExternalEventCallback<BundleRecorded>());
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, WriteBundle) {
   assert(generated_bundle_ != nullptr);
+  // TODO(tylermchenry): This will need to be factored out into some
+  // kind of util when writing the resume code that reads and parses
+  // these names.
+  const string bundle_file_prefix =
+      string("bundle_") + boost::lexical_cast<string>(generated_bundle_->id()) +
+      "_" + generated_bundle_->sha1_digest() + "_";
+
   file_writer_->WriteDataToTemporaryFile(
       generated_bundle_->raw_data(),
+      bundle_file_prefix,
       generated_bundle_->mutable_persistence_file_path(),
       CreateExternalEventCallback<BundleWritten>());
 }

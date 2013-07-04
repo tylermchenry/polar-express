@@ -31,4 +31,11 @@ void MetadataDb::RecordNewSnapshot(
            impl_.get(), snapshot, callback));
 }
 
+void MetadataDb::RecordNewBundle(
+    boost::shared_ptr<AnnotatedBundleData> bundle, Callback callback) {
+  AsioDispatcher::GetInstance()->PostDiskBound(
+      bind(&MetadataDb::RecordNewBundle,
+           impl_.get(), bundle, callback));
+}
+
 }  // polar_express

@@ -28,10 +28,11 @@ void FileWriterImpl::WriteDataToPath(
 }
 
 void FileWriterImpl::WriteDataToTemporaryFile(
-    const string& data, string* path_str, Callback callback) {
+    const string& data, const string& filename_prefix,
+    string* path_str, Callback callback) {
   boost::filesystem::path path =
       boost::filesystem::temp_directory_path() /
-      boost::filesystem::unique_path();
+      boost::filesystem::unique_path(filename_prefix + "-%%%%-%%%%.tmp");
   *CHECK_NOTNULL(path_str) = path.string();
   WriteDataToPath(data, path, callback);
 }

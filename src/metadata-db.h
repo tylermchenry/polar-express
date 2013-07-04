@@ -10,6 +10,7 @@
 
 namespace polar_express {
 
+class AnnotatedBundleData;
 class File;
 class MetadataDbImpl;
 class Snapshot;
@@ -27,6 +28,10 @@ class MetadataDb {
   // as any blocks that do not already have IDs.
   virtual void RecordNewSnapshot(
       boost::shared_ptr<Snapshot> snapshot, Callback callback);
+
+  // This also modifies the bundle to add an ID for the bundle itself.
+  virtual void RecordNewBundle(
+      boost::shared_ptr<AnnotatedBundleData> bundle, Callback callback);
 
  protected:
   explicit MetadataDb(bool create_impl);

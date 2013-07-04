@@ -24,7 +24,8 @@ class FileWriter {
       Callback callback);
 
   virtual void WriteDataToTemporaryFile(
-      const string& data, string* path_str, Callback callback);
+      const string& data, const string& filename_prefix,
+      string* path_str, Callback callback);
 
  protected:
   FileWriter(bool create_impl);
