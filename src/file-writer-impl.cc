@@ -32,7 +32,8 @@ void FileWriterImpl::WriteDataToTemporaryFile(
     string* path_str, Callback callback) {
   boost::filesystem::path path =
       boost::filesystem::temp_directory_path() /
-      boost::filesystem::unique_path(filename_prefix + "-%%%%-%%%%.tmp");
+      boost::filesystem::unique_path(filename_prefix +
+                                     "%%%%-%%%%-%%%%-%%%%.tmp");
   *CHECK_NOTNULL(path_str) = path.string();
   WriteDataToPath(data, path, callback);
 }
