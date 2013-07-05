@@ -13,8 +13,8 @@ struct z_stream_s;
 
 namespace polar_express {
 
-// Compressor implementation that doesn't actually do any compression
-// (just copies input to output).
+// Compressor that uses zlib to compress data. Note that this produces
+// a raw DEFLATE stream, NOT gzip data.
 class ZlibCompressorImpl : public Compressor {
  public:
   ZlibCompressorImpl();
