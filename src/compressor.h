@@ -18,11 +18,29 @@ class Compressor {
 
   virtual ~Compressor();
 
+  virtual BundlePayload::CompressionType compression_type() const;
+
+  // This must be called once before the first call to CompressData
+  // and again after FinalizeCompression before CompressData may be
+  // called again. Calling InitializeCompression discards any
+  // buffered compressed data that has not yet been finalized.
+  //
+  // This call is lightweight and synchronous.
+  virtual void InitializeCompression(size_t max_buffer_size);
+
+  // Compresses (more) data. Some or all of the compressed data may be
+  // appeneded to compressed_data. It is possible that nothing will be
+  // appended to compressed_data if it all remains buffered.
   virtual void CompressData(
       const vector<char>& data, vector<char>* compressed_data,
       Callback callback);
 
-  virtual BundlePayload::CompressionType compression_type() const;
+  // Outputs any remaining buffered compressed data to compressed_data
+  // and clears all state. InitializeCompression must have been called
+  // at least once before each call to FinalizeCompression.
+  //
+  // This call is lightweight and synchronous.
+  virtual void FinalizeCompression(vector<char>* compressed_data);
 
   // TODO(tylermchenry): Add decompression.
 

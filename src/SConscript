@@ -8,7 +8,8 @@ env = Environment()
 env['ENV']['TERM'] = os.environ['TERM']
 env['CXX'] = 'clang++'
 env.Append(CCFLAGS='-std=c++11 -O2')
-env.Append(CPPFLAGS=('-I. -DSQLITE_THREADSAFE -DBOOST_MPL_CFG_NO_PREPROCESSED_HEADERS '
+env.Append(CPPFLAGS=('-I. -DSQLITE_THREADSAFE -DZLIB_CONST '
+                     '-DBOOST_MPL_CFG_NO_PREPROCESSED_HEADERS '
                      '-DFUSION_MAX_VECTOR_SIZE=30 -DFUSION_MAX_SET_SIZE=30 '
                      '-DBOOST_MPL_LIMIT_VECTOR_SIZE=30'))
 env.Append(LIBPATH='.')

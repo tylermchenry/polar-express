@@ -41,6 +41,14 @@ Compressor::Compressor(unique_ptr<Compressor>&& impl)
 Compressor::~Compressor() {
 }
 
+BundlePayload::CompressionType Compressor::compression_type() const {
+  return impl_->compression_type();
+}
+
+void Compressor::InitializeCompression(size_t max_buffer_size) {
+  impl_->InitializeCompression(max_buffer_size);
+}
+
 void Compressor::CompressData(
     const vector<char>& data, vector<char>* compressed_data,
     Callback callback) {
@@ -49,8 +57,8 @@ void Compressor::CompressData(
            impl_.get(), data, compressed_data, callback));
 }
 
-BundlePayload::CompressionType Compressor::compression_type() const {
-  return impl_->compression_type();
+void Compressor::FinalizeCompression(vector<char>* compressed_data) {
+  impl_->FinalizeCompression(compressed_data);
 }
 
 }  // namespace polar_express

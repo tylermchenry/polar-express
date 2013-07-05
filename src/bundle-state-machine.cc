@@ -16,8 +16,9 @@
 namespace polar_express {
 namespace {
 
-// TODO: This should be configurable.
+// TODO: These should be configurable.
 const size_t kMaxBundleSize = 100 * (1 << 20);  // 100 MiB
+const size_t kMaxCompressionBufferSize = 2 * (1 << 20);  // 2 MiB
 
 }  // namespace
 
@@ -41,6 +42,7 @@ BundleStateMachineImpl::BundleStateMachineImpl()
       hasher_(new Hasher),
       metadata_db_(new MetadataDb),
       file_writer_(new FileWriter) {
+  compressor_->InitializeCompression(kMaxCompressionBufferSize);
 }
 
 BundleStateMachineImpl::~BundleStateMachineImpl() {
@@ -152,6 +154,7 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, FinishChunk) {
   if (active_bundle_->manifest().payloads_size() == 0) {
     active_bundle_->StartNewPayload(compressor_->compression_type());
   }
+
   active_bundle_->AddBlockMetadata(active_chunk_->block());
   active_bundle_->AppendBlockContents(compressed_block_data_for_active_chunk_);
 
@@ -167,6 +170,11 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, FinishChunk) {
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, FinalizeBundle) {
   assert(active_bundle_ != nullptr);
   assert(!active_bundle_->is_finalized());
+
+  compressor_->FinalizeCompression(&compressed_block_data_for_active_chunk_);
+  active_bundle_->AppendBlockContents(compressed_block_data_for_active_chunk_);
+  compressed_block_data_for_active_chunk_.clear();
+
   if (active_bundle_->size() > 0) {
     active_bundle_->Finalize();
     PostEvent<BundleReady>();
@@ -239,6 +247,7 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, ResetForNextBundle) {
   assert(active_bundle_ == nullptr);
   generated_bundle_.reset();
   active_bundle_.reset(new Bundle);
+  compressor_->InitializeCompression(kMaxCompressionBufferSize);
   NextChunk();
 }
 

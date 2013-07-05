@@ -10,26 +10,63 @@ ZlibCompressorImpl::ZlibCompressorImpl() {
 ZlibCompressorImpl::~ZlibCompressorImpl() {
 }
 
-void ZlibCompressorImpl::CompressData(
-    const vector<char>& data, vector<char>* compressed_data,
-    Callback callback) {
-  CHECK_NOTNULL(compressed_data)->clear();
-  compressed_data->resize(compressBound(data.size()));
+BundlePayload::CompressionType ZlibCompressorImpl::compression_type() const {
+  return BundlePayload::COMPRESSION_TYPE_ZLIB;
+}
 
-  unsigned long int compressed_size = compressed_data->size();
-  if (compress(
-          reinterpret_cast<Bytef*>(compressed_data->data()), &compressed_size,
-          reinterpret_cast<const Bytef*>(data.data()), data.size()) != Z_OK) {
+void ZlibCompressorImpl::InitializeCompression(size_t max_buffer_size) {
+  // TODO(tylermchenry): Intelligently adjust window bits and memory
+  // level to respect max_buffer_size.
+
+  stream_.reset(new z_stream);
+  stream_->zalloc = nullptr;
+  stream_->zfree = nullptr;
+  stream_->opaque = nullptr;
+
+  // TODO(tylermchenry): Compression level should be configurable.
+  if (deflateInit(stream_.get(), Z_BEST_COMPRESSION) != Z_OK) {
     // TODO(tylermchenry): Reasonable error handling.
     assert(false);
   }
+}
 
-  compressed_data->resize(compressed_size);
+void ZlibCompressorImpl::CompressData(
+    const vector<char>& data, vector<char>* compressed_data,
+    Callback callback) {
+  assert(stream_ != nullptr);
+
+  stream_->next_in = reinterpret_cast<const Bytef*>(data.data());
+  stream_->avail_in = data.size();
+  DeflateStream(compressed_data, false /* do not flush */);
+
   callback();
 }
 
-BundlePayload::CompressionType ZlibCompressorImpl::compression_type() const {
-  return BundlePayload::COMPRESSION_TYPE_ZLIB;
+void ZlibCompressorImpl::FinalizeCompression(vector<char>* compressed_data) {
+  assert(stream_ != nullptr);
+
+  stream_->next_in = nullptr;
+  stream_->avail_in = 0;
+  DeflateStream(compressed_data, true /* flush everything */);
+
+  stream_.reset();
+}
+
+void ZlibCompressorImpl::DeflateStream(
+    vector<char>* compressed_data, bool flush) {
+  assert(stream_ != nullptr);
+  assert(compressed_data != nullptr);
+
+  do {
+    size_t next_out_offset = compressed_data->size();
+    size_t deflate_bound = deflateBound(stream_.get(), stream_->avail_in);
+    compressed_data->resize(next_out_offset + deflate_bound);
+    stream_->next_out =
+        reinterpret_cast<Bytef*>(compressed_data->data() + next_out_offset);
+    stream_->avail_out = deflate_bound;
+    deflate(stream_.get(), flush ? Z_FULL_FLUSH : Z_NO_FLUSH);
+    compressed_data->resize(compressed_data->size() - stream_->avail_out);
+  } while (stream_->avail_in > 0);
 }
 
 }  // namespace polar_express

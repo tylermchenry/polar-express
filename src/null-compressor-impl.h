@@ -17,11 +17,15 @@ class NullCompressorImpl : public Compressor {
   NullCompressorImpl();
   virtual ~NullCompressorImpl();
 
+  virtual BundlePayload::CompressionType compression_type() const;
+
+  virtual void InitializeCompression(size_t max_buffer_size);
+
   virtual void CompressData(
       const vector<char>& data, vector<char>* compressed_data,
       Callback callback);
 
-  virtual BundlePayload::CompressionType compression_type() const;
+  virtual void FinalizeCompression(vector<char>* compressed_data);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(NullCompressorImpl);
