@@ -1,5 +1,7 @@
 #include "null-cryptor-impl.h"
 
+#include "make-unique.h"
+
 #include <algorithm>
 #include <iterator>
 
@@ -15,7 +17,16 @@ Cryptor::EncryptionType NullCryptorImpl::encryption_type() const {
   return Cryptor::EncryptionType::kNone;
 }
 
-void NullCryptorImpl::InitializeEncryption(const string& key) {
+size_t NullCryptorImpl::key_length() const {
+  return 0;
+}
+
+size_t NullCryptorImpl::iv_length() const {
+  return 0;
+}
+
+void NullCryptorImpl::InitializeEncryption(
+    const CryptoPP::SecByteBlock& key, const string& iv) {
   // No-op.
 }
 

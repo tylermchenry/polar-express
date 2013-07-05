@@ -270,6 +270,7 @@ bundle_state_machine = env.Library(
     )
 
 backup_executor_deplibs = [
+    cryptors,
     bundle_state_machine,
     snapshot_state_machine,
     filesystem_scanner,
@@ -278,8 +279,10 @@ backup_executor_deplibs = [
     filesystem_scanner_deplibs,
     snapshot_state_machine_deplibs,
     bundle_state_machine_deplibs,
+    cryptors_deplibs,
     'boost_filesystem-mt',
     'boost_thread',
+    'crypto++',
     ];
 backup_executor = env.Library(
     target='backup-executor',
@@ -297,11 +300,14 @@ polar_express = env.Program(
         'polar-express.cc',
         ],
     LIBS=[
+        cryptors,
         backup_executor,
         asio_dispatcher,
         asio_dispatcher_deplibs,
         backup_executor_deplibs,
+        cryptors_deplibs,
         'pthread',
+        'crypto++',
         ],
     )
 

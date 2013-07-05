@@ -7,8 +7,10 @@
 #include <vector>
 
 #include "boost/shared_ptr.hpp"
+#include "crypto++/secblock.h"
 
 #include "callback.h"
+#include "cryptor.h"
 #include "macros.h"
 #include "overrideable-unique-ptr.h"
 #include "state-machine.h"
@@ -275,7 +277,10 @@ class BundleStateMachineImpl
           ResetForNextBundle,
           HaveChunks));
 
-  void InternalStart(const string& root);
+  void InternalStart(
+      const string& root,
+      Cryptor::EncryptionType encryption_type,
+      boost::shared_ptr<const CryptoPP::SecByteBlock> encryption_key);
 
  private:
   void PushPendingChunksForSnapshot(boost::shared_ptr<Snapshot> snapshot);
@@ -297,6 +302,7 @@ class BundleStateMachineImpl
   void NextChunk();
 
   string root_;
+  boost::shared_ptr<const CryptoPP::SecByteBlock> encryption_key_;
   Callback snapshot_done_callback_;
   Callback bundle_ready_callback_;
   bool exit_requested_;
@@ -317,7 +323,9 @@ class BundleStateMachineImpl
   unique_ptr<ChunkReader> chunk_reader_;
   OverrideableUniquePtr<ChunkHasher> chunk_hasher_;
   OverrideableUniquePtr<Compressor> compressor_;
-  OverrideableUniquePtr<Cryptor> cryptor_;
+  // Cryptor is not overrideable because it needs to be reset in InternalStart.
+  // TODO(tylermchenry): Fix this when writing unit tests.
+  unique_ptr<Cryptor> cryptor_;
   OverrideableUniquePtr<Hasher> hasher_;
   OverrideableUniquePtr<MetadataDb> metadata_db_;
   OverrideableUniquePtr<FileWriter> file_writer_;
@@ -329,12 +337,18 @@ class BundleStateMachine : public BundleStateMachineImpl::BackEnd {
  public:
   BundleStateMachine() {}
 
-  virtual void Start(const string& root);
+  virtual void Start(
+      const string& root,
+      Cryptor::EncryptionType encryption_type,
+      boost::shared_ptr<const CryptoPP::SecByteBlock> encryption_key);
 
  protected:
   virtual BundleStateMachineImpl::BackEnd* GetBackEnd();
 
  private:
+  Cryptor::EncryptionType encryption_type_;
+  boost::shared_ptr<const CryptoPP::SecByteBlock> encryption_key_;
+
   DISALLOW_COPY_AND_ASSIGN(BundleStateMachine);
 };
 

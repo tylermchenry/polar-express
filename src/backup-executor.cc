@@ -36,12 +36,19 @@ BackupExecutor::BackupExecutor()
 BackupExecutor::~BackupExecutor() {
 }
 
-void BackupExecutor::Start(const string& root) {
+void BackupExecutor::Start(
+    const string& root,
+    Cryptor::EncryptionType encryption_type,
+    boost::shared_ptr<const CryptoPP::SecByteBlock> encryption_key) {
   // Ensure that the given root is reasonable, and that Start has not been
   // called twice.
   assert(root_.empty());
   assert(!root.empty());
   root_ = root;
+
+  assert(encryption_key != nullptr);
+  encryption_type_ = encryption_type;
+  encryption_key_ = encryption_key;
 
   filesystem_scanner_->StartScan(
       root, kMaxPendingSnapshots / 2,
@@ -167,7 +174,8 @@ BackupExecutor::TryActivateBundleStateMachine() {
         CreateStrandCallback(
             bind(&BackupExecutor::HandleBundleStateMachineFinished,
                  this, activated_bundle_state_machine)));
-    activated_bundle_state_machine->Start(root_);
+    activated_bundle_state_machine->Start(
+        root_, encryption_type_, encryption_key_);
   }
 
   if (activated_bundle_state_machine != nullptr) {

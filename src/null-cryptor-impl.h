@@ -1,12 +1,15 @@
 #ifndef NULL_CRYPTOR_IMPL_H
 #define NULL_CRYPTOR_IMPL_H
 
+#include <memory>
+#include <string>
 #include <vector>
+
+#include "crypto++/secblock.h"
 
 #include "callback.h"
 #include "cryptor.h"
 #include "macros.h"
-#include "proto/bundle-manifest.pb.h"
 
 namespace polar_express {
 
@@ -19,7 +22,12 @@ class NullCryptorImpl : public Cryptor {
 
   virtual Cryptor::EncryptionType encryption_type() const;
 
-  virtual void InitializeEncryption(const string& key);
+  virtual size_t key_length() const;
+
+  virtual size_t iv_length() const;
+
+  virtual void InitializeEncryption(
+      const CryptoPP::SecByteBlock& key, const string& iv);
 
   virtual void EncryptData(
       const vector<char>& data, string* encrypted_data,

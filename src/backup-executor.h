@@ -10,9 +10,11 @@
 #include "boost/filesystem.hpp"
 #include "boost/pool/poolfwd.hpp"
 #include "boost/shared_ptr.hpp"
+#include "crypto++/secblock.h"
 
 #include "asio-dispatcher.h"
 #include "callback.h"
+#include "cryptor.h"
 #include "macros.h"
 #include "overrideable-unique-ptr.h"
 
@@ -41,7 +43,10 @@ class BackupExecutor {
   // TODO: Maybe add a Done callback? The current design assumes that the caller
   // is subsequently going to call AsioDispatcher::WaitForFinish to determine
   // when the backup is done.
-  virtual void Start(const string& root);
+  virtual void Start(
+      const string& root,
+      Cryptor::EncryptionType encryption_type,
+      boost::shared_ptr<const CryptoPP::SecByteBlock> encryption_key);
 
   // Returns the number of files processed during the backup. Should be called
   // only after the backup has completed.
@@ -99,6 +104,8 @@ class BackupExecutor {
   Callback CreateStrandCallback(Callback callback);
 
   string root_;
+  Cryptor::EncryptionType encryption_type_;
+  boost::shared_ptr<const CryptoPP::SecByteBlock> encryption_key_;
 
   queue<boost::filesystem::path> pending_snapshot_paths_;
   unique_ptr<boost::object_pool<SnapshotStateMachine> >

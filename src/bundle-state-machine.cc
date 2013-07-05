@@ -4,7 +4,6 @@
 #include "chunk-hasher.h"
 #include "chunk-reader.h"
 #include "compressor.h"
-#include "cryptor.h"
 #include "file-writer.h"
 #include "hasher.h"
 #include "metadata-db.h"
@@ -20,12 +19,14 @@ namespace {
 // TODO: These should be configurable.
 const size_t kMaxBundleSize = 100 * (1 << 20);  // 100 MiB
 const size_t kMaxCompressionBufferSize = 2 * (1 << 20);  // 2 MiB
-const size_t kMaxEncryptionBufferSize = 2 * (1 << 20);  // 2 MiB
 
 }  // namespace
 
-void BundleStateMachine::Start(const string& root) {
-  InternalStart(root);
+void BundleStateMachine::Start(
+    const string& root,
+    Cryptor::EncryptionType encryption_type,
+    boost::shared_ptr<const CryptoPP::SecByteBlock> encryption_key) {
+  InternalStart(root, encryption_type, encryption_key);
 }
 
 BundleStateMachineImpl::BackEnd* BundleStateMachine::GetBackEnd() {
@@ -41,9 +42,6 @@ BundleStateMachineImpl::BundleStateMachineImpl()
       compressor_(
           // TODO(tylermchenry): Compression type should be configurable.
           Compressor::CreateCompressor(BundlePayload::COMPRESSION_TYPE_ZLIB)),
-      cryptor_(
-          // TODO(tylermchenry): Encryption type should be configurable.
-          Cryptor::CreateCryptor(Cryptor::EncryptionType::kNone)),
       hasher_(new Hasher),
       metadata_db_(new MetadataDb),
       file_writer_(new FileWriter) {
@@ -192,12 +190,12 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, EncryptBundle) {
   assert(active_bundle_ != nullptr);
   assert(active_bundle_->is_finalized());
   assert(generated_bundle_ == nullptr);
+  assert(cryptor_ != nullptr);
 
   generated_bundle_.reset(new AnnotatedBundleData);
   generated_bundle_->mutable_manifest()->CopyFrom(active_bundle_->manifest());
 
-  // TODO(tylermchenry): Use a real key.
-  cryptor_->InitializeEncryption("");
+  cryptor_->InitializeEncryption(*CHECK_NOTNULL(encryption_key_));
   cryptor_->EncryptData(
       active_bundle_->data(), generated_bundle_->mutable_raw_data(),
       CreateExternalEventCallback<EncryptionDone>());
@@ -207,6 +205,7 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, HashBundle) {
   assert(active_bundle_ != nullptr);
   assert(active_bundle_->is_finalized());
   assert(generated_bundle_ != nullptr);
+  assert(cryptor_ != nullptr);
 
   // Encryption is finished; get rid of plaintext to free memory.
   active_bundle_.reset();
@@ -260,8 +259,13 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, CleanUp) {
   // Nothing to do in current implementation.
 }
 
-void BundleStateMachineImpl::InternalStart(const string& root) {
+void BundleStateMachineImpl::InternalStart(
+    const string& root,
+    Cryptor::EncryptionType encryption_type,
+    boost::shared_ptr<const CryptoPP::SecByteBlock> encryption_key) {
   root_ = root;
+  encryption_key_ = CHECK_NOTNULL(encryption_key);
+  cryptor_ = Cryptor::CreateCryptor(encryption_type);
 }
 
 void BundleStateMachineImpl::PushPendingChunksForSnapshot(
