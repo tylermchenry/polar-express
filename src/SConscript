@@ -176,6 +176,23 @@ compressors = env.Library(
     libs=compressors_deplibs,
     )
 
+cryptors_deplibs = [
+    asio_dispatcher,
+    asio_dispatcher_deplibs,
+    'bundle_manifest_proto',
+    'crypto++',
+    'protobuf',
+    ];
+cryptors = env.Library(
+    target='cryptors',
+    source=[
+        'aes-cryptor-impl.cc',
+        'cryptor.cc',
+        'null-cryptor-impl.cc',
+        ],
+    libs=cryptors_deplibs,
+    )
+
 metadata_db_deplibs = [
     asio_dispatcher,
     asio_dispatcher_deplibs,
@@ -221,6 +238,7 @@ snapshot_state_machine = env.Library(
     )
 
 bundle_state_machine_deplibs = [
+    cryptors,
     compressors,
     hasher,
     chunk_hasher,
@@ -237,6 +255,7 @@ bundle_state_machine_deplibs = [
     chunk_hasher_deplibs,
     hasher_deplibs,
     compressors_deplibs,
+    cryptors_deplibs,
     'block_proto',
     'file_proto',
     'snapshot_proto',

@@ -4,6 +4,7 @@
 #include "chunk-hasher.h"
 #include "chunk-reader.h"
 #include "compressor.h"
+#include "cryptor.h"
 #include "file-writer.h"
 #include "hasher.h"
 #include "metadata-db.h"
@@ -19,6 +20,7 @@ namespace {
 // TODO: These should be configurable.
 const size_t kMaxBundleSize = 100 * (1 << 20);  // 100 MiB
 const size_t kMaxCompressionBufferSize = 2 * (1 << 20);  // 2 MiB
+const size_t kMaxEncryptionBufferSize = 2 * (1 << 20);  // 2 MiB
 
 }  // namespace
 
@@ -39,6 +41,9 @@ BundleStateMachineImpl::BundleStateMachineImpl()
       compressor_(
           // TODO(tylermchenry): Compression type should be configurable.
           Compressor::CreateCompressor(BundlePayload::COMPRESSION_TYPE_ZLIB)),
+      cryptor_(
+          // TODO(tylermchenry): Encryption type should be configurable.
+          Cryptor::CreateCryptor(Cryptor::EncryptionType::kNone)),
       hasher_(new Hasher),
       metadata_db_(new MetadataDb),
       file_writer_(new FileWriter) {
@@ -191,12 +196,11 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, EncryptBundle) {
   generated_bundle_.reset(new AnnotatedBundleData);
   generated_bundle_->mutable_manifest()->CopyFrom(active_bundle_->manifest());
 
-  const vector<char>& plaintext = active_bundle_->data();
-  string* cyphertext = generated_bundle_->mutable_raw_data();
-
-  // TODO: Actually encrypt! :)
-  cyphertext->assign(plaintext.begin(), plaintext.end());
-  PostEvent<EncryptionDone>();
+  // TODO(tylermchenry): Use a real key.
+  cryptor_->InitializeEncryption("");
+  cryptor_->EncryptData(
+      active_bundle_->data(), generated_bundle_->mutable_raw_data(),
+      CreateExternalEventCallback<EncryptionDone>());
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, HashBundle) {
@@ -206,6 +210,7 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, HashBundle) {
 
   // Encryption is finished; get rid of plaintext to free memory.
   active_bundle_.reset();
+  cryptor_->FinalizeEncryption(generated_bundle_->mutable_raw_data());
 
   hasher_->ComputeHash(
       generated_bundle_->raw_data(),
