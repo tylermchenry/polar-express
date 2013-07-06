@@ -33,7 +33,7 @@ create table attributes (
   'gid'                 INTEGER,
   'mode'                INTEGER
 );
-create unique index idx_attributes_all on 
+create unique index idx_attributes_all on
   attributes('owner_user', 'owner_group', 'uid', 'gid', 'mode');
 
 -- A snapshot is a record of having observed a file on the local
@@ -41,9 +41,9 @@ create unique index idx_attributes_all on
 -- sha1_digest, and attributes of that file at that time.
 create table snapshots (
   'id'                  INTEGER PRIMARY KEY NOT NULL,
-  'file_id'             INTEGER NOT NULL REFERENCES files('id') 
+  'file_id'             INTEGER NOT NULL REFERENCES files('id')
                                   ON DELETE CASCADE,
-  'attributes_id'       INTEGER NOT NULL REFERENCES attributes('id') 
+  'attributes_id'       INTEGER NOT NULL REFERENCES attributes('id')
                                   ON DELETE CASCADE,
   'creation_time'       INTEGER,
   'modification_time'   INTEGER NOT NULL,
@@ -64,16 +64,16 @@ create index idx_snapshots_observation_time on snapshots('observation_time');
 -- contain the specified block at the specified offset.
 create table files_to_blocks (
   'id'                  INTEGER PRIMARY KEY NOT NULL,
-  'file_id'             INTEGER NOT NULL REFERENCES files('id') 
+  'file_id'             INTEGER NOT NULL REFERENCES files('id')
                                   ON DELETE CASCADE,
-  'block_id'            INTEGER NOT NULL REFERENCES blocks('id') 
+  'block_id'            INTEGER NOT NULL REFERENCES blocks('id')
                                   ON DELETE CASCADE,
   'offset'              INTEGER NOT NULL,
   'observation_time'    INTEGER NOT NULL
 );
 create index idx_files_to_blocks_file_id on files_to_blocks('file_id');
 create index idx_files_to_blocks_block_id on files_to_blocks('block_id');
-create index idx_files_to_blocks_file_offset on 
+create index idx_files_to_blocks_file_offset on
   files_to_blocks('file_id', 'offset');
 create index idx_files_to_blocks_observation_time on
   files_to_blocks('observation_time');
@@ -105,7 +105,7 @@ create table local_servers (
 -- files_to_blocks, and snapshots tables and analyzing offsets,
 -- lengths, and observation timestamps.
 create table local_snapshots_to_files_to_blocks (
-  'snapshot_id'         INTEGER NOT NULL REFERENCES snapshots('id') 
+  'snapshot_id'         INTEGER NOT NULL REFERENCES snapshots('id')
                                   ON DELETE CASCADE,
   'files_to_blocks_id'  INTEGER NOT NULL REFERENCES files_to_blocks('id')
                                   ON DELETE CASCADE
@@ -117,9 +117,9 @@ create index idx_local_snapshots_to_files_to_blocks_files_to_blocks_id on
 
 -- Records which blocks were included in which bundles.
 create table local_blocks_to_bundles (
-  'block_id'            INTEGER NOT NULL REFERENCES blocks('id') 
+  'block_id'            INTEGER NOT NULL REFERENCES blocks('id')
                                   ON DELETE CASCADE,
-  'bundle_id'           INTEGER NOT NULL REFERENCES bundles('id') 
+  'bundle_id'           INTEGER NOT NULL REFERENCES bundles('id')
                                   ON DELETE CASCADE
 );
 create index idx_local_blocks_to_bundles_block_id on
@@ -131,9 +131,9 @@ create index idx_local_blocks_to_bundles_bundle_id on
 -- status of getting them there is, and when the status was last
 -- updated.
 create table local_bundles_to_servers (
-  'bundle_id'         INTEGER NOT NULL REFERENCES bundles('id') 
+  'bundle_id'         INTEGER NOT NULL REFERENCES bundles('id')
                                 ON DELETE CASCADE,
-  'server_id'         INTEGER NOT NULL REFERENCES servers('id') 
+  'server_id'         INTEGER NOT NULL REFERENCES servers('id')
                                 ON DELETE CASCADE,
   'status'            INTEGER NOT NULL,
   'status_timestamp'  INTEGER NOT NULL
@@ -146,7 +146,7 @@ create index idx_local_bundles_to_servers_server_id on
 -- Records which rows of the local_attributes table were backed up in
 -- which bundles' manifests.
 create table local_attributes_to_bundle_manifest (
-  'attributes_id'       INTEGER NOT NULL REFERENCES attributes('id') 
+  'attributes_id'       INTEGER NOT NULL REFERENCES attributes('id')
                                 ON DELETE CASCADE,
   'bundle_id'           INTEGER NOT NULL REFERENCES bundles('id')
                                 ON DELETE CASCADE
@@ -159,9 +159,9 @@ create index idx_local_attributes_to_bundle_manifest_bundle_id on
 -- Records which rows of the snapshots table were backed up in which
 -- bundles' manifests.
 create table local_snapshots_to_bundle_manifest (
-  'snapshot_id'         INTEGER NOT NULL REFERENCES snapshots('id') 
+  'snapshot_id'         INTEGER NOT NULL REFERENCES snapshots('id')
                                   ON DELETE CASCADE,
-  'bundle_id'           INTEGER NOT NULL REFERENCES bundles('id') 
+  'bundle_id'           INTEGER NOT NULL REFERENCES bundles('id')
                                   ON DELETE CASCADE
 );
 create index idx_local_snapshots_to_bundle_manifest_snapshot_id on
@@ -172,7 +172,7 @@ create index idx_local_snapshots_to_bundle_manifest_bundle_id on
 -- Records which rows of the files_to_blocks table were backed up in
 -- which bundles' manifests.
 create table local_files_to_blocks_to_bundle_manifest (
-  'files_to_blocks_id'  INTEGER NOT NULL REFERENCES files_to_blocks('id')  
+  'files_to_blocks_id'  INTEGER NOT NULL REFERENCES files_to_blocks('id')
                                   ON DELETE CASCADE,
   'bundle_id'           INTEGER NOT NULL REFERENCES bundles('id')
                                   ON DELETE CASCADE
