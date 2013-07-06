@@ -25,6 +25,10 @@
 // #define SHARED_LOCKS_REQUIRED(x) __attribute__((shared_locks_required(x)))
 // #define EXCLUSIVE_LOCKS_REQUIRED(x) __attribute__((exclusive_locks_required(x)))
 
+#ifndef byte
+typedef unsigned char byte;
+#endif  // byte
+
 using namespace std;
 using namespace boost;
 

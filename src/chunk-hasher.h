@@ -33,7 +33,7 @@ class ChunkHasher {
       boost::shared_ptr<Snapshot> snapshot, Callback callback);
 
   virtual void ValidateHash(
-      const Chunk& chunk, const vector<char>& block_data_for_chunk,
+      const Chunk& chunk, const vector<byte>& block_data_for_chunk,
       bool* is_valid, Callback callback);
 
  protected:

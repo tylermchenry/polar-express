@@ -50,14 +50,14 @@ void Compressor::InitializeCompression(size_t max_buffer_size) {
 }
 
 void Compressor::CompressData(
-    const vector<char>& data, vector<char>* compressed_data,
+    const vector<byte>& data, vector<byte>* compressed_data,
     Callback callback) {
   AsioDispatcher::GetInstance()->PostCpuBound(
       bind(&Compressor::CompressData,
            impl_.get(), data, compressed_data, callback));
 }
 
-void Compressor::FinalizeCompression(vector<char>* compressed_data) {
+void Compressor::FinalizeCompression(vector<byte>* compressed_data) {
   impl_->FinalizeCompression(compressed_data);
 }
 

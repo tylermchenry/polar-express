@@ -16,12 +16,14 @@ class FileWriterImpl : public FileWriter {
   FileWriterImpl();
   virtual ~FileWriterImpl();
 
-  virtual void WriteDataToPath(
-      const string& data, const boost::filesystem::path& path,
+  virtual void WriteSequentialDataToPath(
+      const vector<const vector<byte>*>& sequential_data,
+      const boost::filesystem::path& path,
       Callback callback);
 
-  virtual void WriteDataToTemporaryFile(
-      const string& data, const string& filename_prefix,
+  virtual void WriteSequentialDataToTemporaryFile(
+      const vector<const vector<byte>*>& sequential_data,
+      const string& filename_prefix,
       string* path_str, Callback callback);
 
  private:

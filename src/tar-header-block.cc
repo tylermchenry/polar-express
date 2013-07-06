@@ -68,7 +68,7 @@ struct TarFileHeader {
   char padding[kTarHeaderPaddingLength];
 } __attribute__((packed));
 
-TarHeaderBlock::TarHeaderBlock(ContainerOffsetPtr<char> data)
+TarHeaderBlock::TarHeaderBlock(ContainerOffsetPtr<byte> data)
     : data_(data) {
   fill(data_.get(), data_.get() + kTarHeaderBlockLength, '\0');
   header()->fields.link_indicator = kTarLinkIndicatorNormalFile;

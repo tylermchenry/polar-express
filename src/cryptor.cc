@@ -70,81 +70,50 @@ size_t Cryptor::iv_length() const {
 }
 
 boost::shared_ptr<const CryptoPP::SecByteBlock> Cryptor::DeriveKeyFromPassword(
-    const CryptoPP::SecByteBlock& password, const string& salt) const {
+    const CryptoPP::SecByteBlock& password, const vector<byte>& salt) const {
   if (key_length() <= 0) {
     return boost::shared_ptr<CryptoPP::SecByteBlock>();
   }
 
   boost::shared_ptr<CryptoPP::SecByteBlock> key(
       new CryptoPP::SecByteBlock(key_length()));
-  unique_ptr<CryptoPP::SecByteBlock> real_salt(
-      GenerateRealSalt(password, salt));
+  vector<byte> real_salt(GenerateRealSalt(salt));
 
   CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA256> pbkdf2;
   pbkdf2.DeriveKey(
       *key, key->size(),
       0x00,  // not used
       password.data(), password.size(),
-      *real_salt, real_salt->size(),
+      real_salt.data(), real_salt.size(),
       kPbkdf2Iterations);
 
   return std::move(key);
 }
 
 void Cryptor::InitializeEncryption(
-    const CryptoPP::SecByteBlock& key, const string& iv) {
+    const CryptoPP::SecByteBlock& key, boost::shared_ptr<vector<byte> > iv) {
   impl_->InitializeEncryption(key, iv);
 }
 
 void Cryptor::EncryptData(
-    const vector<char>& data, string* encrypted_data,
-    Callback callback) {
+    boost::shared_ptr<vector<byte> > data, Callback callback) {
   AsioDispatcher::GetInstance()->PostCpuBound(
-      bind(&Cryptor::EncryptData,
-           impl_.get(), data, encrypted_data, callback));
+      bind(&Cryptor::EncryptData, impl_.get(), data, callback));
 }
 
-void Cryptor::FinalizeEncryption(string* encrypted_data) {
-  impl_->FinalizeEncryption(encrypted_data);
-}
+vector<byte> Cryptor::GenerateRealSalt(const vector<byte>& salt) const {
+  vector<byte> real_salt(key_length());
 
-unique_ptr<CryptoPP::SecByteBlock> Cryptor::GenerateRealSalt(
-    const CryptoPP::SecByteBlock& password, const string& salt) const {
-  unique_ptr<CryptoPP::SecByteBlock> real_salt(
-      new CryptoPP::SecByteBlock(key_length()));
-
-  if (salt.length() >= real_salt->size()) {
-    std::copy(salt.begin(), salt.begin() + key_length(), real_salt->begin());
-    } else if (!salt.empty()) {
+  if (salt.size() >= real_salt.size()) {
+    std::copy(salt.begin(), salt.begin() + key_length(), real_salt.begin());
+  } else {
     // If the user provided a salt that was too short, take its hash
     // to get it to the appropriate length.
-    CryptoPP::SecByteBlock salt_secure(salt.length());
-    std::copy(salt.begin(), salt.end(), salt_secure.begin());
-    GenerateSaltByHashing(salt_secure, real_salt.get());
-  } else {
-    // If the user did not provide a salt at all, use the hash of the
-    // password as the salt. Note that this is a DELIBERATELY
-    // LOW-SECURITY MODE which will make it easier for users to
-    // recover their backups by only remembering the password, rather
-    // than having to save a key file. Security-conscious users should
-    // really use the key file for recovery.
-    GenerateSaltByHashing(password, real_salt.get());
+    CryptoPP::SHA256 sha256_engine;
+    sha256_engine.CalculateDigest(real_salt.data(), salt.data(), salt.size());
   }
 
-  return std::move(real_salt);
-}
-
-void Cryptor::GenerateSaltByHashing(
-    const CryptoPP::SecByteBlock& data,
-    CryptoPP::SecByteBlock* real_salt) const {
-  assert(real_salt != nullptr);
-  assert(real_salt->size() == key_length());
-  assert(key_length() <= CryptoPP::SHA256::DIGESTSIZE);
-
-  CryptoPP::SHA256 sha256_engine;
-  unsigned char raw_digest[CryptoPP::SHA256::DIGESTSIZE];
-  sha256_engine.CalculateDigest(raw_digest, data.data(), data.size());
-  std::copy(raw_digest, raw_digest + key_length(), real_salt->begin());
+  return real_salt;
 }
 
 }  // namespace polar_express

@@ -24,7 +24,7 @@ class ChunkReader {
   virtual ~ChunkReader();
 
   virtual void ReadBlockDataForChunk(
-      const Chunk& chunk, vector<char>* block_data_for_chunk,
+      const Chunk& chunk, vector<byte>* block_data_for_chunk,
       Callback callback);
 
  protected:

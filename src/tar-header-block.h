@@ -16,7 +16,7 @@ class TarHeaderBlock {
  public:
   static const size_t kTarHeaderBlockLength = 512;
 
-  explicit TarHeaderBlock(ContainerOffsetPtr<char> data);
+  explicit TarHeaderBlock(ContainerOffsetPtr<byte> data);
 
   string filename() const;
   void set_filename(const string& filename);
@@ -46,7 +46,7 @@ class TarHeaderBlock {
   TarFileHeader* header();
   const TarFileHeader* header() const;
 
-  ContainerOffsetPtr<char> data_;
+  ContainerOffsetPtr<byte> data_;
 
   DISALLOW_COPY_AND_ASSIGN(TarHeaderBlock);
 };

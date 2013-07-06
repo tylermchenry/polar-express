@@ -26,7 +26,7 @@ void ChunkHasher::GenerateAndHashChunks(
 }
 
 void ChunkHasher::ValidateHash(
-    const Chunk& chunk, const vector<char>& block_data_for_chunk,
+    const Chunk& chunk, const vector<byte>& block_data_for_chunk,
     bool* is_valid, Callback callback) {
   AsioDispatcher::GetInstance()->PostCpuBound(
       bind(&ChunkHasher::ValidateHash,

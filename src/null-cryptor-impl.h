@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "boost/shared_ptr.hpp"
 #include "crypto++/secblock.h"
 
 #include "callback.h"
@@ -13,8 +14,7 @@
 
 namespace polar_express {
 
-// Cryptor implementation that doesn't actually do any encryption
-// (just copies input to output).
+// Cryptor implementation that doesn't actually do any encryption.
 class NullCryptorImpl : public Cryptor {
  public:
   NullCryptorImpl();
@@ -27,13 +27,10 @@ class NullCryptorImpl : public Cryptor {
   virtual size_t iv_length() const;
 
   virtual void InitializeEncryption(
-      const CryptoPP::SecByteBlock& key, const string& iv);
+      const CryptoPP::SecByteBlock& key, boost::shared_ptr<vector<byte> > iv);
 
   virtual void EncryptData(
-      const vector<char>& data, string* encrypted_data,
-      Callback callback);
-
-  virtual void FinalizeEncryption(string* encrypted_data);
+      boost::shared_ptr<vector<byte> > data, Callback callback);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(NullCryptorImpl);

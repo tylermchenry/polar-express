@@ -31,7 +31,7 @@ class ChunkHasherImpl : public ChunkHasher {
       boost::shared_ptr<Snapshot> snapshot, Callback callback);
 
   virtual void ValidateHash(
-      const Chunk& chunk, const vector<char>& block_data_for_chunk,
+      const Chunk& chunk, const vector<byte>& block_data_for_chunk,
       bool* is_valid, Callback callback);
 
  private:
@@ -44,7 +44,7 @@ class ChunkHasherImpl : public ChunkHasher {
     boost::shared_ptr<Snapshot> snapshot_;
     boost::shared_ptr<ChunkReader> chunk_reader_;
     Chunk* current_chunk_;
-    vector<char> block_data_buffer_;
+    vector<byte> block_data_buffer_;
     Callback callback_;
   };
 
@@ -54,9 +54,9 @@ class ChunkHasherImpl : public ChunkHasher {
   void UpdateHashesFromBlockData(
       boost::shared_ptr<Context> context);
 
-  void HashData(const vector<char>& data, string* sha1_digest) const;
+  void HashData(const vector<byte>& data, string* sha1_digest) const;
 
-  void UpdateWholeFileHash(const vector<char>& data);
+  void UpdateWholeFileHash(const vector<byte>& data);
 
   void WriteWholeFileHash(string* sha1_digest) const;
 

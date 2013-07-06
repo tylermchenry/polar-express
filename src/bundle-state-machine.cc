@@ -104,7 +104,7 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, GetExistingBundleInfo) {
 PE_STATE_MACHINE_ACTION_HANDLER(
     BundleStateMachineImpl, InspectExistingBundleInfo) {
   if (existing_bundle_for_active_chunk_ != nullptr &&
-      existing_bundle_for_active_chunk_->id() >= 0) {
+      existing_bundle_for_active_chunk_->annotations().id() >= 0) {
     PostEvent<ChunkAlreadyInBundle>();
   } else {
     PostEvent<ChunkNotYetInBundle>();
@@ -173,13 +173,21 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, FinishChunk) {
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, FinalizeBundle) {
   assert(active_bundle_ != nullptr);
   assert(!active_bundle_->is_finalized());
+  assert(generated_bundle_ == nullptr);
+
+  std::cerr << "Finalizing bundle" << std::endl;
 
   compressor_->FinalizeCompression(&compressed_block_data_for_active_chunk_);
   active_bundle_->AppendBlockContents(compressed_block_data_for_active_chunk_);
   compressed_block_data_for_active_chunk_.clear();
 
   if (active_bundle_->size() > 0) {
+    // Capture the raw data from the active bundle in
+    // generated_bundle_ and then reset the active bundle.
     active_bundle_->Finalize();
+    generated_bundle_.reset(new AnnotatedBundleData(active_bundle_));
+    active_bundle_.reset();
+    std::cerr << "Finalized bundle" << std::endl;
     PostEvent<BundleReady>();
   } else {
     PostEvent<BundleEmpty>();
@@ -187,38 +195,36 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, FinalizeBundle) {
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, EncryptBundle) {
-  assert(active_bundle_ != nullptr);
-  assert(active_bundle_->is_finalized());
-  assert(generated_bundle_ == nullptr);
+  assert(generated_bundle_ != nullptr);
   assert(cryptor_ != nullptr);
 
-  generated_bundle_.reset(new AnnotatedBundleData);
-  generated_bundle_->mutable_manifest()->CopyFrom(active_bundle_->manifest());
+  std::cerr << "Beginning to encrypt bundle" << std::endl;
 
-  cryptor_->InitializeEncryption(*CHECK_NOTNULL(encryption_key_));
+  cryptor_->InitializeEncryption(
+      *CHECK_NOTNULL(encryption_key_),
+      generated_bundle_->mutable_encryption_iv());
   cryptor_->EncryptData(
-      active_bundle_->data(), generated_bundle_->mutable_raw_data(),
+      generated_bundle_->mutable_data(),
       CreateExternalEventCallback<EncryptionDone>());
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, HashBundle) {
-  assert(active_bundle_ != nullptr);
-  assert(active_bundle_->is_finalized());
   assert(generated_bundle_ != nullptr);
   assert(cryptor_ != nullptr);
 
-  // Encryption is finished; get rid of plaintext to free memory.
-  active_bundle_.reset();
-  cryptor_->FinalizeEncryption(generated_bundle_->mutable_raw_data());
+  std::cerr << "Done encrypting bundle, beginning to hash bundle." << std::endl;
 
-  hasher_->ComputeHash(
-      generated_bundle_->raw_data(),
-      generated_bundle_->mutable_sha1_digest(),
+  hasher_->ComputeSequentialHash(
+      generated_bundle_->file_contents(),
+      generated_bundle_->mutable_annotations()->mutable_sha1_digest(),
       CreateExternalEventCallback<BundleHashed>());
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, RecordBundle) {
   assert(generated_bundle_ != nullptr);
+
+  std::cerr << "Done hashing bundle, beginning to record bundle." << std::endl;
+
   metadata_db_->RecordNewBundle(
       generated_bundle_,
       CreateExternalEventCallback<BundleRecorded>());
@@ -230,18 +236,22 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, WriteBundle) {
   // kind of util when writing the resume code that reads and parses
   // these names.
   const string bundle_file_prefix =
-      string("bundle_") + boost::lexical_cast<string>(generated_bundle_->id()) +
-      "_" + generated_bundle_->sha1_digest() + "_";
+      string("bundle_") +
+      boost::lexical_cast<string>(generated_bundle_->annotations().id()) + "_" +
+      generated_bundle_->annotations().sha1_digest() + "_";
 
-  file_writer_->WriteDataToTemporaryFile(
-      generated_bundle_->raw_data(),
+  std::cerr << "Done recording bundle, beginning to write bundle." << std::endl;
+
+  file_writer_->WriteSequentialDataToTemporaryFile(
+      generated_bundle_->file_contents(),
       bundle_file_prefix,
-      generated_bundle_->mutable_persistence_file_path(),
+      generated_bundle_->mutable_annotations()->mutable_persistence_file_path(),
       CreateExternalEventCallback<BundleWritten>());
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(
     BundleStateMachineImpl, ExecuteBundleReadyCallback) {
+  std::cerr << "Done writing bundle." << std::endl;
   if (bundle_ready_callback_) {
     bundle_ready_callback_();
   }

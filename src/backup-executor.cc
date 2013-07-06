@@ -6,6 +6,7 @@
 
 #include "boost/pool/object_pool.hpp"
 
+#include "bundle.h"
 #include "bundle-state-machine.h"
 #include "filesystem-scanner.h"
 #include "make-unique.h"
@@ -227,7 +228,8 @@ void BackupExecutor::HandleBundleStateMachineBundleReady(
       bundle_state_machine->RetrieveGeneratedBundle();
   if (bundle_data != nullptr) {
     ++num_bundles_generated_;
-    std::cerr << "Wrote bundle to: " << bundle_data->persistence_file_path()
+    std::cerr << "Wrote bundle to: "
+              << bundle_data->annotations().persistence_file_path()
               << std::endl;
   }
 }

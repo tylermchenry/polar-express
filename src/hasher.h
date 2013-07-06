@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "boost/shared_ptr.hpp"
 
@@ -20,12 +21,20 @@ class Hasher {
   Hasher();
   virtual ~Hasher();
 
-  virtual void ComputeHash(
-      const string& data, string* sha1_digest, Callback callback);
+  void ComputeHash(
+      const vector<byte>& data, string* sha1_digest, Callback callback);
+
+  // Version of ComputeHash with multiple data inputs, which are fed
+  // sequentially into the hash function to create a single digest.
+  virtual void ComputeSequentialHash(
+      const vector<const vector<byte>*>& sequential_data,
+      string* sha1_digest, Callback callback);
 
   virtual void ValidateHash(
-      const string& data, const string& sha1_digest, bool* is_valid,
+      const vector<byte>& data, const string& sha1_digest, bool* is_valid,
       Callback callback);
+
+  // TODO(tylermchenry): Is a sequential version of validate needed?
 
  protected:
   explicit Hasher(bool create_impl);

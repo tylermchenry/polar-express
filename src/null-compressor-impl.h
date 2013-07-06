@@ -22,10 +22,10 @@ class NullCompressorImpl : public Compressor {
   virtual void InitializeCompression(size_t max_buffer_size);
 
   virtual void CompressData(
-      const vector<char>& data, vector<char>* compressed_data,
+      const vector<byte>& data, vector<byte>* compressed_data,
       Callback callback);
 
-  virtual void FinalizeCompression(vector<char>* compressed_data);
+  virtual void FinalizeCompression(vector<byte>* compressed_data);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(NullCompressorImpl);

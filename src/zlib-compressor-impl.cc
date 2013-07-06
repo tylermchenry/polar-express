@@ -31,7 +31,7 @@ void ZlibCompressorImpl::InitializeCompression(size_t max_buffer_size) {
 }
 
 void ZlibCompressorImpl::CompressData(
-    const vector<char>& data, vector<char>* compressed_data,
+    const vector<byte>& data, vector<byte>* compressed_data,
     Callback callback) {
   assert(stream_ != nullptr);
 
@@ -42,7 +42,7 @@ void ZlibCompressorImpl::CompressData(
   callback();
 }
 
-void ZlibCompressorImpl::FinalizeCompression(vector<char>* compressed_data) {
+void ZlibCompressorImpl::FinalizeCompression(vector<byte>* compressed_data) {
   assert(stream_ != nullptr);
 
   stream_->next_in = nullptr;
@@ -53,7 +53,7 @@ void ZlibCompressorImpl::FinalizeCompression(vector<char>* compressed_data) {
 }
 
 void ZlibCompressorImpl::DeflateStream(
-    vector<char>* compressed_data, bool flush) {
+    vector<byte>* compressed_data, bool flush) {
   assert(stream_ != nullptr);
   assert(compressed_data != nullptr);
 

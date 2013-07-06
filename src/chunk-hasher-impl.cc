@@ -45,7 +45,7 @@ void ChunkHasherImpl::GenerateAndHashChunks(
 }
 
 void ChunkHasherImpl::ValidateHash(
-    const Chunk& chunk, const vector<char>& block_data_for_chunk,
+    const Chunk& chunk, const vector<byte>& block_data_for_chunk,
     bool* is_valid, Callback callback) {
   string block_data_sha1_digest;
   HashData(block_data_for_chunk, &block_data_sha1_digest);
@@ -103,7 +103,7 @@ void ChunkHasherImpl::UpdateHashesFromBlockData(
 }
 
 void ChunkHasherImpl::HashData(
-    const vector<char>& data, string* sha1_digest) const {
+    const vector<byte>& data, string* sha1_digest) const {
   CryptoPP::SHA1 sha1_engine;
   unsigned char raw_digest[CryptoPP::SHA1::DIGESTSIZE];
   sha1_engine.CalculateDigest(
@@ -113,7 +113,7 @@ void ChunkHasherImpl::HashData(
   WriteHashToString(raw_digest, sha1_digest);
 }
 
-void ChunkHasherImpl::UpdateWholeFileHash(const vector<char>& data) {
+void ChunkHasherImpl::UpdateWholeFileHash(const vector<byte>& data) {
   whole_file_sha1_engine_->Update(
       reinterpret_cast<const unsigned char*>(data.data()), data.size());
 }

@@ -26,20 +26,14 @@ size_t NullCryptorImpl::iv_length() const {
 }
 
 void NullCryptorImpl::InitializeEncryption(
-    const CryptoPP::SecByteBlock& key, const string& iv) {
+    const CryptoPP::SecByteBlock& key, boost::shared_ptr<vector<byte> > iv) {
   // No-op.
 }
 
 void NullCryptorImpl::EncryptData(
-    const vector<char>& data, string* encrypted_data,
-    Callback callback) {
-  std::copy(data.begin(), data.end(),
-            std::back_inserter(*CHECK_NOTNULL(encrypted_data)));
-  callback();
-}
-
-void NullCryptorImpl::FinalizeEncryption(string* encrypted_data) {
+    boost::shared_ptr<vector<byte> > data, Callback callback) {
   // No-op.
+  callback();
 }
 
 }  // namespace polar_express

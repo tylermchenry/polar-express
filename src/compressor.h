@@ -32,7 +32,7 @@ class Compressor {
   // appeneded to compressed_data. It is possible that nothing will be
   // appended to compressed_data if it all remains buffered.
   virtual void CompressData(
-      const vector<char>& data, vector<char>* compressed_data,
+      const vector<byte>& data, vector<byte>* compressed_data,
       Callback callback);
 
   // Outputs any remaining buffered compressed data to compressed_data
@@ -40,7 +40,7 @@ class Compressor {
   // at least once before each call to FinalizeCompression.
   //
   // This call is lightweight and synchronous.
-  virtual void FinalizeCompression(vector<char>* compressed_data);
+  virtual void FinalizeCompression(vector<byte>* compressed_data);
 
   // TODO(tylermchenry): Add decompression.
 

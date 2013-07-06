@@ -17,19 +17,34 @@ FileWriter::~FileWriter() {
 }
 
 void FileWriter::WriteDataToPath(
-    const string& data, const boost::filesystem::path& path,
+    const vector<byte>& data, const boost::filesystem::path& path,
+    Callback callback) {
+  WriteSequentialDataToPath({ &data }, path, callback);
+}
+
+void FileWriter::WriteSequentialDataToPath(
+    const vector<const vector<byte>*>& sequential_data,
+    const boost::filesystem::path& path,
     Callback callback) {
   AsioDispatcher::GetInstance()->PostDiskBound(
-      bind(&FileWriter::WriteDataToPath,
-           impl_.get(), data, path, callback));
+      bind(&FileWriter::WriteSequentialDataToPath,
+           impl_.get(), sequential_data, path, callback));
 }
 
 void FileWriter::WriteDataToTemporaryFile(
-    const string& data, const string& filename_prefix,
+    const vector<byte>& data, const string& filename_prefix,
+    string* path_str, Callback callback) {
+  WriteSequentialDataToTemporaryFile(
+      { &data }, filename_prefix, path_str, callback);
+}
+
+void FileWriter::WriteSequentialDataToTemporaryFile(
+    const vector<const vector<byte>*>& sequential_data,
+    const string& filename_prefix,
     string* path_str, Callback callback) {
   AsioDispatcher::GetInstance()->PostDiskBound(
-      bind(&FileWriter::WriteDataToTemporaryFile,
-           impl_.get(), data, filename_prefix, path_str, callback));
+      bind(&FileWriter::WriteSequentialDataToTemporaryFile,
+           impl_.get(), sequential_data, filename_prefix, path_str, callback));
 }
 
 }  // namespace polar_express

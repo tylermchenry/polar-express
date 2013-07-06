@@ -21,19 +21,12 @@ message BundleManifest {
   repeated BundlePayload payloads = 1;
 }
 
-// Proto to represent complete bundle, annotated with some additional
-// metadata which is NOT stored within the bundle (id,
-// persistence_file_path). The manifest IS stored within the bundle but
-// is also stored separately in this proto for convenience. If
-// persistence_file_path is set, the raw_data bytes should represent
-// exactly what was stored at that path. E.g. the raw_data bytes should
-// be encrypted if the persistence file was encrypted.
+// Proto to represent additional metadata which is NOT stored within
+// the bundle (id, persistence_file_path, etc.).
 //
-// Next tag: 6
-message AnnotatedBundleData {
+// Next tag: 4
+message BundleAnnotations {
   optional int64 id = 1 [default = -1];
-  optional BundleManifest manifest = 2;
-  optional bytes raw_data = 3;
-  optional string sha1_digest = 4;   // Hash of raw_data.
-  optional string persistence_file_path = 5;
+  optional string sha1_digest = 2;
+  optional string persistence_file_path = 3;
 }

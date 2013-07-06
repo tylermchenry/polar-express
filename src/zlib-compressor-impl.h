@@ -25,13 +25,13 @@ class ZlibCompressorImpl : public Compressor {
   virtual void InitializeCompression(size_t max_buffer_size);
 
   virtual void CompressData(
-      const vector<char>& data, vector<char>* compressed_data,
+      const vector<byte>& data, vector<byte>* compressed_data,
       Callback callback);
 
-  virtual void FinalizeCompression(vector<char>* compressed_data);
+  virtual void FinalizeCompression(vector<byte>* compressed_data);
 
  private:
-  void DeflateStream(vector<char>* compressed_data, bool flush);
+  void DeflateStream(vector<byte>* compressed_data, bool flush);
 
   unique_ptr<z_stream_s> stream_;
 

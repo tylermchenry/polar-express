@@ -20,14 +20,14 @@ void NullCompressorImpl::InitializeCompression(size_t max_buffer_size) {
 }
 
 void NullCompressorImpl::CompressData(
-    const vector<char>& data, vector<char>* compressed_data,
+    const vector<byte>& data, vector<byte>* compressed_data,
     Callback callback) {
   std::copy(data.begin(), data.end(),
             std::back_inserter(*CHECK_NOTNULL(compressed_data)));
   callback();
 }
 
-void NullCompressorImpl::FinalizeCompression(vector<char>* compressed_data) {
+void NullCompressorImpl::FinalizeCompression(vector<byte>* compressed_data) {
   // No-op.
 }
 

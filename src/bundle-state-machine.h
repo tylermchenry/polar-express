@@ -313,9 +313,9 @@ class BundleStateMachineImpl
   queue<const Chunk*> pending_chunks_;
   const Chunk* active_chunk_;
   boost::shared_ptr<AnnotatedBundleData> existing_bundle_for_active_chunk_;
-  vector<char> block_data_for_active_chunk_;
+  vector<byte> block_data_for_active_chunk_;
   bool active_chunk_hash_is_valid_;
-  vector<char> compressed_block_data_for_active_chunk_;
+  vector<byte> compressed_block_data_for_active_chunk_;
 
   boost::shared_ptr<Bundle> active_bundle_;
   boost::shared_ptr<AnnotatedBundleData> generated_bundle_;

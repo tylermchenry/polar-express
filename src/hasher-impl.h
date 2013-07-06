@@ -16,15 +16,17 @@ class HasherImpl : public Hasher {
   HasherImpl();
   virtual ~HasherImpl();
 
-  virtual void ComputeHash(
-      const string& data, string* sha1_digest, Callback callback);
+  virtual void ComputeSequentialHash(
+      const vector<const vector<byte>*>& sequential_data,
+      string* sha1_digest, Callback callback);
 
   virtual void ValidateHash(
-      const string& data, const string& sha1_digest, bool* is_valid,
+      const vector<byte>& data, const string& sha1_digest, bool* is_valid,
       Callback callback);
 
  private:
-  void HashData(const string& data, string* sha1_digest) const;
+  void HashData(const vector<const vector<byte>*>& sequential_data,
+                string* sha1_digest) const;
 
   DISALLOW_COPY_AND_ASSIGN(HasherImpl);
 };

@@ -24,29 +24,33 @@ HasherImpl::HasherImpl()
 HasherImpl::~HasherImpl() {
 }
 
-void HasherImpl::ComputeHash(
-    const string& data, string* sha1_digest, Callback callback) {
-  HashData(data, sha1_digest);
+void HasherImpl::ComputeSequentialHash(
+    const vector<const vector<byte>*>& sequential_data,
+    string* sha1_digest, Callback callback) {
+  HashData(sequential_data, sha1_digest);
   callback();
 }
 
 void HasherImpl::ValidateHash(
-    const string& data, const string& sha1_digest, bool* is_valid,
+    const vector<byte>& data, const string& sha1_digest, bool* is_valid,
     Callback callback) {
   string tmp_sha1_digest;
-  HashData(data, &tmp_sha1_digest);
+  HashData({ &data }, &tmp_sha1_digest);
   *CHECK_NOTNULL(is_valid) = (sha1_digest == tmp_sha1_digest);
   callback();
 }
 
-void HasherImpl::HashData(const string& data, string* sha1_digest) const {
+void HasherImpl::HashData(
+    const vector<const vector<byte>*>& sequential_data,
+    string* sha1_digest) const {
   CryptoPP::SHA1 sha1_engine;
+  for (const auto* data : sequential_data) {
+    sha1_engine.Update(data->data(), data->size());
+  }
+
   unsigned char raw_digest[CryptoPP::SHA1::DIGESTSIZE];
-  sha1_engine.CalculateDigest(
-      raw_digest,
-      reinterpret_cast<const unsigned char*>(data.data()),
-      data.size());
-  WriteHashToString(raw_digest, sha1_digest);
+  sha1_engine.Final(raw_digest);
+  WriteHashToString(raw_digest, CHECK_NOTNULL(sha1_digest));
 }
 
 }  // namespace polar_express

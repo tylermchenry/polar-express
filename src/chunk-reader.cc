@@ -25,7 +25,7 @@ ChunkReader::~ChunkReader() {
 }
 
 void ChunkReader::ReadBlockDataForChunk(
-    const Chunk& chunk, vector<char>* block_data_for_chunk, Callback callback) {
+    const Chunk& chunk, vector<byte>* block_data_for_chunk, Callback callback) {
   AsioDispatcher::GetInstance()->PostDiskBound(
       bind(&ChunkReader::ReadBlockDataForChunk,
            impl_.get(), chunk, block_data_for_chunk, callback));

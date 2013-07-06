@@ -19,7 +19,7 @@ ChunkReaderImpl::~ChunkReaderImpl() {
 }
 
 void ChunkReaderImpl::ReadBlockDataForChunk(
-    const Chunk& chunk, vector<char>* block_data_for_chunk,
+    const Chunk& chunk, vector<byte>* block_data_for_chunk,
     Callback callback) {
   CHECK_NOTNULL(block_data_for_chunk)->clear();
   try {

@@ -13,6 +13,7 @@
 
 namespace polar_express {
 
+class AnnotatedBundleData;  // Defined below.
 class Block;
 class TarHeaderBlock;
 
@@ -62,7 +63,12 @@ class Bundle {
   const BundleManifest& manifest() const;
 
   // Returns the current data. Not complete until Finalize is called.
-  const vector<char>& data() const;
+  const vector<byte>& data() const;
+
+  // Mutable accessor to the contained bundle data. Finalize must be
+  // called before retrieving mutable data. Will return null if called
+  // before Finalize.
+  boost::shared_ptr<vector<byte> > mutable_data();
 
   // Returns the current size of the bundle in bytes. Note that the
   // size will increase when Finalize is called, on account of the
@@ -94,7 +100,7 @@ class Bundle {
   //
   // It is not legal to call this method before calling
   // StartNewPayload, or after calling Finalize.
-  void AppendBlockContents(const vector<char>& compressed_contents);
+  void AppendBlockContents(const vector<byte>& compressed_contents);
 
   // Serializes the manifest to the bundle, closes out the TAR file
   // and returns a pointer to the contents of the completed bundle, which
@@ -128,9 +134,40 @@ class Bundle {
   BundlePayload* current_payload_;  // not owned
   int64_t next_payload_id_;
 
-  boost::shared_ptr<vector<char> > data_;
+  boost::shared_ptr<vector<byte> > data_;
 
   DISALLOW_COPY_AND_ASSIGN(Bundle);
+};
+
+class AnnotatedBundleData {
+ public:
+  explicit AnnotatedBundleData(boost::shared_ptr<Bundle> bundle);
+
+  const BundleManifest& manifest() const;
+
+  const vector<byte>& data() const;
+  boost::shared_ptr<vector<byte> > mutable_data();
+
+  const vector<byte>& encryption_iv() const;
+  boost::shared_ptr<vector<byte> > mutable_encryption_iv();
+
+  const BundleAnnotations& annotations() const;
+  BundleAnnotations* mutable_annotations();
+
+  // Returns what the actual contents of the file should be when
+  // written to disk. (Currently, this is encryption_iv followed by
+  // data).
+  const vector<const vector<byte>* >& file_contents() const;
+  size_t file_contents_size() const;
+
+ private:
+  const BundleManifest manifest_;
+  const boost::shared_ptr<vector<byte> > data_;
+  const boost::shared_ptr<vector<byte> > encryption_iv_;
+  BundleAnnotations annotations_;
+  const vector<const vector<byte>* > file_contents_;
+
+  DISALLOW_COPY_AND_ASSIGN(AnnotatedBundleData);
 };
 
 }  // namespace polar_express

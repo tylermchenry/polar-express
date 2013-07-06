@@ -194,8 +194,10 @@ cryptors = env.Library(
     )
 
 metadata_db_deplibs = [
+    bundle,
     asio_dispatcher,
     asio_dispatcher_deplibs,
+    bundle_deplibs,
     'block_proto',
     'snapshot_proto',
     'file_proto',
@@ -271,6 +273,7 @@ bundle_state_machine = env.Library(
 
 backup_executor_deplibs = [
     cryptors,
+    bundle,
     bundle_state_machine,
     snapshot_state_machine,
     filesystem_scanner,
@@ -279,6 +282,7 @@ backup_executor_deplibs = [
     filesystem_scanner_deplibs,
     snapshot_state_machine_deplibs,
     bundle_state_machine_deplibs,
+    bundle_deplibs,
     cryptors_deplibs,
     'boost_filesystem-mt',
     'boost_thread',

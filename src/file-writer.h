@@ -19,12 +19,22 @@ class FileWriter {
   FileWriter();
   virtual ~FileWriter();
 
-  virtual void WriteDataToPath(
-      const string& data, const boost::filesystem::path& path,
+  void WriteDataToPath(
+      const vector<byte>& data, const boost::filesystem::path& path,
       Callback callback);
 
-  virtual void WriteDataToTemporaryFile(
-      const string& data, const string& filename_prefix,
+  virtual void WriteSequentialDataToPath(
+      const vector<const vector<byte>*>& sequential_data,
+      const boost::filesystem::path& path,
+      Callback callback);
+
+  void WriteDataToTemporaryFile(
+      const vector<byte>& data, const string& filename_prefix,
+      string* path_str, Callback callback);
+
+  virtual void WriteSequentialDataToTemporaryFile(
+      const vector<const vector<byte>*>& sequential_data,
+      const string& filename_prefix,
       string* path_str, Callback callback);
 
  protected:

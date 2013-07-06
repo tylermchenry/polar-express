@@ -17,14 +17,20 @@ Hasher::~Hasher() {
 }
 
 void Hasher::ComputeHash(
-    const string& data, string* sha1_digest, Callback callback) {
+    const vector<byte>& data, string* sha1_digest, Callback callback) {
+  ComputeSequentialHash({ &data }, sha1_digest, callback);
+}
+
+void Hasher::ComputeSequentialHash(
+    const vector<const vector<byte>*>& sequential_data,
+    string* sha1_digest, Callback callback) {
   AsioDispatcher::GetInstance()->PostCpuBound(
-      bind(&Hasher::ComputeHash,
-           impl_.get(), data, sha1_digest, callback));
+      bind(&Hasher::ComputeSequentialHash,
+           impl_.get(), sequential_data, sha1_digest, callback));
 }
 
 void Hasher::ValidateHash(
-    const string& data, const string& sha1_digest, bool* is_valid,
+    const vector<byte>& data, const string& sha1_digest, bool* is_valid,
     Callback callback) {
   AsioDispatcher::GetInstance()->PostCpuBound(
       bind(&Hasher::ValidateHash,

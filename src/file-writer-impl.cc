@@ -14,28 +14,32 @@ FileWriterImpl::FileWriterImpl()
 FileWriterImpl::~FileWriterImpl() {
 }
 
-void FileWriterImpl::WriteDataToPath(
-    const string& data, const boost::filesystem::path& path,
+void FileWriterImpl::WriteSequentialDataToPath(
+    const vector<const vector<byte>*>& sequential_data,
+    const boost::filesystem::path& path,
     Callback callback) {
   {
     boost::iostreams::stream_buffer<boost::iostreams::file_sink> sink(
         path.string());
     ostream sink_stream(&sink);
-    copy(data.begin(), data.end(), ostreambuf_iterator<char>(sink_stream));
+    for (const auto* data : sequential_data) {
+      copy(data->begin(), data->end(), ostreambuf_iterator<char>(sink_stream));
+    }
   }
 
   callback();
 }
 
-void FileWriterImpl::WriteDataToTemporaryFile(
-    const string& data, const string& filename_prefix,
+void FileWriterImpl::WriteSequentialDataToTemporaryFile(
+    const vector<const vector<byte>*>& sequential_data,
+    const string& filename_prefix,
     string* path_str, Callback callback) {
   boost::filesystem::path path =
       boost::filesystem::temp_directory_path() /
       boost::filesystem::unique_path(filename_prefix +
                                      "%%%%-%%%%-%%%%-%%%%.tmp");
   *CHECK_NOTNULL(path_str) = path.string();
-  WriteDataToPath(data, path, callback);
+  WriteSequentialDataToPath(sequential_data, path, callback);
 }
 
 }  // namespace polar_express

@@ -26,7 +26,7 @@ int main(int argc, char** argv) {
           reinterpret_cast<const byte*>(kPassphrase), sizeof(kPassphrase));
       encryption_key =
           Cryptor::CreateCryptor(encryption_type)->DeriveKeyFromPassword(
-              passphrase);
+              passphrase, {});
     }
 
     BackupExecutor backup_executor;

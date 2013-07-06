@@ -24,7 +24,7 @@ Bundle::Bundle()
     : is_finalized_(false),
       current_payload_(nullptr),
       next_payload_id_(0),
-      data_(new vector<char>) {
+      data_(new vector<byte>) {
 }
 
 Bundle::~Bundle() {
@@ -38,8 +38,12 @@ size_t Bundle::size() const {
   return data_->size();
 }
 
-const vector<char>& Bundle::data() const {
+const vector<byte>& Bundle::data() const {
   return *data_;
+}
+
+boost::shared_ptr<vector<byte> > Bundle::mutable_data() {
+  return is_finalized_ ? data_ : boost::shared_ptr<vector<byte> >();
 }
 
 bool Bundle::is_finalized() const {
@@ -63,7 +67,7 @@ void Bundle::AddBlockMetadata(const Block& block) {
   current_payload_->add_blocks()->CopyFrom(block);
 }
 
-void Bundle::AppendBlockContents(const vector<char>& compressed_contents) {
+void Bundle::AppendBlockContents(const vector<byte>& compressed_contents) {
   assert(!is_finalized_);
   assert(current_payload_ != nullptr);
   data_->insert(
@@ -151,6 +155,53 @@ void Bundle::AppendSerializedManifest() {
   data_->insert(data_->end(), serialized_manifest_sha1_digest.begin(),
                serialized_manifest_sha1_digest.end());
   EndCurrentFile(serialized_manifest_sha1_digest.length());
+}
+
+AnnotatedBundleData::AnnotatedBundleData(boost::shared_ptr<Bundle> bundle)
+    : manifest_(CHECK_NOTNULL(bundle)->manifest()),
+      data_(CHECK_NOTNULL(bundle->mutable_data())),
+      encryption_iv_(new vector<byte>),
+      file_contents_({ encryption_iv_.get(), data_.get() }) {
+}
+
+const BundleManifest& AnnotatedBundleData::manifest() const {
+  return manifest_;
+}
+
+const vector<byte>& AnnotatedBundleData::data() const {
+  return *data_;
+}
+
+boost::shared_ptr<vector<byte> > AnnotatedBundleData::mutable_data() {
+  return data_;
+}
+
+const vector<byte>& AnnotatedBundleData::encryption_iv() const {
+  return *encryption_iv_;
+}
+
+boost::shared_ptr<vector<byte> > AnnotatedBundleData::mutable_encryption_iv() {
+  return encryption_iv_;
+}
+
+const BundleAnnotations& AnnotatedBundleData::annotations() const {
+  return annotations_;
+}
+
+BundleAnnotations* AnnotatedBundleData::mutable_annotations() {
+  return &annotations_;
+}
+
+const vector<const vector<byte>* >& AnnotatedBundleData::file_contents() const {
+  return file_contents_;
+}
+
+size_t AnnotatedBundleData::file_contents_size() const {
+  size_t size = 0;
+  for (const auto* data : file_contents()) {
+    size += data->size();
+  }
+  return size;
 }
 
 }  // namespace polar_express

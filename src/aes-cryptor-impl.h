@@ -5,13 +5,14 @@
 #include <string>
 #include <vector>
 
-#include "callback.h"
-#include "cryptor.h"
-#include "macros.h"
-
+#include "boost/shared_ptr.hpp"
 #include "crypto++/aes.h"
 #include "crypto++/modes.h"
 #include "crypto++/secblock.h"
+
+#include "callback.h"
+#include "cryptor.h"
+#include "macros.h"
 
 namespace polar_express {
 
@@ -27,16 +28,12 @@ class AesCryptorImpl : public Cryptor {
   virtual size_t iv_length() const;
 
   virtual void InitializeEncryption(
-      const CryptoPP::SecByteBlock& key, const string& iv);
+      const CryptoPP::SecByteBlock& key, boost::shared_ptr<vector<byte> > iv);
 
   virtual void EncryptData(
-      const vector<char>& data, string* encrypted_data,
-      Callback callback);
-
-  virtual void FinalizeEncryption(string* encrypted_data);
+      boost::shared_ptr<vector<byte> >, Callback callback);
 
  private:
-  vector<byte> iv_;
   unique_ptr<CryptoPP::CFB_Mode<CryptoPP::AES>::Encryption> aes_cfb_encryption_;
 
   DISALLOW_COPY_AND_ASSIGN(AesCryptorImpl);
