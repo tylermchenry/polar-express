@@ -175,8 +175,6 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, FinalizeBundle) {
   assert(!active_bundle_->is_finalized());
   assert(generated_bundle_ == nullptr);
 
-  std::cerr << "Finalizing bundle" << std::endl;
-
   compressor_->FinalizeCompression(&compressed_block_data_for_active_chunk_);
   active_bundle_->AppendBlockContents(compressed_block_data_for_active_chunk_);
   compressed_block_data_for_active_chunk_.clear();
@@ -187,7 +185,6 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, FinalizeBundle) {
     active_bundle_->Finalize();
     generated_bundle_.reset(new AnnotatedBundleData(active_bundle_));
     active_bundle_.reset();
-    std::cerr << "Finalized bundle" << std::endl;
     PostEvent<BundleReady>();
   } else {
     PostEvent<BundleEmpty>();
@@ -197,8 +194,6 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, FinalizeBundle) {
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, EncryptBundle) {
   assert(generated_bundle_ != nullptr);
   assert(cryptor_ != nullptr);
-
-  std::cerr << "Beginning to encrypt bundle" << std::endl;
 
   cryptor_->InitializeEncryption(
       *CHECK_NOTNULL(encryption_key_),
@@ -212,8 +207,6 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, HashBundle) {
   assert(generated_bundle_ != nullptr);
   assert(cryptor_ != nullptr);
 
-  std::cerr << "Done encrypting bundle, beginning to hash bundle." << std::endl;
-
   hasher_->ComputeSequentialHash(
       generated_bundle_->file_contents(),
       generated_bundle_->mutable_annotations()->mutable_sha1_digest(),
@@ -222,9 +215,6 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, HashBundle) {
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, RecordBundle) {
   assert(generated_bundle_ != nullptr);
-
-  std::cerr << "Done hashing bundle, beginning to record bundle." << std::endl;
-
   metadata_db_->RecordNewBundle(
       generated_bundle_,
       CreateExternalEventCallback<BundleRecorded>());
@@ -240,8 +230,6 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, WriteBundle) {
       boost::lexical_cast<string>(generated_bundle_->annotations().id()) + "_" +
       generated_bundle_->annotations().sha1_digest() + "_";
 
-  std::cerr << "Done recording bundle, beginning to write bundle." << std::endl;
-
   file_writer_->WriteSequentialDataToTemporaryFile(
       generated_bundle_->file_contents(),
       bundle_file_prefix,
@@ -251,7 +239,6 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, WriteBundle) {
 
 PE_STATE_MACHINE_ACTION_HANDLER(
     BundleStateMachineImpl, ExecuteBundleReadyCallback) {
-  std::cerr << "Done writing bundle." << std::endl;
   if (bundle_ready_callback_) {
     bundle_ready_callback_();
   }
