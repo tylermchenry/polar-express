@@ -19,6 +19,7 @@ namespace polar_express {
 
 class AnnotatedBundleData;
 class Bundle;
+class BundleHasher;
 class BundleStateMachine;
 class Chunk;
 class ChunkHasher;
@@ -26,7 +27,6 @@ class ChunkReader;
 class Compressor;
 class Cryptor;
 class FileWriter;
-class Hasher;
 class MetadataDb;
 class Snapshot;
 
@@ -326,7 +326,7 @@ class BundleStateMachineImpl
   // Cryptor is not overrideable because it needs to be reset in InternalStart.
   // TODO(tylermchenry): Fix this when writing unit tests.
   unique_ptr<Cryptor> cryptor_;
-  OverrideableUniquePtr<Hasher> hasher_;
+  OverrideableUniquePtr<BundleHasher> bundle_hasher_;
   OverrideableUniquePtr<MetadataDb> metadata_db_;
   OverrideableUniquePtr<FileWriter> file_writer_;
 

@@ -1,4 +1,4 @@
-#include "hasher-impl.h"
+#include "bundle-hasher-impl.h"
 
 #include "crypto++/hex.h"
 #include "crypto++/sha.h"
@@ -17,21 +17,21 @@ void WriteHashToString(unsigned char (&raw_digest)[N], string* str) {
 
 }  // namespace
 
-HasherImpl::HasherImpl()
-    : Hasher(false) {
+BundleHasherImpl::BundleHasherImpl()
+    : BundleHasher(false) {
 }
 
-HasherImpl::~HasherImpl() {
+BundleHasherImpl::~BundleHasherImpl() {
 }
 
-void HasherImpl::ComputeSequentialHash(
+void BundleHasherImpl::ComputeSequentialHash(
     const vector<const vector<byte>*>& sequential_data,
     string* sha1_digest, Callback callback) {
   HashData(sequential_data, sha1_digest);
   callback();
 }
 
-void HasherImpl::ValidateHash(
+void BundleHasherImpl::ValidateHash(
     const vector<byte>& data, const string& sha1_digest, bool* is_valid,
     Callback callback) {
   string tmp_sha1_digest;
@@ -40,7 +40,7 @@ void HasherImpl::ValidateHash(
   callback();
 }
 
-void HasherImpl::HashData(
+void BundleHasherImpl::HashData(
     const vector<const vector<byte>*>& sequential_data,
     string* sha1_digest) const {
   CryptoPP::SHA1 sha1_engine;

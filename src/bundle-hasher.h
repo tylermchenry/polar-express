@@ -1,5 +1,5 @@
-#ifndef HASHER_H
-#define HASHER_H
+#ifndef BUNDLE_HASHER_H
+#define BUNDLE_HASHER_H
 
 #include <memory>
 #include <string>
@@ -12,14 +12,13 @@
 
 namespace polar_express {
 
-class HasherImpl;
+class BundleHasherImpl;
 
-// Generic hashing class, not specific to any particular proto, good
-// for generating a simple one-shot digest of a chunk of data.
-class Hasher {
+// Class for computing the hashes of bundles, prior to uploading.
+class BundleHasher {
  public:
-  Hasher();
-  virtual ~Hasher();
+  BundleHasher();
+  virtual ~BundleHasher();
 
   void ComputeHash(
       const vector<byte>& data, string* sha1_digest, Callback callback);
@@ -37,14 +36,14 @@ class Hasher {
   // TODO(tylermchenry): Is a sequential version of validate needed?
 
  protected:
-  explicit Hasher(bool create_impl);
+  explicit BundleHasher(bool create_impl);
 
  private:
-  unique_ptr<HasherImpl> impl_;
+  unique_ptr<BundleHasherImpl> impl_;
 
-  DISALLOW_COPY_AND_ASSIGN(Hasher);
+  DISALLOW_COPY_AND_ASSIGN(BundleHasher);
 };
 
 }   // namespace chunk_hasher
 
-#endif  // HASHER_H
+#endif  // BUNDLE_HASHER_H

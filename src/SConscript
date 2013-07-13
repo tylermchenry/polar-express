@@ -96,16 +96,16 @@ chunk_reader = env.Library(
     LIBS=chunk_reader_deplibs,
     )
 
-hasher_deplibs = [
+bundle_hasher_deplibs = [
     asio_dispatcher,
     asio_dispatcher_deplibs,
     'crypto++',
     ];
-hasher = env.Library(
-    target='hasher',
+bundle_hasher = env.Library(
+    target='bundle_hasher',
     source=[
-        'hasher.cc',
-        'hasher-impl.cc',
+        'bundle-hasher.cc',
+        'bundle-hasher-impl.cc',
         ],
     LIBS=hasher_deplibs,
     )
@@ -242,7 +242,7 @@ snapshot_state_machine = env.Library(
 bundle_state_machine_deplibs = [
     cryptors,
     compressors,
-    hasher,
+    bundle_hasher,
     chunk_hasher,
     chunk_reader,
     file_writer,
@@ -255,7 +255,7 @@ bundle_state_machine_deplibs = [
     file_writer_deplibs,
     chunk_reader_deplibs,
     chunk_hasher_deplibs,
-    hasher_deplibs,
+    bundle_hasher_deplibs,
     compressors_deplibs,
     cryptors_deplibs,
     'block_proto',

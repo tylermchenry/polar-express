@@ -1,11 +1,11 @@
 #include "bundle-state-machine.h"
 
 #include "bundle.h"
+#include "bundle-hasher.h"
 #include "chunk-hasher.h"
 #include "chunk-reader.h"
 #include "compressor.h"
 #include "file-writer.h"
-#include "hasher.h"
 #include "metadata-db.h"
 #include "proto/block.pb.h"
 #include "proto/file.pb.h"
@@ -42,7 +42,7 @@ BundleStateMachineImpl::BundleStateMachineImpl()
       compressor_(
           // TODO(tylermchenry): Compression type should be configurable.
           Compressor::CreateCompressor(BundlePayload::COMPRESSION_TYPE_ZLIB)),
-      hasher_(new Hasher),
+      bundle_hasher_(new BundleHasher),
       metadata_db_(new MetadataDb),
       file_writer_(new FileWriter) {
   compressor_->InitializeCompression(kMaxCompressionBufferSize);
@@ -207,7 +207,7 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, HashBundle) {
   assert(generated_bundle_ != nullptr);
   assert(cryptor_ != nullptr);
 
-  hasher_->ComputeSequentialHash(
+  bundle_hasher_->ComputeSequentialHash(
       generated_bundle_->file_contents(),
       generated_bundle_->mutable_annotations()->mutable_sha1_digest(),
       CreateExternalEventCallback<BundleHashed>());
