@@ -20,18 +20,20 @@ class BundleHasher {
   BundleHasher();
   virtual ~BundleHasher();
 
-  void ComputeHash(
-      const vector<byte>& data, string* sha1_digest, Callback callback);
+  void ComputeHashes(
+      const vector<byte>& data, string* sha256_linear_digest,
+      string* sha256_tree_digest, Callback callback);
 
   // Version of ComputeHash with multiple data inputs, which are fed
   // sequentially into the hash function to create a single digest.
-  virtual void ComputeSequentialHash(
+  virtual void ComputeSequentialHashes(
       const vector<const vector<byte>*>& sequential_data,
-      string* sha1_digest, Callback callback);
-
-  virtual void ValidateHash(
-      const vector<byte>& data, const string& sha1_digest, bool* is_valid,
+      string* sha256_linear_digest, string* sha256_tree_digest,
       Callback callback);
+
+  virtual void ValidateHashes(
+      const vector<byte>& data, const string& sha256_linear_digest,
+      const string& sha256_tree_digest, bool* is_valid, Callback callback);
 
   // TODO(tylermchenry): Is a sequential version of validate needed?
 

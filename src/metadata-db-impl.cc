@@ -508,11 +508,14 @@ void MetadataDbImpl::WriteNewBundle(
   ScopedStatement bundle_insert_stmt(db());
 
   bundle_insert_stmt.Prepare(
-      "insert into local_bundles ('sha1_digest', 'length') "
-      "values (:sha1_digest, :length);");
+      "insert into local_bundles "
+      "('sha256_linear_digest', 'sha256_tree_digest', 'length') "
+      "values (:sha256_linear_digest, :sha256_tree_digest, :length);");
 
   bundle_insert_stmt.BindText(
-      ":sha1_digest", bundle->annotations().sha1_digest());
+      ":sha256_linear_digest", bundle->annotations().sha256_linear_digest());
+  bundle_insert_stmt.BindText(
+      ":sha256_tree_digest", bundle->annotations().sha256_tree_digest());
   bundle_insert_stmt.BindInt64(
       ":length", bundle->file_contents_size());
 

@@ -107,7 +107,7 @@ bundle_hasher = env.Library(
         'bundle-hasher.cc',
         'bundle-hasher-impl.cc',
         ],
-    LIBS=hasher_deplibs,
+    LIBS=bundle_hasher_deplibs,
     )
 
 chunk_hasher_deplibs = [

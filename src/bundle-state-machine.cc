@@ -207,9 +207,10 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, HashBundle) {
   assert(generated_bundle_ != nullptr);
   assert(cryptor_ != nullptr);
 
-  bundle_hasher_->ComputeSequentialHash(
+  bundle_hasher_->ComputeSequentialHashes(
       generated_bundle_->file_contents(),
-      generated_bundle_->mutable_annotations()->mutable_sha1_digest(),
+      generated_bundle_->mutable_annotations()->mutable_sha256_linear_digest(),
+      generated_bundle_->mutable_annotations()->mutable_sha256_tree_digest(),
       CreateExternalEventCallback<BundleHashed>());
 }
 
@@ -228,7 +229,7 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, WriteBundle) {
   const string bundle_file_prefix =
       string("bundle_") +
       boost::lexical_cast<string>(generated_bundle_->annotations().id()) + "_" +
-      generated_bundle_->annotations().sha1_digest() + "_";
+      generated_bundle_->annotations().sha256_linear_digest() + "_";
 
   file_writer_->WriteSequentialDataToTemporaryFile(
       generated_bundle_->file_contents(),

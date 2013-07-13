@@ -84,9 +84,10 @@ create index idx_files_to_blocks_observation_time on
 -- A bundle is a collection of blocks, plus a manifest, that has been
 -- (or will be) uploaded to the server.
 create table local_bundles (
-  'id'                  INTEGER PRIMARY KEY NOT NULL,
-  'sha1_digest'         TEXT    NOT NULL,
-  'length'              INTEGER NOT NULL
+  'id'                    INTEGER PRIMARY KEY NOT NULL,
+  'sha256_linear_digest'  TEXT    NOT NULL,
+  'sha256_tree_digest'    TEXT    NOT NULL,
+  'length'                INTEGER NOT NULL
 );
 
 -- This table holds information about the remote endpoint('s') being
@@ -135,6 +136,7 @@ create table local_bundles_to_servers (
                                 ON DELETE CASCADE,
   'server_id'         INTEGER NOT NULL REFERENCES servers('id')
                                 ON DELETE CASCADE,
+  'server_bundle_id'  TEXT,
   'status'            INTEGER NOT NULL,
   'status_timestamp'  INTEGER NOT NULL
 );

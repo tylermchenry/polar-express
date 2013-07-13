@@ -16,17 +16,23 @@ class BundleHasherImpl : public BundleHasher {
   BundleHasherImpl();
   virtual ~BundleHasherImpl();
 
-  virtual void ComputeSequentialHash(
+  virtual void ComputeSequentialHashes(
       const vector<const vector<byte>*>& sequential_data,
-      string* sha1_digest, Callback callback);
-
-  virtual void ValidateHash(
-      const vector<byte>& data, const string& sha1_digest, bool* is_valid,
+      string* sha256_linear_digest, string* sha256_tree_digest,
       Callback callback);
+
+  virtual void ValidateHashes(
+      const vector<byte>& data, const string& sha256_linear_digest,
+      const string& sha256_tree_digest, bool* is_valid, Callback callback);
 
  private:
   void HashData(const vector<const vector<byte>*>& sequential_data,
-                string* sha1_digest) const;
+                string* sha256_linear_digest, string* sha256_tree_digest) const;
+
+  void ComputeFinalTreeHash(
+      const vector<string>::const_iterator sha256_intermediate_digests_begin,
+      const vector<string>::const_iterator sha256_intermediate_digests_end,
+      string* sha256_tree_digest) const;
 
   DISALLOW_COPY_AND_ASSIGN(BundleHasherImpl);
 };
