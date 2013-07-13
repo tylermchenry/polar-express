@@ -63,6 +63,25 @@ void BundleHasherImpl::HashData(
 
     sha256_linear_engine.Update(data->data(), data->size());
 
+    // For the tree digest we need to compute a digest of each 1 MiB
+    // peice of the data. But here the data is spread out over
+    // multiple byte vectors which may not each be a multiple of 1
+    // MiB. So do this:
+    //
+    // 1. Check if there is some leftover data from the previous
+    // vector in the tree engine. If so, add to it, up to a complete
+    // peice (or the end of the current vector).
+    //
+    // 2. If we made a complete peice this way, compute its digest and
+    // clear the engine.
+    //
+    // 3. For the remaining data in the current vector, compute
+    // digests of each 1 MiB peice, until there is less than 1 MiB
+    // remaining.
+    //
+    // 4. Put whatever data is remaining into the engine, but do not
+    // finalize.
+    //
     // TODO(tylermchenry): Gah, there has to be a cleaner way to write this!
     size_t offset = 0;
     if (bytes_in_current_intermediate_digest > 0) {
@@ -72,6 +91,7 @@ void BundleHasherImpl::HashData(
     }
     if (bytes_in_current_intermediate_digest ==
         kTreeHashIntermediateDigestDataSize) {
+      sha256_tree_engine.Final(raw_digest);
       string intermediate_digest;
       WriteHashToString(raw_digest, &intermediate_digest);
       sha256_tree_intermediate_digests.push_back(intermediate_digest);
@@ -91,7 +111,11 @@ void BundleHasherImpl::HashData(
     }
   }
 
+  // If there is any leftover data which does not add up to a complete
+  // 1 MiB peice, compute its digest. The Glacier tree hash algorithm
+  // allows the final peice (but only the final peice!) to be short.
   if (bytes_in_current_intermediate_digest != 0) {
+    sha256_tree_engine.Final(raw_digest);
     string intermediate_digest;
     WriteHashToString(raw_digest, &intermediate_digest);
     sha256_tree_intermediate_digests.push_back(intermediate_digest);
@@ -106,6 +130,9 @@ void BundleHasherImpl::HashData(
       sha256_tree_digest);
 }
 
+// The tree digest is an Amazon-specific thing. See here for description:
+// http://docs.aws.amazon.com/amazonglacier/latest/dev/checksum-calculations.html
+//
 // TODO(tylermchenry): Probably some performance improvements to be made here.
 void BundleHasherImpl::ComputeFinalTreeHash(
     const vector<string>::const_iterator sha256_intermediate_digests_begin,
