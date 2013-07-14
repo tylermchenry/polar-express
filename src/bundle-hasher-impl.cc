@@ -9,13 +9,17 @@ namespace {
 // Defined by Amazon AWS API
 const size_t kTreeHashIntermediateDigestDataSize = 1024 * 1024;  // 1 MiB
 
-// TODO(tylermchenry): Duplicated in chunk-hasher-impl.cc; consolidate.
-template <int N>
-void WriteHashToString(unsigned char (&raw_digest)[N], string* str) {
+void WriteHashToString(const byte* raw_digest, size_t n, string* str) {
   CryptoPP::HexEncoder encoder;
   encoder.Attach(new CryptoPP::StringSink(*CHECK_NOTNULL(str)));
-  encoder.Put(raw_digest, N);
+  encoder.Put(raw_digest, n);
   encoder.MessageEnd();
+}
+
+// TODO(tylermchenry): Duplicated in chunk-hasher-impl.cc; consolidate.
+template <int N>
+void WriteHashToString(const byte (&raw_digest)[N], string* str) {
+  WriteHashToString(raw_digest, N, str);
 }
 
 }  // namespace
@@ -52,9 +56,8 @@ void BundleHasherImpl::HashData(
     string* sha256_linear_digest, string* sha256_tree_digest) const {
   CryptoPP::SHA256 sha256_linear_engine;
   CryptoPP::SHA256 sha256_tree_engine;
-  vector<string> sha256_tree_intermediate_digests;
+  vector<vector<byte> > sha256_tree_intermediate_digests;
   size_t bytes_in_current_intermediate_digest = 0;
-  unsigned char raw_digest[CryptoPP::SHA1::DIGESTSIZE];
 
   for (const auto* data : sequential_data) {
     if (data->empty()) {
@@ -91,19 +94,21 @@ void BundleHasherImpl::HashData(
     }
     if (bytes_in_current_intermediate_digest ==
         kTreeHashIntermediateDigestDataSize) {
-      sha256_tree_engine.Final(raw_digest);
-      string intermediate_digest;
-      WriteHashToString(raw_digest, &intermediate_digest);
+      vector<byte> intermediate_digest(CryptoPP::SHA256::DIGESTSIZE);
+      sha256_tree_engine.Final(intermediate_digest.data());
       sha256_tree_intermediate_digests.push_back(intermediate_digest);
       bytes_in_current_intermediate_digest = 0;
     }
-    for (; offset <= data->size() - kTreeHashIntermediateDigestDataSize;
-         offset += kTreeHashIntermediateDigestDataSize) {
-      sha256_tree_engine.CalculateDigest(
-          raw_digest, &(*data)[offset], kTreeHashIntermediateDigestDataSize);
-      string intermediate_digest;
-      WriteHashToString(raw_digest, &intermediate_digest);
-      sha256_tree_intermediate_digests.push_back(intermediate_digest);
+    // Mind the unsigned arithmetic!
+    if (data->size() >= kTreeHashIntermediateDigestDataSize) {
+      for (; offset <= data->size() - kTreeHashIntermediateDigestDataSize;
+           offset += kTreeHashIntermediateDigestDataSize) {
+        vector<byte> intermediate_digest(CryptoPP::SHA256::DIGESTSIZE);
+        sha256_tree_engine.CalculateDigest(
+            intermediate_digest.data(), &(*data)[offset],
+            kTreeHashIntermediateDigestDataSize);
+        sha256_tree_intermediate_digests.push_back(intermediate_digest);
+      }
     }
     if (offset != data->size()) {
       sha256_tree_engine.Update(&(*data)[offset], data->size() - offset);
@@ -115,18 +120,23 @@ void BundleHasherImpl::HashData(
   // 1 MiB peice, compute its digest. The Glacier tree hash algorithm
   // allows the final peice (but only the final peice!) to be short.
   if (bytes_in_current_intermediate_digest != 0) {
-    sha256_tree_engine.Final(raw_digest);
-    string intermediate_digest;
-    WriteHashToString(raw_digest, &intermediate_digest);
+    vector<byte> intermediate_digest(CryptoPP::SHA256::DIGESTSIZE);
+    sha256_tree_engine.Final(intermediate_digest.data());
     sha256_tree_intermediate_digests.push_back(intermediate_digest);
   }
 
+  byte raw_digest[CryptoPP::SHA256::DIGESTSIZE];
   sha256_linear_engine.Final(raw_digest);
   WriteHashToString(raw_digest, CHECK_NOTNULL(sha256_linear_digest));
 
+  vector<byte> sha256_tree_digest_vector(CryptoPP::SHA256::DIGESTSIZE);
   ComputeFinalTreeHash(
       sha256_tree_intermediate_digests.begin(),
       sha256_tree_intermediate_digests.end(),
+      &sha256_tree_digest_vector);
+  WriteHashToString(
+      sha256_tree_digest_vector.data(),
+      sha256_tree_digest_vector.size(),
       sha256_tree_digest);
 }
 
@@ -135,14 +145,16 @@ void BundleHasherImpl::HashData(
 //
 // TODO(tylermchenry): Probably some performance improvements to be made here.
 void BundleHasherImpl::ComputeFinalTreeHash(
-    const vector<string>::const_iterator sha256_intermediate_digests_begin,
-    const vector<string>::const_iterator sha256_intermediate_digests_end,
-    string* sha256_tree_digest) const {
+    const vector<vector<byte> >::const_iterator
+      sha256_intermediate_digests_begin,
+    const vector<vector<byte> >::const_iterator
+      sha256_intermediate_digests_end,
+    vector<byte>* sha256_tree_digest) const {
   const size_t num_intermediate_digests = std::distance(
       sha256_intermediate_digests_begin, sha256_intermediate_digests_end);
 
-  string sha256_left_intermediate_digest;
-  string sha256_right_intermediate_digest;
+  vector<byte> sha256_left_intermediate_digest;
+  vector<byte> sha256_right_intermediate_digest;
   if (num_intermediate_digests == 2) {
     sha256_left_intermediate_digest = *sha256_intermediate_digests_begin;
     sha256_right_intermediate_digest = *(sha256_intermediate_digests_end - 1);
@@ -165,15 +177,14 @@ void BundleHasherImpl::ComputeFinalTreeHash(
 
   CryptoPP::SHA256 sha256_engine;
   sha256_engine.Update(
-      reinterpret_cast<const byte*>(sha256_left_intermediate_digest.data()),
+      sha256_left_intermediate_digest.data(),
       sha256_left_intermediate_digest.size());
   sha256_engine.Update(
-      reinterpret_cast<const byte*>(sha256_right_intermediate_digest.data()),
+      sha256_right_intermediate_digest.data(),
       sha256_right_intermediate_digest.size());
 
-  unsigned char raw_digest[CryptoPP::SHA1::DIGESTSIZE];
-  sha256_engine.Final(raw_digest);
-  WriteHashToString(raw_digest, CHECK_NOTNULL(sha256_tree_digest));
+  CHECK_NOTNULL(sha256_tree_digest)->resize(CryptoPP::SHA256::DIGESTSIZE);
+  sha256_engine.Final(sha256_tree_digest->data());
 }
 
 }  // namespace polar_express

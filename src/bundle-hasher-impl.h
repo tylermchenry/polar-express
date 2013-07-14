@@ -30,9 +30,11 @@ class BundleHasherImpl : public BundleHasher {
                 string* sha256_linear_digest, string* sha256_tree_digest) const;
 
   void ComputeFinalTreeHash(
-      const vector<string>::const_iterator sha256_intermediate_digests_begin,
-      const vector<string>::const_iterator sha256_intermediate_digests_end,
-      string* sha256_tree_digest) const;
+      const vector<vector<byte> >::const_iterator
+        sha256_intermediate_digests_begin,
+      const vector<vector<byte> >::const_iterator
+        sha256_intermediate_digests_end,
+      vector<byte>* sha256_tree_digest) const;
 
   DISALLOW_COPY_AND_ASSIGN(BundleHasherImpl);
 };
