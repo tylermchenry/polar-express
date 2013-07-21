@@ -1,0 +1,27 @@
+package polar_express;
+
+// Http Request, not including any payload (e.g. for POST).
+// Next tag: 8
+message HttpRequest {
+  optional string http_version = 1 [default = "1.1"];
+
+  enum Method {
+    GET = 0;
+    POST = 1;
+  };
+  optional Method method = 2;
+  optional bool is_secure = 3;
+  optional string hostname = 4;
+  optional string path = 5;
+
+  // Next tag: 3
+  message KeyValue {
+    optional string key = 1;
+    optional string value = 2;
+  };
+  repeated KeyValue query_parameters = 6;
+
+  // No need to include "host" header, since host is already specified
+  // above.
+  repeated KeyValue request_headers = 7;
+}

@@ -49,6 +49,17 @@ asio_dispatcher = env.Library(
     LIBS=asio_dispatcher_deplibs,
     )
 
+amazon_http_request_util_deplibs = [
+    'http_proto',
+    ];
+amazon_http_request_util = env.Library(
+    target='amazon-http-request-util',
+    source=[
+        'amazon-http-request-util.cc',
+        ],
+    LIBS=amazon_http_request_util_deplibs,
+    )
+
 snapshot_util_deplibs = [
     'snapshot_proto',
     'file_proto',
@@ -272,6 +283,7 @@ bundle_state_machine = env.Library(
     )
 
 backup_executor_deplibs = [
+    amazon_http_request_util,
     cryptors,
     bundle,
     bundle_state_machine,

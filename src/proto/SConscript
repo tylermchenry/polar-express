@@ -15,6 +15,7 @@ proto_files = env.Protoc(
       "bundle-manifest.proto",
       "snapshot.proto",
       "file.proto",
+      "http.proto",
     ],
     PROTOCPROTOPATH=['.'],
     PROTOCPYTHONOUTDIR=None, # set to None to not generate python
@@ -57,6 +58,17 @@ file_proto = env.Library(
         ],
     )
 Depends(file_proto, proto_files)
+
+http_proto = env.Library(
+    target='http_proto',
+    source=[
+        'http.pb.cc',
+        ],
+    LIBS=[
+        'protobuf'
+        ],
+    )
+Depends(http_proto, proto_files)
 
 snapshot_proto = env.Library(
     target='snapshot_proto',
