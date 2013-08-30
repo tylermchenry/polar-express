@@ -55,6 +55,9 @@ bool AmazonHttpRequestUtil::MakeCanonicalRequest(
     signed_headers.push_back(kv.first);
   }
 
+  string canonical_payload_sha256_digest = payload_sha256_digest;
+  boost::algorithm::to_lower(canonical_payload_sha256_digest);
+
   // Note the two linebreaks after the request headers. Technically
   // the "canonical request headers" portion of the canonical request
   // includes a trailing newline after the final header. Then there is
@@ -66,7 +69,7 @@ bool AmazonHttpRequestUtil::MakeCanonicalRequest(
       JoinKeyValuePairs(canonical_query_parameters, "=", "&") + "\n" +
       JoinKeyValuePairs(canonical_request_headers, ":", "\n") + "\n\n" +
       UriEncode(boost::algorithm::join(signed_headers, ";")) + "\n" +
-      payload_sha256_digest;
+      canonical_payload_sha256_digest;
   return true;
 }
 
