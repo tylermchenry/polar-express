@@ -35,6 +35,43 @@ string AmazonHttpRequestUtil::GetCanonicalTimestamp() const {
       boost::posix_time::second_clock::universal_time()) + "Z";
 }
 
+bool AmazonHttpRequestUtil::SignRequest(
+    const CryptoPP::SecByteBlock& aws_secret_key,
+    const string& aws_region_name,
+    const string& aws_service_name,
+    const HttpRequest& http_request,
+    const string& payload_sha256_digest,
+    string* signature) const {
+  string canonical_timestamp;
+  if (!GetCanonicalTimestampFromRequest(http_request, &canonical_timestamp)) {
+    return false;
+  }
+
+  string canonical_http_request;
+  if (!MakeCanonicalRequest(
+          http_request, payload_sha256_digest, &canonical_http_request)) {
+    return false;
+  }
+
+  string signing_string;
+  if (!MakeSigningString(
+          aws_region_name, aws_service_name, canonical_timestamp,
+          canonical_http_request, &signing_string)) {
+    return false;
+  }
+
+  CryptoPP::SecByteBlock derived_signing_key;
+  if (!MakeDerivedSigningKey(
+          aws_secret_key, aws_region_name, aws_service_name,
+          canonical_timestamp, &derived_signing_key)) {
+    return false;
+  }
+
+  *CHECK_NOTNULL(signature) =
+      MakeSignature(derived_signing_key, signing_string);
+  return true;
+}
+
 bool AmazonHttpRequestUtil::MakeCanonicalRequest(
     const HttpRequest& http_request, const string& payload_sha256_digest,
     string* canonical_http_request) const {
@@ -285,6 +322,18 @@ string AmazonHttpRequestUtil::HexEncode(const vector<byte>& data) const {
   encoder.Put(data.data(), data.size());
   encoder.MessageEnd();
   return digest_str;
+}
+
+bool AmazonHttpRequestUtil::GetCanonicalTimestampFromRequest(
+    const HttpRequest& request, string* canonical_timestamp) const {
+  const char kAmazonCanonicalTimestampHeaderKey[] = "x-amz-date";
+  for (const auto& header : request.request_headers()) {
+    if (header.key() == kAmazonCanonicalTimestampHeaderKey) {
+      *CHECK_NOTNULL(canonical_timestamp) = header.value();
+      return true;
+    }
+  }
+  return false;
 }
 
 }  // namespace polar_express

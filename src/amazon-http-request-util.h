@@ -22,6 +22,25 @@ class AmazonHttpRequestUtil {
   // the current system time.
   virtual string GetCanonicalTimestamp() const;
 
+  // Generates the signature for the given request and other data,
+  // computed using the given key. The request must have an
+  // 'x-amz-date' header, whose value was generated using the
+  // GetCanonicalTimestamp, which represents the canonical
+  // timestamp. If this is missing, or if any other error occurs,
+  // false is returned.
+  //
+  // Use this method if there is no need to hold on to intermediate
+  // data, such as the derived signing key and the canonical request.
+  virtual bool SignRequest(
+      const CryptoPP::SecByteBlock& aws_secret_key,
+      const string& aws_region_name,
+      const string& aws_service_name,
+      const HttpRequest& http_request,
+      const string& payload_sha256_digest,
+      string* signature) const;
+
+  // The below methods are the various parts of SignRequest:
+
   // Returns the canonical string describing the HTTP request, as
   // described by:
   // http://docs.aws.amazon.com/general/latest/gr/sigv4-create-canonical-request.html
@@ -108,6 +127,11 @@ class AmazonHttpRequestUtil {
 
   // Returns the hex encoding of the given binary data.
   string HexEncode(const vector<byte>& data) const;
+
+  // Retrieves the timestamp in the x-amz-date header; returns false
+  // if it is not found.
+  bool GetCanonicalTimestampFromRequest(
+      const HttpRequest& request, string* canonical_timestamp) const;
 
   DISALLOW_COPY_AND_ASSIGN(AmazonHttpRequestUtil);
 };
