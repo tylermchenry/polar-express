@@ -18,12 +18,15 @@ using testing::ContainerEq;
 namespace polar_express {
 namespace {
 
-// These are the AWS secret key, request, canonical request, signing
-// string, derived signing key, and signature used for the examples in
-// Amazon's documentation. They are used in test cases below that are
-// derived from examples in the documentation.
+// These are the AWS secret key, access key, request, canonical
+// request, services, timestamp, signing string, derived signing key,
+// and signature used for the examples in Amazon's documentation. They
+// are used in test cases below that are derived from examples in the
+// documentation.
 const byte kAmazonDocsExampleAwsSecretKey[] =
     "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY";
+
+const char kAmazonDocsExampleAwsAccessKey[] = "AKIDEXAMPLE";
 
 const char kAmazonDocsExampleRequestAsTextProto[] =
     "method: POST                                                "
@@ -32,15 +35,17 @@ const char kAmazonDocsExampleRequestAsTextProto[] =
     "request_headers <                                           "
     "  key: 'Content-type'                                       "
     "  value: 'application/x-www-form-urlencoded; charset=utf-8' "
-    ">                                                           "
-    "request_headers <                                           "
-    "  key: 'x-amz-date'                                         "
-    "  value: '20110909T233600Z'                                 "
     ">                                                           ";
 
 // Intentionally in uppercase to test that it is converted to lowercase.
 const char kAmazonDocsExamplePayloadSha256Digest[] =
     "B6359072C78D70EBEE1E81ADCBAB4F01BF2C23245FA365EF83FE8F1F955085E2";
+
+const char kAmazonDocsExampleCanonicalTimestamp[] = "20110909T233600Z";
+
+const char kAmazonDocsExampleAwsRegionName[] = "us-east-1";
+
+const char kAmazonDocsExampleAwsServiceName[] = "iam";
 
 const char kAmazonDocsExpectedCanonicalHttpRequest[] =
     "POST\n"
@@ -69,6 +74,34 @@ const byte kAmazonDocsExpectedDerivedSigningKey[] = {
 const char kAmazonDocsExpectedSignature[] =
     "ced6826de92d2bdeed8f846f0bf508e8559e98e4b0199114b84c54174deb456c";
 
+const char kAmazonDocsExpectedAuthorizationHeaderValue[] =
+    "AWS4-HMAC-SHA256 "
+    "Credential=AKIDEXAMPLE/20110909/us-east-1/iam/aws4_request, "
+    "SignedHeaders=content-type;host;x-amz-date, "
+    "Signature="
+    "ced6826de92d2bdeed8f846f0bf508e8559e98e4b0199114b84c54174deb456c";
+
+// No friendly proto matcher in GoogleMock? Lame.
+MATCHER_P(EqualsProto, message, "") {
+  string expected_serialized;
+  string actual_serialized;
+  message.SerializeToString(&expected_serialized);
+  arg.SerializeToString(&actual_serialized);
+  return expected_serialized == actual_serialized;
+}
+
+// A partial fake of the request util that provides the documentation
+// example canonical timestamp instead of one for the current time.
+class FakeTimestampAmazonHttpRequestUtil : public AmazonHttpRequestUtil {
+ public:
+  FakeTimestampAmazonHttpRequestUtil() {}
+  virtual ~FakeTimestampAmazonHttpRequestUtil() {}
+
+  virtual string GetCanonicalTimestamp() const {
+    return kAmazonDocsExampleCanonicalTimestamp;
+  }
+};
+
 string HexEncode(const vector<byte>& data) {
   string digest_str;
   CryptoPP::HexEncoder encoder;
@@ -92,7 +125,7 @@ class AmazonHttpRequestUtilTest : public testing::Test {
   }
 
  protected:
-  const AmazonHttpRequestUtil amazon_http_request_util_;
+  const FakeTimestampAmazonHttpRequestUtil amazon_http_request_util_;
   const CryptoPP::SecByteBlock amazon_docs_example_aws_secret_key_block_;
   const vector<byte> amazon_docs_expected_derived_signing_key_vec_;
 };
@@ -105,6 +138,10 @@ TEST_F(AmazonHttpRequestUtilTest, MakeCanonicalRequest) {
   HttpRequest http_request;
   ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(
       kAmazonDocsExampleRequestAsTextProto, &http_request));
+
+  auto* timestamp_header = http_request.add_request_headers();
+  timestamp_header->set_key("x-amz-date");
+  timestamp_header->set_value(kAmazonDocsExampleCanonicalTimestamp);
 
   string canonical_http_request;
   EXPECT_TRUE(amazon_http_request_util_.MakeCanonicalRequest(
@@ -168,8 +205,11 @@ TEST_F(AmazonHttpRequestUtilTest, MakeSigningString) {
 
   string signing_string;
   EXPECT_TRUE(amazon_http_request_util_.MakeSigningString(
-      "us-east-1", "iam", "20110909T233600Z",
-      kAmazonDocsExpectedCanonicalHttpRequest, &signing_string));
+      kAmazonDocsExampleAwsRegionName,
+      kAmazonDocsExampleAwsServiceName,
+      kAmazonDocsExampleCanonicalTimestamp,
+      kAmazonDocsExpectedCanonicalHttpRequest,
+      &signing_string));
 
   EXPECT_EQ(kAmazonDocsExpectedSigningString, signing_string);
 }
@@ -180,7 +220,9 @@ TEST_F(AmazonHttpRequestUtilTest, MakeDerivedSigningKey) {
   CryptoPP::SecByteBlock derived_signing_key;
   EXPECT_TRUE(amazon_http_request_util_.MakeDerivedSigningKey(
       amazon_docs_example_aws_secret_key_block_,
-      "us-east-1", "iam", "20110909T233600Z",
+      kAmazonDocsExampleAwsRegionName,
+      kAmazonDocsExampleAwsServiceName,
+      kAmazonDocsExampleCanonicalTimestamp,
       &derived_signing_key));
 
   vector<byte> derived_signing_key_vec;
@@ -206,17 +248,35 @@ TEST_F(AmazonHttpRequestUtilTest, MakeSignature) {
           kDerivedSigningKeyBlock, kAmazonDocsExpectedSigningString));
 }
 
-TEST_F(AmazonHttpRequestUtilTest, SignRequest) {
+TEST_F(AmazonHttpRequestUtilTest, AuthorizeRequest) {
+  // This test case is from Amazon's documentation at:
+  // http://docs.aws.amazon.com/general/latest/gr/sigv4-signed-request-examples.html
+
   HttpRequest http_request;
   ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(
       kAmazonDocsExampleRequestAsTextProto, &http_request));
 
-  string signature;
-  EXPECT_TRUE(amazon_http_request_util_.SignRequest(
-      amazon_docs_example_aws_secret_key_block_, "us-east-1", "iam",
-      http_request, kAmazonDocsExamplePayloadSha256Digest, &signature));
+  HttpRequest expected_authorized_http_request = http_request;
 
-  EXPECT_EQ(kAmazonDocsExpectedSignature, signature);
+  auto* timestamp_header =
+      expected_authorized_http_request.add_request_headers();
+  timestamp_header->set_key("x-amz-date");
+  timestamp_header->set_value(kAmazonDocsExampleCanonicalTimestamp);
+
+  auto* authorized_header =
+      expected_authorized_http_request.add_request_headers();
+  authorized_header->set_key("Authorization");
+  authorized_header->set_value(kAmazonDocsExpectedAuthorizationHeaderValue);
+
+  EXPECT_TRUE(amazon_http_request_util_.AuthorizeRequest(
+      amazon_docs_example_aws_secret_key_block_,
+      kAmazonDocsExampleAwsAccessKey, kAmazonDocsExampleAwsRegionName,
+      kAmazonDocsExampleAwsServiceName, kAmazonDocsExamplePayloadSha256Digest,
+      &http_request));
+
+  EXPECT_THAT(http_request, EqualsProto(expected_authorized_http_request))
+      << "Actual Proto:\n" << http_request.DebugString()
+      << "Expected Proto:\n" << expected_authorized_http_request.DebugString();
 }
 
 }  // namespace

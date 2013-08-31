@@ -13,33 +13,33 @@ namespace polar_express {
 
 class HttpRequest;
 
+// A class that performs various operations specific to the Amazon AWS
+// HTTP-based protocols.
 class AmazonHttpRequestUtil {
  public:
   AmazonHttpRequestUtil();
   virtual ~AmazonHttpRequestUtil();
 
+  // Adds the 'x-amz-date' and 'Authorization' header to the
+  // given request, using the given keys and other data. If any error
+  // occurs, false is returned, and the request may be modified. Uses
+  // the current time for the canonical timestamp.
+  //
+  // This implements Version 4 of the AWS signature algorithm.
+  virtual bool AuthorizeRequest(
+      const CryptoPP::SecByteBlock& aws_secret_key,
+      const string& aws_access_key,
+      const string& aws_region_name,
+      const string& aws_service_name,
+      const string& payload_sha256_digest,
+      HttpRequest* http_request) const;
+
+  // The below methods are the various parts of AuthorizeRequest,
+  // which may be useful separately:
+
   // Returns a canonical timestamp to use for a request, derived from
   // the current system time.
   virtual string GetCanonicalTimestamp() const;
-
-  // Generates the signature for the given request and other data,
-  // computed using the given key. The request must have an
-  // 'x-amz-date' header, whose value was generated using the
-  // GetCanonicalTimestamp, which represents the canonical
-  // timestamp. If this is missing, or if any other error occurs,
-  // false is returned.
-  //
-  // Use this method if there is no need to hold on to intermediate
-  // data, such as the derived signing key and the canonical request.
-  virtual bool SignRequest(
-      const CryptoPP::SecByteBlock& aws_secret_key,
-      const string& aws_region_name,
-      const string& aws_service_name,
-      const HttpRequest& http_request,
-      const string& payload_sha256_digest,
-      string* signature) const;
-
-  // The below methods are the various parts of SignRequest:
 
   // Returns the canonical string describing the HTTP request, as
   // described by:
@@ -82,6 +82,11 @@ class AmazonHttpRequestUtil {
       const string& signing_string) const;
 
  private:
+  // Adds the specified header to the given request. Does not alter
+  // key or value and does not check for duplicates.
+  void AddHeaderToRequest(
+      const string& key, const string& value, HttpRequest* http_request) const;
+
   // Produces a URI-encoded string from str, according to Amazon's
   // specifications about which characters need to be escaped and how.
   string UriEncode(const string& str) const;
@@ -128,10 +133,16 @@ class AmazonHttpRequestUtil {
   // Returns the hex encoding of the given binary data.
   string HexEncode(const vector<byte>& data) const;
 
-  // Retrieves the timestamp in the x-amz-date header; returns false
-  // if it is not found.
-  bool GetCanonicalTimestampFromRequest(
-      const HttpRequest& request, string* canonical_timestamp) const;
+  // Generates the value for the Authorization header. Assumes that
+  // all headers present in the request were part of the signature
+  // provided.
+  string GenerateAuthorizationHeaderValue(
+      const string& aws_access_key,
+      const string& aws_region_name,
+      const string& aws_service_name,
+      const HttpRequest& http_request,
+      const string& canonical_date,
+      const string& signature) const;
 
   DISALLOW_COPY_AND_ASSIGN(AmazonHttpRequestUtil);
 };

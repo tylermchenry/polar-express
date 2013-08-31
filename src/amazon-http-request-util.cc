@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <iterator>
 #include <functional>
+#include <set>
 
 #include "boost/algorithm/string.hpp"
 #include "boost/date_time/gregorian/gregorian.hpp"
@@ -18,38 +19,43 @@
 namespace polar_express {
 namespace {
 
+const char kHostHeader[] = "host";
+const char kAuthorizationHeader[] = "Authorization";
+const char kAuthorizationHeaderCredentialKey[] = "Credential";
+const char kAuthorizationHeaderSignedHeadersKey[] = "SignedHeaders";
+const char kAuthorizationHeaderSignatureKey[] = "Signature";
+const char kAmazonCanonicalTimestampHeader[] = "x-amz-date";
+const char kAmazonSha256AlgorithmId[] = "AWS4-HMAC-SHA256";
 const char kAmazonTerminationString[] = "aws4_request";
 
 }  // namespace
 
-AmazonHttpRequestUtil::AmazonHttpRequestUtil() {
-}
+AmazonHttpRequestUtil::AmazonHttpRequestUtil() {}
+
 
 AmazonHttpRequestUtil::~AmazonHttpRequestUtil() {
 }
 
-string AmazonHttpRequestUtil::GetCanonicalTimestamp() const {
-  // Canonical timestamp uses ISO 8601 simple format with timezone,
-  // which should always be UTC ("Z").
-  return boost::posix_time::to_iso_string(
-      boost::posix_time::second_clock::universal_time()) + "Z";
-}
-
-bool AmazonHttpRequestUtil::SignRequest(
+bool AmazonHttpRequestUtil::AuthorizeRequest(
     const CryptoPP::SecByteBlock& aws_secret_key,
+    const string& aws_access_key,
     const string& aws_region_name,
     const string& aws_service_name,
-    const HttpRequest& http_request,
     const string& payload_sha256_digest,
-    string* signature) const {
-  string canonical_timestamp;
-  if (!GetCanonicalTimestampFromRequest(http_request, &canonical_timestamp)) {
+    HttpRequest* http_request) const {
+  const string canonical_timestamp = GetCanonicalTimestamp();
+  AddHeaderToRequest(
+      kAmazonCanonicalTimestampHeader, canonical_timestamp, http_request);
+
+  string canonical_date;
+  if (!GetCanonicalDate(canonical_timestamp, &canonical_date)) {
     return false;
   }
 
   string canonical_http_request;
   if (!MakeCanonicalRequest(
-          http_request, payload_sha256_digest, &canonical_http_request)) {
+          *CHECK_NOTNULL(http_request), payload_sha256_digest,
+          &canonical_http_request)) {
     return false;
   }
 
@@ -67,9 +73,24 @@ bool AmazonHttpRequestUtil::SignRequest(
     return false;
   }
 
-  *CHECK_NOTNULL(signature) =
+  const string& signature =
       MakeSignature(derived_signing_key, signing_string);
+
+  AddHeaderToRequest(
+      kAuthorizationHeader,
+      GenerateAuthorizationHeaderValue(
+          aws_access_key, aws_region_name, aws_service_name, *http_request,
+          canonical_date, signature),
+      http_request);
+
   return true;
+}
+
+string AmazonHttpRequestUtil::GetCanonicalTimestamp() const {
+  // Canonical timestamp uses ISO 8601 simple format with timezone,
+  // which should always be UTC ("Z").
+  return boost::posix_time::to_iso_string(
+      boost::posix_time::second_clock::universal_time()) + "Z";
 }
 
 bool AmazonHttpRequestUtil::MakeCanonicalRequest(
@@ -100,7 +121,8 @@ bool AmazonHttpRequestUtil::MakeCanonicalRequest(
     }
   }
   if (!canonical_request_headers.insert(
-          make_pair("host", TrimWhitespace(http_request.hostname()))).second) {
+          make_pair(boost::algorithm::to_lower_copy(string(kHostHeader)),
+                    TrimWhitespace(http_request.hostname()))).second) {
     return false;
   }
 
@@ -133,7 +155,6 @@ bool AmazonHttpRequestUtil::MakeSigningString(
     const string& aws_region_name, const string& aws_service_name,
     const string& canonical_timestamp, const string& canonical_request,
     string* signing_string) const {
-  const char kAmazonSha256AlgorithmId[] = "AWS4-HMAC-SHA256";
   CHECK_NOTNULL(signing_string)->clear();
 
   // Pull the date out of the canonical timestamp for use in the
@@ -201,6 +222,13 @@ string AmazonHttpRequestUtil::MakeSignature(
   vector<byte> binary_signature;
   GenerateSha256Hmac(derived_signing_key, signing_string, &binary_signature);
   return boost::algorithm::to_lower_copy(HexEncode(binary_signature));
+}
+
+void AmazonHttpRequestUtil::AddHeaderToRequest(
+    const string& key, const string& value, HttpRequest* http_request) const {
+  auto* header = CHECK_NOTNULL(http_request)->add_request_headers();
+  header->set_key(key);
+  header->set_value(value);
 }
 
 string AmazonHttpRequestUtil::UriEncode(const string& str) const {
@@ -324,16 +352,35 @@ string AmazonHttpRequestUtil::HexEncode(const vector<byte>& data) const {
   return digest_str;
 }
 
-bool AmazonHttpRequestUtil::GetCanonicalTimestampFromRequest(
-    const HttpRequest& request, string* canonical_timestamp) const {
-  const char kAmazonCanonicalTimestampHeaderKey[] = "x-amz-date";
-  for (const auto& header : request.request_headers()) {
-    if (header.key() == kAmazonCanonicalTimestampHeaderKey) {
-      *CHECK_NOTNULL(canonical_timestamp) = header.value();
-      return true;
-    }
+string AmazonHttpRequestUtil::GenerateAuthorizationHeaderValue(
+    const string& aws_access_key,
+    const string& aws_region_name,
+    const string& aws_service_name,
+    const HttpRequest& http_request,
+    const string& canonical_date,
+    const string& signature) const {
+  const string credential =
+      boost::algorithm::join<vector<string> >(
+        { aws_access_key, canonical_date, aws_region_name, aws_service_name,
+          kAmazonTerminationString },
+        "/");
+
+  // Using set for automatic alphabetic sorting.
+  set<string> signed_headers_vec;
+  for (const auto& kv : http_request.request_headers()) {
+    signed_headers_vec.insert(boost::algorithm::to_lower_copy(kv.key()));
   }
-  return false;
+  signed_headers_vec.insert(
+      boost::algorithm::to_lower_copy(string(kHostHeader)));
+  const string signed_headers = boost::algorithm::join(signed_headers_vec, ";");
+
+  // Can't use boost::algorithm::join here because the separators are
+  // somewhat irregular (commas after everything except the algorithm ID).
+  return
+      string(kAmazonSha256AlgorithmId) + " " +
+      kAuthorizationHeaderCredentialKey + "=" + credential + ", " +
+      kAuthorizationHeaderSignedHeadersKey + "=" + signed_headers + ", " +
+      kAuthorizationHeaderSignatureKey + "=" + signature;
 }
 
 }  // namespace polar_express
