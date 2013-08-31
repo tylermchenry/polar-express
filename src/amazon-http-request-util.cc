@@ -3,10 +3,10 @@
 #include <iomanip>
 #include <functional>
 #include <map>
-#include <sstream>
 #include <vector>
 
 #include "boost/algorithm/string.hpp"
+#include "boost/format.hpp"
 
 #include "proto/http.pb.h"
 
@@ -55,8 +55,8 @@ bool AmazonHttpRequestUtil::MakeCanonicalRequest(
     signed_headers.push_back(kv.first);
   }
 
-  string canonical_payload_sha256_digest = payload_sha256_digest;
-  boost::algorithm::to_lower(canonical_payload_sha256_digest);
+  string canonical_payload_sha256_digest =
+      boost::algorithm::to_lower_copy(payload_sha256_digest);
 
   // Note the two linebreaks after the request headers. Technically
   // the "canonical request headers" portion of the canonical request
@@ -68,7 +68,7 @@ bool AmazonHttpRequestUtil::MakeCanonicalRequest(
       NormalizePath(http_request.path()) + "\n" +
       JoinKeyValuePairs(canonical_query_parameters, "=", "&") + "\n" +
       JoinKeyValuePairs(canonical_request_headers, ":", "\n") + "\n\n" +
-      UriEncode(boost::algorithm::join(signed_headers, ";")) + "\n" +
+      boost::algorithm::join(signed_headers, ";") + "\n" +
       canonical_payload_sha256_digest;
   return true;
 }
@@ -80,20 +80,19 @@ string AmazonHttpRequestUtil::UriEncode(const string& str) const {
   string encoded_str;
 
   // Safe ranges are A-Z, a-z, 0-9, plus the characters: - _ . ~
-  for (const char c : str) {
+  for (const unsigned char c : str) {
     if ((c >= 'A' && c <= 'Z') ||
         (c >= 'a' && c <= 'z') ||
         (c >= '0' && c <= '9') ||
         c == '-' || c == '_' || c == '.' || c == '~') {
       encoded_str += c;
     } else {
-      ostringstream osstr;
-      osstr << "%" << ios::hex << setw(2) << static_cast<int>(c);
-      encoded_str += osstr.str();
+      encoded_str += boost::str(boost::format("%%%02X") %
+                                static_cast<unsigned int>(c));
     }
   }
 
-  return str;
+  return encoded_str;
 }
 
 string AmazonHttpRequestUtil::TrimWhitespace(const string& str) const {

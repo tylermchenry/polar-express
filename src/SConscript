@@ -331,7 +331,7 @@ Default(polar_express)
 
 ### Unit Tests
 
-testlibs = ['gmock', 'gtest', 'gtest_main']
+testlibs = ['gmock', 'gtest', 'gtest_main', 'pthread']
 
 # Template for a unit test:
 
@@ -352,3 +352,20 @@ testlibs = ['gmock', 'gtest', 'gtest_main']
 #     filesystem_scanner_test[0].path)
 # AlwaysBuild(run_filesystem_scanner_test)
 
+amazon_http_request_util_test = env.Program(
+    target='amazon-http-request-util_test',
+    source=[
+        'amazon-http-request-util_test.cc',
+        ],
+    LIBS=[
+        amazon_http_request_util,
+        amazon_http_request_util_deplibs,
+        testlibs,
+        'protobuf',
+        ],
+    )
+run_amazon_http_request_util_test = Alias(
+    'run_amazon_http_request_util_test',
+    [amazon_http_request_util_test],
+    amazon_http_request_util_test[0].path)
+AlwaysBuild(run_amazon_http_request_util_test)
