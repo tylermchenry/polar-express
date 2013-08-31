@@ -1,19 +1,27 @@
 #include "amazon-http-request-util.h"
 
+#include <algorithm>
+#include <iterator>
 #include <string>
+#include <vector>
 
+#include "crypto++/hex.h"
+#include "crypto++/secblock.h"
 #include "google/protobuf/text_format.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 #include "proto/http.pb.h"
 
+using testing::ContainerEq;
+
 namespace polar_express {
 namespace {
 
-// This is the canonical request used for the examples in Amazon's
-// documentation. It is used in test cases below that are derived from
-// examples in the documentation.
+// These are the canonical request, signing string, and derived
+// signing key used for the examples in Amazon's documentation. They
+// are used in test cases below that are derived from examples in the
+// documentation.
 const char kAmazonDocsExpectedCanonicalHttpRequest[] =
     "POST\n"
     "/\n"
@@ -25,10 +33,40 @@ const char kAmazonDocsExpectedCanonicalHttpRequest[] =
     "content-type;host;x-amz-date\n"
     "b6359072c78d70ebee1e81adcbab4f01bf2c23245fa365ef83fe8f1f955085e2";
 
+const char kAmazonDocsExpectedSigningString[] =
+    "AWS4-HMAC-SHA256\n"
+    "20110909T233600Z\n"
+    "20110909/us-east-1/iam/aws4_request\n"
+    "3511de7e95d28ecd39e9513b642aee07e54f4941150d8df8bf94b328ef7e55e2";
+
+const byte kAmazonDocsExpectedDerivedSigningKey[] = {
+  0x98u, 0xF1u, 0xD8u, 0x89u, 0xFEu, 0xC4u, 0xF4u, 0x42u,
+  0x1Au, 0xDCu, 0x52u, 0x2Bu, 0xABu, 0x0Cu, 0xE1u, 0xF8u,
+  0x2Eu, 0x69u, 0x29u, 0xC2u, 0x62u, 0xEDu, 0x15u, 0xE5u,
+  0xA9u, 0x4Cu, 0x90u, 0xEFu, 0xD1u, 0xE3u, 0xB0u, 0xE7u
+};
+
+string HexEncode(const vector<byte>& data) {
+  string digest_str;
+  CryptoPP::HexEncoder encoder;
+  encoder.Attach(new CryptoPP::StringSink(digest_str));
+  encoder.Put(data.data(), data.size());
+  encoder.MessageEnd();
+  return digest_str;
+}
 
 class AmazonHttpRequestUtilTest : public testing::Test {
+ public:
+  AmazonHttpRequestUtilTest()
+      : amazon_docs_expected_derived_signing_key_vec_(
+          kAmazonDocsExpectedDerivedSigningKey,
+          kAmazonDocsExpectedDerivedSigningKey +
+          sizeof(kAmazonDocsExpectedDerivedSigningKey)) {
+  }
+
  protected:
-  AmazonHttpRequestUtil amazon_http_request_util_;
+  const AmazonHttpRequestUtil amazon_http_request_util_;
+  const vector<byte> amazon_docs_expected_derived_signing_key_vec_;
 };
 
 TEST_F(AmazonHttpRequestUtilTest, MakeCanonicalRequest) {
@@ -122,12 +160,44 @@ TEST_F(AmazonHttpRequestUtilTest, MakeSigningString) {
       "us-east-1", "iam", "20110909T233600Z",
       kAmazonDocsExpectedCanonicalHttpRequest, &signing_string));
 
+  EXPECT_EQ(kAmazonDocsExpectedSigningString, signing_string);
+}
+
+TEST_F(AmazonHttpRequestUtilTest, MakeDerivedSigningKey) {
+  // Test case is from Amazon's documentation at:
+  // http://docs.aws.amazon.com/general/latest/gr/sigv4-calculate-signature.html
+  const byte kAwsSecretKey[] = "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY";
+
+  // Be sure not to include the trailing NUL in the block.
+  const CryptoPP::SecByteBlock kAwsSecretKeyBlock =
+      CryptoPP::SecByteBlock(kAwsSecretKey, sizeof(kAwsSecretKey) - 1);
+
+  CryptoPP::SecByteBlock derived_signing_key;
+  EXPECT_TRUE(amazon_http_request_util_.MakeDerivedSigningKey(
+      kAwsSecretKeyBlock, "us-east-1", "iam", "20110909T233600Z",
+      &derived_signing_key));
+
+  vector<byte> derived_signing_key_vec;
+  std::copy(derived_signing_key.begin(), derived_signing_key.end(),
+            std::back_inserter(derived_signing_key_vec));
+  EXPECT_THAT(derived_signing_key_vec,
+              ContainerEq(amazon_docs_expected_derived_signing_key_vec_))
+      << "HexEncoded Actual: " << HexEncode(derived_signing_key_vec) << "\n"
+      << "HexEncoded Expected: "
+      << HexEncode(amazon_docs_expected_derived_signing_key_vec_);
+}
+
+TEST_F(AmazonHttpRequestUtilTest, MakeSignature) {
+  // Test case is from Amazon's documentation at:
+  // http://docs.aws.amazon.com/general/latest/gr/sigv4-calculate-signature.html
+  const CryptoPP::SecByteBlock kDerivedSigningKeyBlock =
+      CryptoPP::SecByteBlock(
+          amazon_docs_expected_derived_signing_key_vec_.data(),
+          amazon_docs_expected_derived_signing_key_vec_.size());
   EXPECT_EQ(
-      "AWS4-HMAC-SHA256\n"
-      "20110909T233600Z\n"
-      "20110909/us-east-1/iam/aws4_request\n"
-      "3511de7e95d28ecd39e9513b642aee07e54f4941150d8df8bf94b328ef7e55e2",
-      signing_string);
+      "ced6826de92d2bdeed8f846f0bf508e8559e98e4b0199114b84c54174deb456c",
+      amazon_http_request_util_.MakeSignature(
+          kDerivedSigningKeyBlock, kAmazonDocsExpectedSigningString));
 }
 
 }  // namespace

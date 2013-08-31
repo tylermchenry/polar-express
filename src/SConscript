@@ -362,6 +362,7 @@ amazon_http_request_util_test = env.Program(
         amazon_http_request_util,
         amazon_http_request_util_deplibs,
         testlibs,
+        'crypto++',
         'protobuf',
         ],
     )
