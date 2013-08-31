@@ -50,6 +50,7 @@ asio_dispatcher = env.Library(
     )
 
 amazon_http_request_util_deplibs = [
+    'crypto++',
     'http_proto',
     ];
 amazon_http_request_util = env.Library(

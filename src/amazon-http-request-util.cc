@@ -6,7 +6,11 @@
 #include <vector>
 
 #include "boost/algorithm/string.hpp"
+#include "boost/date_time/gregorian/gregorian.hpp"
+#include "boost/date_time/posix_time/posix_time.hpp"
 #include "boost/format.hpp"
+#include "crypto++/hex.h"
+#include "crypto++/sha.h"
 
 #include "proto/http.pb.h"
 
@@ -16,6 +20,13 @@ AmazonHttpRequestUtil::AmazonHttpRequestUtil() {
 }
 
 AmazonHttpRequestUtil::~AmazonHttpRequestUtil() {
+}
+
+string AmazonHttpRequestUtil::GetCanonicalTimestamp() const {
+  // Canonical timestamp uses ISO 8601 simple format with timezone,
+  // which should always be UTC ("Z").
+  return boost::posix_time::to_iso_string(
+      boost::posix_time::second_clock::universal_time()) + "Z";
 }
 
 bool AmazonHttpRequestUtil::MakeCanonicalRequest(
@@ -58,18 +69,55 @@ bool AmazonHttpRequestUtil::MakeCanonicalRequest(
   string canonical_payload_sha256_digest =
       boost::algorithm::to_lower_copy(payload_sha256_digest);
 
-  // Note the two linebreaks after the request headers. Technically
+  // Note the extra linebreak after the request headers. Technically
   // the "canonical request headers" portion of the canonical request
   // includes a trailing newline after the final header. Then there is
   // _another_ newline that separates the canonical request headers
   // portion from the signed headers portion.
-  *canonical_http_request =
-      HttpRequest_Method_Name(http_request.method()) + "\n" +
-      NormalizePath(http_request.path()) + "\n" +
-      JoinKeyValuePairs(canonical_query_parameters, "=", "&") + "\n" +
-      JoinKeyValuePairs(canonical_request_headers, ":", "\n") + "\n\n" +
-      boost::algorithm::join(signed_headers, ";") + "\n" +
-      canonical_payload_sha256_digest;
+  *canonical_http_request = boost::algorithm::join<vector<string> >(
+      { HttpRequest_Method_Name(http_request.method()),
+        NormalizePath(http_request.path()),
+        JoinKeyValuePairs(canonical_query_parameters, "=", "&"),
+        JoinKeyValuePairs(canonical_request_headers, ":", "\n") + "\n",
+        boost::algorithm::join(signed_headers, ";"),
+        canonical_payload_sha256_digest },
+      "\n");
+
+  return true;
+}
+
+bool AmazonHttpRequestUtil::MakeSigningString(
+    const string& aws_region_name, const string& aws_service_name,
+    const string& canonical_timestamp, const string& canonical_request,
+    string* signing_string) const {
+  const char kAmazonSha256AlgorithmId[] = "AWS4-HMAC-SHA256";
+  const char kAmazonTerminationString[] = "aws4_request";
+  CHECK_NOTNULL(signing_string)->clear();
+
+  // Pull the date out of the canonical timestamp for use in the
+  // credential scope.
+  boost::posix_time::ptime canonical_ptime =
+      boost::posix_time::from_iso_string(canonical_timestamp);
+  if (canonical_ptime.is_not_a_date_time()) {
+    return false;
+  }
+  const string canonical_date =
+      boost::gregorian::to_iso_string(canonical_ptime.date());
+
+  const string credential_scope =
+      boost::algorithm::join<vector<string> >(
+          { canonical_date, aws_region_name, aws_service_name,
+            kAmazonTerminationString},
+          "/");
+
+  const string canonical_request_sha256_digest =
+      boost::algorithm::to_lower_copy(GenerateSha256Digest(canonical_request));
+
+  *signing_string = boost::algorithm::join<vector<string> >(
+    { kAmazonSha256AlgorithmId, canonical_timestamp, credential_scope,
+      canonical_request_sha256_digest },
+    "\n");
+
   return true;
 }
 
@@ -141,6 +189,23 @@ string AmazonHttpRequestUtil::NormalizePath(const string& path) const {
     *itr = UriEncode(*itr);
   }
   return boost::algorithm::join(segments, "/");
+}
+
+string AmazonHttpRequestUtil::GenerateSha256Digest(const string& str) const {
+  CryptoPP::SHA256 sha256_engine;
+  unsigned char raw_digest[CryptoPP::SHA256::DIGESTSIZE];
+  sha256_engine.CalculateDigest(
+      raw_digest,
+      reinterpret_cast<const unsigned char*>(str.data()),
+      str.size());
+
+  string digest_str;
+  CryptoPP::HexEncoder encoder;
+  encoder.Attach(new CryptoPP::StringSink(digest_str));
+  encoder.Put(raw_digest, sizeof(raw_digest));
+  encoder.MessageEnd();
+
+  return digest_str;
 }
 
 }  // namespace polar_express

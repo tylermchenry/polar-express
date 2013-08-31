@@ -11,6 +11,21 @@
 namespace polar_express {
 namespace {
 
+// This is the canonical request used for the examples in Amazon's
+// documentation. It is used in test cases below that are derived from
+// examples in the documentation.
+const char kAmazonDocsExpectedCanonicalHttpRequest[] =
+    "POST\n"
+    "/\n"
+    "\n"
+    "content-type:application/x-www-form-urlencoded; charset=utf-8\n"
+    "host:iam.amazonaws.com\n"
+    "x-amz-date:20110909T233600Z\n"
+    "\n"
+    "content-type;host;x-amz-date\n"
+    "b6359072c78d70ebee1e81adcbab4f01bf2c23245fa365ef83fe8f1f955085e2";
+
+
 class AmazonHttpRequestUtilTest : public testing::Test {
  protected:
   AmazonHttpRequestUtil amazon_http_request_util_;
@@ -44,21 +59,11 @@ TEST_F(AmazonHttpRequestUtilTest, MakeCanonicalRequest) {
   EXPECT_TRUE(amazon_http_request_util_.MakeCanonicalRequest(
       http_request, payload_sha256_digest, &canonical_http_request));
 
-  EXPECT_EQ(
-      "POST\n"
-      "/\n"
-      "\n"
-      "content-type:application/x-www-form-urlencoded; charset=utf-8\n"
-      "host:iam.amazonaws.com\n"
-      "x-amz-date:20110909T233600Z\n"
-      "\n"
-      "content-type;host;x-amz-date\n"
-      "b6359072c78d70ebee1e81adcbab4f01bf2c23245fa365ef83fe8f1f955085e2",
-      canonical_http_request);
+  EXPECT_EQ(kAmazonDocsExpectedCanonicalHttpRequest, canonical_http_request);
 }
 
 TEST_F(AmazonHttpRequestUtilTest, MakeCanonicalRequestWithPathAndParameters) {
-  // An exntension of the Amazon-provided test above, including a
+  // An extension of the Amazon-provided test above, including a
   // nontrivial path and some query parameters. The expected value is
   // what I think it should be based on Amazon's docs. Sadly Amazon
   // does not provide a complete test case.
@@ -106,6 +111,23 @@ TEST_F(AmazonHttpRequestUtilTest, MakeCanonicalRequestWithPathAndParameters) {
       "content-type;host;x-amz-date\n"
       "b6359072c78d70ebee1e81adcbab4f01bf2c23245fa365ef83fe8f1f955085e2",
       canonical_http_request);
+}
+
+TEST_F(AmazonHttpRequestUtilTest, MakeSigningString) {
+  // Test case is from Amazon's documentation at:
+  // http://docs.aws.amazon.com/general/latest/gr/sigv4-create-string-to-sign.html
+
+  string signing_string;
+  EXPECT_TRUE(amazon_http_request_util_.MakeSigningString(
+      "us-east-1", "iam", "20110909T233600Z",
+      kAmazonDocsExpectedCanonicalHttpRequest, &signing_string));
+
+  EXPECT_EQ(
+      "AWS4-HMAC-SHA256\n"
+      "20110909T233600Z\n"
+      "20110909/us-east-1/iam/aws4_request\n"
+      "3511de7e95d28ecd39e9513b642aee07e54f4941150d8df8bf94b328ef7e55e2",
+      signing_string);
 }
 
 }  // namespace
