@@ -76,12 +76,12 @@ bool AmazonHttpRequestUtil::AuthorizeRequest(
   const string signature =
       MakeSignature(derived_signing_key, signing_string);
 
-  AddHeaderToRequest(
-      kAuthorizationHeader,
+  const string authorization_value =
       GenerateAuthorizationHeaderValue(
           aws_access_key, aws_region_name, aws_service_name, *http_request,
-          canonical_date, signature),
-      http_request);
+          canonical_date, signature);
+
+  AddHeaderToRequest(kAuthorizationHeader, http_request);
 
   return true;
 }
