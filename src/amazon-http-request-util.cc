@@ -73,7 +73,7 @@ bool AmazonHttpRequestUtil::AuthorizeRequest(
     return false;
   }
 
-  const string& signature =
+  const string signature =
       MakeSignature(derived_signing_key, signing_string);
 
   AddHeaderToRequest(
