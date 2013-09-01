@@ -81,7 +81,7 @@ bool AmazonHttpRequestUtil::AuthorizeRequest(
           aws_access_key, aws_region_name, aws_service_name, *http_request,
           canonical_date, signature);
 
-  AddHeaderToRequest(kAuthorizationHeader, http_request);
+  AddHeaderToRequest(kAuthorizationHeader, authorization_value, http_request);
 
   return true;
 }
