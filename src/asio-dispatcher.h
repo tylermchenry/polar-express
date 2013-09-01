@@ -1,6 +1,8 @@
 #ifndef ASIO_DISPATCHER_H
 #define ASIO_DISPATCHER_H
 
+#include <memory>
+
 #include "boost/asio.hpp"
 #include "boost/shared_ptr.hpp"
 
@@ -62,6 +64,15 @@ class AsioDispatcher {
   virtual void PostDownlinkBound(Callback callback);
   virtual void PostStateMachine(Callback callback);
 
+  // Used externally to tell other classes whether they should consider
+  // themselves uplink or downlink bound when posting to dispatcher
+  // threads.
+  enum class NetworkUsageType {
+    kInvalid,
+    kUplinkBound,
+    kDownlinkBound
+  };
+
   // A strand dispatcher is a wrapper around an ASIO strand that is associated
   // with one of the contained ASIO services.
   class StrandDispatcher {
@@ -75,10 +86,11 @@ class AsioDispatcher {
     // this strand.
     Callback CreateStrandCallback(Callback callback);
 
-    // USE THIS SPARINGLY. Misuse of raw io_service objects can really
+    // USE THESE SPARINGLY. Misuse of raw io_service objects can really
     // screw up the dispatch loop. This should only really be
     // necessary for creating boost ASIO-based networking objects.
     asio::io_service& io_service();
+    unique_ptr<asio::io_service::work> make_work();
    private:
     const AsioDispatcher* const asio_dispatcher_;
     const boost::shared_ptr<asio::io_service> io_service_;
@@ -94,6 +106,9 @@ class AsioDispatcher {
   virtual boost::shared_ptr<StrandDispatcher> NewStrandDispatcherUplinkBound();
   virtual boost::shared_ptr<StrandDispatcher> NewStrandDispatcherDownlinkBound();
   virtual boost::shared_ptr<StrandDispatcher> NewStrandDispatcherStateMachine();
+
+  virtual boost::shared_ptr<StrandDispatcher> NewStrandDispatcherNetworkBound(
+      NetworkUsageType network_usage_type);
 
  private:
   AsioDispatcher();

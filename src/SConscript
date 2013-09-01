@@ -49,7 +49,22 @@ asio_dispatcher = env.Library(
     LIBS=asio_dispatcher_deplibs,
     )
 
+tcp_connection_deplibs = [
+    asio_dispatcher,
+    asio_dispatcher_deplibs,
+    'boost_thread',
+    ];
+tcp_connection = env.Library(
+    target='tcp-connection',
+    source=[
+        'tcp-connection.cc',
+        ],
+    LIBS=tcp_connection_deplibs,
+    )
+
 amazon_http_request_util_deplibs = [
+    tcp_connection,
+    tcp_connection_deplibs,
     'crypto++',
     'http_proto',
     ];
@@ -297,6 +312,7 @@ backup_executor_deplibs = [
     bundle_state_machine_deplibs,
     bundle_deplibs,
     cryptors_deplibs,
+    amazon_http_request_util_deplibs,
     'boost_filesystem-mt',
     'boost_thread',
     'crypto++',

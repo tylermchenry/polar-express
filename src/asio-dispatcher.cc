@@ -4,6 +4,8 @@
 #include "boost/thread/once.hpp"
 #include "boost/thread/thread.hpp"
 
+#include "make-unique.h"
+
 namespace polar_express {
 
 int AsioDispatcher::kNumWorkersPerService = 2;
@@ -89,6 +91,19 @@ AsioDispatcher::NewStrandDispatcherStateMachine() {
       new StrandDispatcher(this, state_machine_io_service_));
 }
 
+boost::shared_ptr<AsioDispatcher::StrandDispatcher>
+AsioDispatcher::NewStrandDispatcherNetworkBound(
+    NetworkUsageType network_usage_type) {
+  switch (network_usage_type) {
+    case NetworkUsageType::kUplinkBound:
+      return NewStrandDispatcherUplinkBound();
+    case NetworkUsageType::kDownlinkBound:
+      return NewStrandDispatcherDownlinkBound();
+    default:
+      return boost::shared_ptr<StrandDispatcher>();
+  }
+}
+
 boost::shared_ptr<asio::io_service> AsioDispatcher::StartService() {
   boost::shared_ptr<asio::io_service> io_service(new asio::io_service);
   work_.push_back(boost::shared_ptr<asio::io_service::work>(
@@ -147,6 +162,12 @@ Callback AsioDispatcher::StrandDispatcher::CreateStrandCallback(
 
 asio::io_service& AsioDispatcher::StrandDispatcher::io_service() {
   return *io_service_;
+}
+
+unique_ptr<asio::io_service::work>
+AsioDispatcher::StrandDispatcher::make_work() {
+  return make_unique<asio::io_service::work>(
+      *(asio_dispatcher_->master_io_service_));
 }
 
 }  // namespace polar_express
