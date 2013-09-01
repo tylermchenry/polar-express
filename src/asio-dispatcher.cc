@@ -132,11 +132,21 @@ AsioDispatcher::StrandDispatcher::StrandDispatcher(
     const AsioDispatcher* asio_dispatcher,
     boost::shared_ptr<asio::io_service> io_service)
     : asio_dispatcher_(CHECK_NOTNULL(asio_dispatcher)),
+      io_service_(io_service),
       strand_(new asio::io_service::strand(*io_service)) {
 }
 
 void AsioDispatcher::StrandDispatcher::Post(Callback callback) {
   strand_->post(asio_dispatcher_->WrapCallbackWithMasterWork(callback));
+}
+
+Callback AsioDispatcher::StrandDispatcher::CreateStrandCallback(
+    Callback callback) {
+  return bind(&AsioDispatcher::StrandDispatcher::Post, this, callback);
+}
+
+asio::io_service& AsioDispatcher::StrandDispatcher::io_service() {
+  return *io_service_;
 }
 
 }  // namespace polar_express

@@ -53,7 +53,7 @@ void BackupExecutor::Start(
 
   filesystem_scanner_->StartScan(
       root, kMaxPendingSnapshots / 2,
-      CreateStrandCallback(
+      strand_dispatcher_->CreateStrandCallback(
           bind(&BackupExecutor::AddNewPendingSnapshotPaths, this)));
   scan_state_ = ScanState::kInProgress;
 }
@@ -96,9 +96,10 @@ void BackupExecutor::RunNextSnapshotStateMachine() {
 
   SnapshotStateMachine* snapshot_state_machine =
       snapshot_state_machine_pool_->construct();
-  snapshot_state_machine->SetDoneCallback(CreateStrandCallback(
-      bind(&BackupExecutor::HandleSnapshotStateMachineFinished,
-           this, snapshot_state_machine)));
+  snapshot_state_machine->SetDoneCallback(
+      strand_dispatcher_->CreateStrandCallback(
+          bind(&BackupExecutor::HandleSnapshotStateMachineFinished,
+               this, snapshot_state_machine)));
   snapshot_state_machine->Start(root_, path);
 
   ++num_running_snapshot_state_machines_;
@@ -109,7 +110,7 @@ void BackupExecutor::RunNextSnapshotStateMachine() {
       (pending_snapshot_paths_.size() < kMaxPendingSnapshots / 2)) {
     filesystem_scanner_->ContinueScan(
         kMaxPendingSnapshots / 2,
-        CreateStrandCallback(
+        strand_dispatcher_->CreateStrandCallback(
             bind(&BackupExecutor::AddNewPendingSnapshotPaths, this)));
     scan_state_ = ScanState::kInProgress;
   }
@@ -164,15 +165,15 @@ BackupExecutor::TryActivateBundleStateMachine() {
   } else if (active_bundle_state_machines_.size() < kMaxSimultaneousBundles) {
     activated_bundle_state_machine.reset(new BundleStateMachine);
     activated_bundle_state_machine->SetSnapshotDoneCallback(
-        CreateStrandCallback(
+        strand_dispatcher_->CreateStrandCallback(
             bind(&BackupExecutor::BundleNextSnapshot,
                  this, activated_bundle_state_machine)));
     activated_bundle_state_machine->SetBundleReadyCallback(
-        CreateStrandCallback(
+        strand_dispatcher_->CreateStrandCallback(
             bind(&BackupExecutor::HandleBundleStateMachineBundleReady,
                  this, activated_bundle_state_machine)));
     activated_bundle_state_machine->SetDoneCallback(
-        CreateStrandCallback(
+        strand_dispatcher_->CreateStrandCallback(
             bind(&BackupExecutor::HandleBundleStateMachineFinished,
                  this, activated_bundle_state_machine)));
     activated_bundle_state_machine->Start(
@@ -248,11 +249,6 @@ void BackupExecutor::FlushAllBundleStateMachines() {
     active_bundle_state_machines_.insert(bundle_state_machine);
     bundle_state_machine->FinishAndExit();
   }
-}
-
-Callback BackupExecutor::CreateStrandCallback(Callback callback) {
-  return bind(&AsioDispatcher::StrandDispatcher::Post,
-              strand_dispatcher_.get(), callback);
 }
 
 }  // polar_express

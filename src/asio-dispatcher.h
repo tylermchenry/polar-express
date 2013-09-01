@@ -70,8 +70,18 @@ class AsioDispatcher {
         const AsioDispatcher* asio_dispatcher,
         boost::shared_ptr<asio::io_service> io_service);
     void Post(Callback callback);
+
+    // Creates a wrapper callback that will call the given callback in
+    // this strand.
+    Callback CreateStrandCallback(Callback callback);
+
+    // USE THIS SPARINGLY. Misuse of raw io_service objects can really
+    // screw up the dispatch loop. This should only really be
+    // necessary for creating boost ASIO-based networking objects.
+    asio::io_service& io_service();
    private:
     const AsioDispatcher* const asio_dispatcher_;
+    const boost::shared_ptr<asio::io_service> io_service_;
     const boost::shared_ptr<asio::io_service::strand> strand_;
   };
 
