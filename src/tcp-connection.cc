@@ -328,9 +328,7 @@ void TcpConnection::HandleWrite(
   write_buffers_.clear();
 
   is_writing_ = false;
-  if (!err) {
-    last_write_succeeded_ = true;
-  }
+  last_write_succeeded_ = !err;
 
   write_callback();
 }
@@ -353,9 +351,7 @@ void TcpConnection::HandleRead(
   read_data_ = nullptr;
 
   is_reading_ = false;
-  if (!err) {
-    last_read_succeeded_ = true;
-  }
+  last_read_succeeded_ = !err;
 
   read_callback();
 }
