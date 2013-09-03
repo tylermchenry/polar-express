@@ -5,8 +5,6 @@
 
 #include "boost/asio/buffer.hpp"
 #include "boost/bind.hpp"
-#include "boost/bind/protect.hpp"
-#include "boost/regex.hpp"
 
 using boost::asio::ip::tcp;
 
@@ -28,30 +26,12 @@ namespace {
 // TODO: If this turns out to be more generally useful, move these
 // templates to asio-dispatcher.h.
 
-template <typename T1>
-void StrandCallbackWithArgs(
-    boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher,
-    boost::function<void(T1)> callback_with_args,
-    T1 arg1) {
-  strand_dispatcher->Post(boost::bind(callback_with_args, arg1));
-}
-
 template <typename T1, typename T2>
 void StrandCallbackWithArgs(
     boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher,
     boost::function<void(T1, T2)> callback_with_args,
     T1 arg1, T2 arg2) {
   strand_dispatcher->Post(boost::bind(callback_with_args, arg1, arg2));
-}
-
-template <typename T1, typename PT1>
-boost::function<void(T1)> MakeStrandCallbackWithArgs(
-    boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher,
-    boost::function<void(T1)> callback_with_args,
-    PT1 arg1_placeholder) {
-  return boost::bind(
-      &StrandCallbackWithArgs<T1>, strand_dispatcher, callback_with_args,
-      arg1_placeholder);
 }
 
 template <typename T1, typename T2, typename PT1, typename PT2>
