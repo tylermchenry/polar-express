@@ -69,6 +69,7 @@ http_connection_deplibs = [
     tcp_connection_deplibs,
     asio_dispatcher_deplibs,
     'curl',
+    'boost_regex',
     'http_proto',
     ];
 http_connection = env.Library(
@@ -428,3 +429,24 @@ run_tcp_connection_test = Alias(
     [tcp_connection_test],
     tcp_connection_test[0].path)
 AlwaysBuild(run_tcp_connection_test)
+
+http_connection_test = env.Program(
+    target='http-connection_test',
+    source=[
+        'http-connection_test.cc',
+        ],
+    LIBS=[
+        asio_dispatcher,
+        http_connection,
+        http_connection_deplibs,
+        asio_dispatcher_deplibs,
+        testlibs,
+        'http_proto',
+        'protobuf',
+        ],
+    )
+run_http_connection_test = Alias(
+    'run_http_connection_test',
+    [http_connection_test],
+    http_connection_test[0].path)
+AlwaysBuild(run_http_connection_test)

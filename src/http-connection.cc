@@ -119,9 +119,9 @@ void HttpConnection::SerializeRequest(
     serialized_request_sstr << "?" << query_parameters;
   }
   serialized_request_sstr << " HTTP/1.1\r\n"
-                          << " Host: " << hostname << "\r\n";
+                          << "Host: " << hostname << "\r\n";
   if (!request_headers.empty()) {
-    serialized_request_sstr << request_headers;
+    serialized_request_sstr << request_headers << "\r\n";
   }
   if (payload_size > 0) {
     serialized_request_sstr << "Content-Length: " << payload_size << "\r\n";
@@ -184,7 +184,7 @@ bool HttpConnection::DeserializeResponse(HttpResponse* response) {
   string header_line;
   while (serialized_response_itr != serialized_response_end_itr) {
     serialized_response_itr = GetTextLineFromData(
-        serialized_response_itr, serialized_response_end_itr, &header_line);;
+        serialized_response_itr, serialized_response_end_itr, &header_line);
     if (!header_line.empty()) {
       ParseResponseHeader(header_line, response);
     }
@@ -197,13 +197,14 @@ vector<byte>::const_iterator HttpConnection::GetTextLineFromData(
     vector<byte>::const_iterator begin,
     vector<byte>::const_iterator end,
     string* text_line) const {
-  assert(text_line != nullptr);
+  CHECK_NOTNULL(text_line)->clear();
   while (begin != end) {
     *text_line += *begin++;
     if (text_line->size() >= 2 &&
         (*text_line)[text_line->size() - 2] == '\r' &&
         (*text_line)[text_line->size() - 1] == '\n') {
       text_line->resize(text_line->size() - 2);
+      break;
     }
   }
   return begin;
@@ -226,7 +227,10 @@ void HttpConnection::ParseResponseStatus(
   }
 
   response->set_status_code(status_code);
-  response->set_status_phrase(status_line_sstr.str());
+  response->set_status_phrase(
+      status_line_sstr.eof()  ?  "" :
+      algorithm::trim_left_copy(
+          status_line_sstr.str().substr(status_line_sstr.tellg())));
 }
 
 void HttpConnection::ParseResponseHeader(
