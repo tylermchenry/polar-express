@@ -63,9 +63,24 @@ tcp_connection = env.Library(
     LIBS=tcp_connection_deplibs,
     )
 
-amazon_http_request_util_deplibs = [
+http_connection_deplibs = [
+    asio_dispatcher,
     tcp_connection,
     tcp_connection_deplibs,
+    asio_dispatcher_deplibs,
+    'http_proto',
+    ];
+http_connection = env.Library(
+    target='http-connection',
+    source=[
+        'http-connection.cc',
+        ],
+    LIBS=http_connection_deplibs,
+    )
+
+amazon_http_request_util_deplibs = [
+    http_connection,
+    http_connection_deplibs,
     'crypto++',
     'http_proto',
     ];

@@ -1,5 +1,11 @@
 package polar_express;
 
+// Next tag: 3
+message KeyValue {
+  optional string key = 1;
+  optional string value = 2;
+};
+
 // Http Request, not including any payload (e.g. for POST).
 // Next tag: 8
 message HttpRequest {
@@ -14,14 +20,26 @@ message HttpRequest {
   optional string hostname = 4;
   optional string path = 5;
 
-  // Next tag: 3
-  message KeyValue {
-    optional string key = 1;
-    optional string value = 2;
-  };
   repeated KeyValue query_parameters = 6;
 
   // No need to include "host" header, since host is already specified
   // above.
   repeated KeyValue request_headers = 7;
+}
+
+// Http Request, not including any payload.
+// Next tag: 8
+message HttpResponse {
+  // True if the client was able to communicate to the server. False
+  // if some error occurred below the HTTP protocol.
+  optional bool transport_succeeded = 1;
+
+  optional string http_version = 2;
+  optional bool is_secure = 3;
+  optional string hostname = 4;
+
+  optional int32 status_code = 5;
+  optional string status_phrase = 6;
+
+  repeated KeyValue response_headers = 7;
 }
