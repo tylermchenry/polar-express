@@ -1,5 +1,6 @@
 #include "tcp-connection.h"
 
+#include "boost/asio/buffer.hpp"
 #include "boost/bind.hpp"
 #include "boost/bind/protect.hpp"
 
@@ -66,7 +67,8 @@ TcpConnection::TcpConnection()
       is_open_(false),
       is_writing_(false),
       is_reading_(false),
-      network_usage_type_(AsioDispatcher::NetworkUsageType::kInvalid) {
+      network_usage_type_(AsioDispatcher::NetworkUsageType::kInvalid),
+      last_write_succeeded_(false) {
 }
 
 TcpConnection::~TcpConnection() {
@@ -90,6 +92,10 @@ const string& TcpConnection::hostname() const {
 
 const string& TcpConnection::protocol() const {
   return protocol_;
+}
+
+bool TcpConnection::last_write_succeeded() const {
+  return last_write_succeeded_;
 }
 
 bool TcpConnection::Open(
@@ -137,8 +143,23 @@ bool TcpConnection::WriteAll(
   if (!is_open_ || is_writing_) {
     return false;
   }
-  // TODO: Implement
-  return false;
+
+  is_writing_ = true;
+
+  assert(write_buffers_.empty());
+  for (const auto* data : sequential_data) {
+    write_buffers_.push_back(asio::buffer(*CHECK_NOTNULL(data)));
+  }
+
+  auto handler = MakeStrandCallbackWithArgs<const system::error_code&, size_t>(
+      strand_dispatcher_,
+      boost::bind(&TcpConnection::HandleWrite, this, _1, _2, callback),
+      asio::placeholders::error,
+      asio::placeholders::bytes_transferred);
+
+  asio::async_write(*socket_, write_buffers_, handler);
+
+  return true;
 }
 
 bool TcpConnection::ReadUntil(
@@ -170,6 +191,8 @@ bool TcpConnection::CreateNetworkingObjects(
   }
 
   network_usage_type_ = network_usage_type;
+  last_write_succeeded_ = false;
+
   io_service_work_ = strand_dispatcher_->make_work();
   resolver_.reset(new tcp::resolver(strand_dispatcher_->io_service()));
   socket_.reset(new tcp::socket(strand_dispatcher_->io_service()));
@@ -234,6 +257,18 @@ void TcpConnection::HandleConnect(
   }
 
   open_callback();
+}
+
+void TcpConnection::HandleWrite(
+    const system::error_code& err,
+    size_t bytes_transferred,
+    Callback write_callback) {
+  is_writing_ = false;
+  if (!err) {
+    last_write_succeeded_ = true;
+  }
+  write_buffers_.clear();
+  write_callback();
 }
 
 }  // namespace polar_express

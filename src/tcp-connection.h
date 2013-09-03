@@ -25,6 +25,7 @@ class TcpConnection {
   virtual AsioDispatcher::NetworkUsageType network_usage_type() const;
   virtual const string& hostname() const;
   virtual const string& protocol() const;
+  virtual bool last_write_succeeded() const;
 
   // These methods immediately return false if the connection is
   // already open (or in the process of opening). In these cases callback
@@ -83,6 +84,10 @@ class TcpConnection {
       asio::ip::tcp::resolver::iterator endpoint_iterator,
       Callback open_callback);
 
+  void HandleWrite(
+      const system::error_code& err, size_t bytes_transferred,
+      Callback write_callback);
+
   bool is_opening_;
   bool is_open_;
   bool is_writing_;
@@ -90,12 +95,14 @@ class TcpConnection {
   AsioDispatcher::NetworkUsageType network_usage_type_;
   string hostname_;
   string protocol_;
+  bool last_write_succeeded_;
 
   // Networking objects managed by Create/Destroy methods above.
   boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher_;
   unique_ptr<asio::io_service::work> io_service_work_;
   unique_ptr<asio::ip::tcp::resolver> resolver_;
   unique_ptr<asio::ip::tcp::socket> socket_;
+  vector<asio::const_buffer> write_buffers_;
 
   DISALLOW_COPY_AND_ASSIGN(TcpConnection);
 };
