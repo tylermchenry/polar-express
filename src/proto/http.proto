@@ -20,6 +20,8 @@ message HttpRequest {
   optional string hostname = 4;
   optional string path = 5;
 
+  // Parameter keys and values should NOT be URI-encoded. This is
+  // taken care of by the transport layer.
   repeated KeyValue query_parameters = 6;
 
   // No need to include "host" header, since host is already specified

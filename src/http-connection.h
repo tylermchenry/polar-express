@@ -35,9 +35,15 @@ class HttpConnection {
 
   // Returns false if the connection is not open, or if a request is
   // already pending. response must not be null, but response_payload
-  // may be null. It is not necessary that the 'host' field in the
-  // request match the hostname used for the Open() call, but if host is
-  // omitted from the request, the opened hostname will be used.
+  // may be null.
+  //
+  // The request's http_version is ignored (1.1 is always used). It is
+  // not necessary that the 'host' field in the request match the
+  // hostname used for the Open() call, but if host is omitted from
+  // the request, the opened hostname will be used. The Content-Length
+  // header will be forced to match the length of the request payload. No
+  // Content-Type header will be added, so the caller is responsible for
+  // this.
   //
   // If any part of the request fails, the connection will be closed,
   // so as not to leave stray data behind in the TCP stream.
@@ -47,7 +53,15 @@ class HttpConnection {
       Callback callback);
 
  private:
-  void SerializeRequest(const HttpRequest& request);
+  void SerializeRequest(const HttpRequest& request, size_t payload_size);
+
+  void BuildQueryParameters(
+      const HttpRequest& request, string* query_parameters) const;
+
+  void BuildRequestHeaders(
+      const HttpRequest& request, string* request_headers) const;
+
+  string UriEncode(const string& str) const;
 
   bool DeserializeResponse(HttpResponse* response);
 
@@ -70,7 +84,10 @@ class HttpConnection {
   unique_ptr<vector<byte> > serialized_response_;
   unique_ptr<vector<byte> > tmp_response_payload_;
 
+  boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher_;
   const unique_ptr<TcpConnection> tcp_connection_;
+
+  void* curl_;  // Owned, but destructed specially.
 
   DISALLOW_COPY_AND_ASSIGN(HttpConnection);
 };

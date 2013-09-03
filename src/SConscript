@@ -68,6 +68,7 @@ http_connection_deplibs = [
     tcp_connection,
     tcp_connection_deplibs,
     asio_dispatcher_deplibs,
+    'curl',
     'http_proto',
     ];
 http_connection = env.Library(
