@@ -38,6 +38,9 @@ class HttpConnection {
   // may be null. It is not necessary that the 'host' field in the
   // request match the hostname used for the Open() call, but if host is
   // omitted from the request, the opened hostname will be used.
+  //
+  // If any part of the request fails, the connection will be closed,
+  // so as not to leave stray data behind in the TCP stream.
   virtual bool SendRequest(
       const HttpRequest& request, const vector<byte>& request_payload,
       HttpResponse* response, vector<byte>* response_payload,

@@ -115,6 +115,7 @@ void HttpConnection::RequestSent(
   if (!still_ok) {
     last_request_succeeded_ = false;
     CleanUpRequestState();
+    Close();
     send_request_callback();
   }
 }
@@ -141,6 +142,7 @@ void HttpConnection::ResponseReceived(
   if (!still_ok) {
     last_request_succeeded_ = false;
     CleanUpRequestState();
+    Close();
     send_request_callback();
   }
 }
@@ -149,6 +151,9 @@ void HttpConnection::ResponsePayloadReceived(
     Callback send_request_callback) {
   last_request_succeeded_ = tcp_connection_->last_read_succeeded();
   CleanUpRequestState();
+  if (!last_request_succeeded_) {
+     Close();
+  }
   send_request_callback();
 }
 
