@@ -1,8 +1,12 @@
 #include "tcp-connection.h"
 
+#include <algorithm>
+#include <utility>
+
 #include "boost/asio/buffer.hpp"
 #include "boost/bind.hpp"
 #include "boost/bind/protect.hpp"
+#include "boost/regex.hpp"
 
 using boost::asio::ip::tcp;
 
@@ -60,7 +64,37 @@ boost::function<void(T1, T2)> MakeStrandCallbackWithArgs(
       arg1_placeholder, arg2_placeholder);
 }
 
+typedef boost::asio::buffers_iterator<
+    boost::asio::streambuf::const_buffers_type> boost_streambuf_iterator;
+
+class MatchByteSequenceCondition {
+ public:
+  explicit MatchByteSequenceCondition(const vector<byte>& byte_sequence)
+      : byte_sequence_(byte_sequence) {
+  }
+
+  pair<boost_streambuf_iterator, bool> operator() (
+    boost_streambuf_iterator begin, boost_streambuf_iterator end) const {
+    boost_streambuf_iterator pos = search(
+        begin, end, byte_sequence_.begin(), byte_sequence_.end());
+    return make_pair(pos, pos != end);
+  }
+
+ private:
+  vector<byte> byte_sequence_;
+};
+
 }  // namespace
+}  // namespace polar_express
+
+namespace boost {
+namespace asio {
+template <> struct is_match_condition<polar_express::MatchByteSequenceCondition>
+    : public boost::true_type {};
+}  // namespace asio
+}  // namespace boost
+
+namespace polar_express {
 
 TcpConnection::TcpConnection()
     : is_opening_(false),
@@ -68,7 +102,9 @@ TcpConnection::TcpConnection()
       is_writing_(false),
       is_reading_(false),
       network_usage_type_(AsioDispatcher::NetworkUsageType::kInvalid),
-      last_write_succeeded_(false) {
+      last_write_succeeded_(false),
+      last_read_succeeded_(false),
+      read_data_(nullptr) {
 }
 
 TcpConnection::~TcpConnection() {
@@ -98,6 +134,10 @@ bool TcpConnection::last_write_succeeded() const {
   return last_write_succeeded_;
 }
 
+bool TcpConnection::last_read_succeeded() const {
+  return last_read_succeeded_;
+}
+
 bool TcpConnection::Open(
     AsioDispatcher::NetworkUsageType network_usage_type,
     const string& hostname, const string& protocol, Callback callback) {
@@ -125,7 +165,12 @@ bool TcpConnection::Close() {
     return false;
   }
 
-  // TODO: Implement
+  if (socket_.get()) {
+    auto error_code =
+        asio::error::make_error_code(asio::error::connection_aborted);
+    socket_->shutdown(tcp::socket::shutdown_both, error_code);
+    socket_->close(error_code);
+  }
 
   DestroyNetworkingObjects();
   is_open_ = false;
@@ -165,19 +210,55 @@ bool TcpConnection::WriteAll(
 bool TcpConnection::ReadUntil(
     const vector<byte>& terminator_bytes, vector<byte>* data,
     Callback callback) {
-  // TODO: Implement
-  return false;
+  if (!is_open_ || is_reading_) {
+    return false;
+  }
+
+  is_reading_ = true;
+
+  assert(read_data_ == nullptr);
+  assert(read_streambuf_ == nullptr);
+  read_data_ = CHECK_NOTNULL(data);
+  read_streambuf_.reset(new asio::streambuf);
+
+  auto handler = MakeStrandCallbackWithArgs<const system::error_code&, size_t>(
+      strand_dispatcher_,
+      boost::bind(&TcpConnection::HandleRead, this, _1, _2, callback),
+      asio::placeholders::error,
+      asio::placeholders::bytes_transferred);
+
+  asio::async_read_until(
+      *socket_, *read_streambuf_, MatchByteSequenceCondition(terminator_bytes),
+      handler);
+
+  return true;
 }
 
 bool TcpConnection::ReadSize(
-    size_t data_size, vector<byte>* data, Callback callback) {
-  // TODO: Implement
-  return false;
-}
+    size_t max_data_size, vector<byte>* data, Callback callback) {
+  if (!is_open_ || is_reading_) {
+    return false;
+  }
 
-bool TcpConnection::ReadAll(vector<byte>* data, Callback callback) {
-  // TODO: Implement
-  return false;
+  is_reading_ = true;
+
+  assert(read_data_ == nullptr);
+  assert(read_streambuf_ == nullptr);
+  read_data_ = CHECK_NOTNULL(data);
+
+  if (read_data_->size() < max_data_size) {
+    read_data_->resize(max_data_size);
+  }
+
+  auto handler = MakeStrandCallbackWithArgs<const system::error_code&, size_t>(
+      strand_dispatcher_,
+      boost::bind(&TcpConnection::HandleRead, this, _1, _2, callback),
+      asio::placeholders::error,
+      asio::placeholders::bytes_transferred);
+
+  asio::async_read(*socket_, asio::buffer(*read_data_), handler);
+
+  return true;
 }
 
 bool TcpConnection::CreateNetworkingObjects(
@@ -192,6 +273,7 @@ bool TcpConnection::CreateNetworkingObjects(
 
   network_usage_type_ = network_usage_type;
   last_write_succeeded_ = false;
+  last_read_succeeded_ = false;
 
   io_service_work_ = strand_dispatcher_->make_work();
   resolver_.reset(new tcp::resolver(strand_dispatcher_->io_service()));
@@ -263,12 +345,39 @@ void TcpConnection::HandleWrite(
     const system::error_code& err,
     size_t bytes_transferred,
     Callback write_callback) {
+  write_buffers_.clear();
+
   is_writing_ = false;
   if (!err) {
     last_write_succeeded_ = true;
   }
-  write_buffers_.clear();
+
   write_callback();
+}
+
+void TcpConnection::HandleRead(
+    const system::error_code& err,
+    size_t bytes_transferred,
+    Callback read_callback) {
+  // If ReadUntil was used, then the data is actually in
+  // read_streambuf_. Otherwise the data went directly into
+  // read_data_, but may have stopped short of filling the entire
+  // buffer.
+  CHECK_NOTNULL(read_data_)->resize(bytes_transferred);
+  if (read_streambuf_.get()) {
+    copy(asio::buffers_begin(read_streambuf_->data()),
+         asio::buffers_begin(read_streambuf_->data()) + bytes_transferred,
+         read_data_->begin());
+    read_streambuf_.reset();
+  }
+  read_data_ = nullptr;
+
+  is_reading_ = false;
+  if (!err) {
+    last_read_succeeded_ = true;
+  }
+
+  read_callback();
 }
 
 }  // namespace polar_express

@@ -14,6 +14,10 @@
 
 namespace polar_express {
 
+// This class wraps an ASIO-based TCP connection in a way that will
+// integrate well with the ASIO dispatcher mechanism and run the IO on
+// the appropriate threads. As long as a connection is held open, the
+// ASIO dispatcher master thread will not terminate.
 class TcpConnection {
  public:
   TcpConnection();
@@ -26,6 +30,7 @@ class TcpConnection {
   virtual const string& hostname() const;
   virtual const string& protocol() const;
   virtual bool last_write_succeeded() const;
+  virtual bool last_read_succeeded() const;
 
   // These methods immediately return false if the connection is
   // already open (or in the process of opening). In these cases callback
@@ -53,18 +58,17 @@ class TcpConnection {
 
   // Reads until the terminator_bytes byte sequence is
   // encountered. The termination sequence IS included in the read data
-  // (to distinguish from a prematurely closed connection).
+  // (to distinguish from a prematurely closed connection). Will
+  // resize the data vector as appropriate.
   virtual bool ReadUntil(
       const vector<byte>& terminator_bytes, vector<byte>* data,
       Callback callback);
 
   // Reads until data_size bytes have been read. May read fewer bytes
-  // if the connection is closed prematurely.
+  // if the connection is closed prematurely. Will resize the data
+  // vector as necessary.
   virtual bool ReadSize(
-      size_t data_size, vector<byte>* data, Callback callback);
-
-  // Reads all bytes currently available on the stream.
-  virtual bool ReadAll(vector<byte>* data, Callback callback);
+      size_t max_data_size, vector<byte>* data, Callback callback);
 
  private:
   bool CreateNetworkingObjects(
@@ -88,6 +92,10 @@ class TcpConnection {
       const system::error_code& err, size_t bytes_transferred,
       Callback write_callback);
 
+  void HandleRead(
+      const system::error_code& err, size_t bytes_transferred,
+      Callback read_callback);
+
   bool is_opening_;
   bool is_open_;
   bool is_writing_;
@@ -96,13 +104,17 @@ class TcpConnection {
   string hostname_;
   string protocol_;
   bool last_write_succeeded_;
+  bool last_read_succeeded_;
 
   // Networking objects managed by Create/Destroy methods above.
   boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher_;
   unique_ptr<asio::io_service::work> io_service_work_;
   unique_ptr<asio::ip::tcp::resolver> resolver_;
   unique_ptr<asio::ip::tcp::socket> socket_;
+
   vector<asio::const_buffer> write_buffers_;
+  vector<byte>* read_data_;  // Not owned
+  unique_ptr<asio::streambuf> read_streambuf_;
 
   DISALLOW_COPY_AND_ASSIGN(TcpConnection);
 };
