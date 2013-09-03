@@ -144,6 +144,8 @@ class AmazonHttpRequestUtil {
       const string& canonical_date,
       const string& signature) const;
 
+  void* curl_;  // Owned, but destructed specially.
+
   DISALLOW_COPY_AND_ASSIGN(AmazonHttpRequestUtil);
 };
 

@@ -13,6 +13,7 @@
 #include "crypto++/hex.h"
 #include "crypto++/hmac.h"
 #include "crypto++/sha.h"
+#include "curl/curl.h"
 
 #include "proto/http.pb.h"
 
@@ -30,10 +31,13 @@ const char kAmazonTerminationString[] = "aws4_request";
 
 }  // namespace
 
-AmazonHttpRequestUtil::AmazonHttpRequestUtil() {}
+AmazonHttpRequestUtil::AmazonHttpRequestUtil()
+    : curl_(curl_easy_init()) {
+}
 
 
 AmazonHttpRequestUtil::~AmazonHttpRequestUtil() {
+  curl_easy_cleanup(curl_);
 }
 
 bool AmazonHttpRequestUtil::AuthorizeRequest(
@@ -232,24 +236,10 @@ void AmazonHttpRequestUtil::AddHeaderToRequest(
 }
 
 string AmazonHttpRequestUtil::UriEncode(const string& str) const {
-  // Can't find a boost algorithm that does URI encoding out of the
-  // box. Besides, this needs to be the exact form of encoding
-  // described by Amazon (e.g. "%20" not "+").
   string encoded_str;
-
-  // Safe ranges are A-Z, a-z, 0-9, plus the characters: - _ . ~
-  for (const unsigned char c : str) {
-    if ((c >= 'A' && c <= 'Z') ||
-        (c >= 'a' && c <= 'z') ||
-        (c >= '0' && c <= '9') ||
-        c == '-' || c == '_' || c == '.' || c == '~') {
-      encoded_str += c;
-    } else {
-      encoded_str += boost::str(boost::format("%%%02X") %
-                                static_cast<unsigned int>(c));
-    }
-  }
-
+  char* curl_encoded_str = curl_easy_escape(curl_, str.c_str(), str.size());
+  encoded_str.assign(curl_encoded_str);
+  curl_free(curl_encoded_str);
   return encoded_str;
 }
 

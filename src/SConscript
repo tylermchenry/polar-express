@@ -82,6 +82,7 @@ amazon_http_request_util_deplibs = [
     http_connection,
     http_connection_deplibs,
     'crypto++',
+    'curl',
     'http_proto',
     ];
 amazon_http_request_util = env.Library(
