@@ -30,7 +30,7 @@ message HttpRequest {
 }
 
 // Http Request, not including any payload.
-// Next tag: 8
+// Next tag: 7
 message HttpResponse {
   // True if the client was able to communicate to the server. False
   // if some error occurred below the HTTP protocol.
@@ -38,10 +38,9 @@ message HttpResponse {
 
   optional string http_version = 2;
   optional bool is_secure = 3;
-  optional string hostname = 4;
 
-  optional int32 status_code = 5;
-  optional string status_phrase = 6;
+  optional int32 status_code = 4;
+  optional string status_phrase = 5;
 
-  repeated KeyValue response_headers = 7;
+  repeated KeyValue response_headers = 6;
 }

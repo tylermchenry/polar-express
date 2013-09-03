@@ -4,7 +4,10 @@
 #include <sstream>
 
 #include "boost/algorithm/string.hpp"
+#include "boost/algorithm/string/regex.hpp"
 #include "boost/bind.hpp"
+#include "boost/lexical_cast.hpp"
+#include "boost/regex.hpp"
 #include "curl/curl.h"
 
 #include "tcp-connection.h"
@@ -77,11 +80,11 @@ bool HttpConnection::SendRequest(
   request_pending_ = true;
   SerializeRequest(request, request_payload.size());
 
+  CHECK_NOTNULL(response)->Clear();
   if (response_payload == nullptr) {
     tmp_response_payload_.reset(new vector<byte>);
     response_payload = tmp_response_payload_.get();
   }
-
 
   Callback request_sent_callback =
       strand_dispatcher_->CreateStrandCallback(
@@ -163,8 +166,95 @@ string HttpConnection::UriEncode(const string& str) const {
 }
 
 bool HttpConnection::DeserializeResponse(HttpResponse* response) {
-  // TODO: Implement
-  return false;
+  assert(response != nullptr);
+  const vector<byte>::const_iterator serialized_response_end_itr =
+      serialized_response_->end();
+  vector<byte>::const_iterator serialized_response_itr =
+      serialized_response_->begin();
+
+  // TODO: Support HTTPS
+  response->set_transport_succeeded(true);
+  response->set_is_secure(false);
+
+  string status_line;
+  serialized_response_itr = GetTextLineFromData(
+      serialized_response_itr, serialized_response_end_itr, &status_line);
+  ParseResponseStatus(status_line, response);
+
+  string header_line;
+  while (serialized_response_itr != serialized_response_end_itr) {
+    serialized_response_itr = GetTextLineFromData(
+        serialized_response_itr, serialized_response_end_itr, &header_line);;
+    if (!header_line.empty()) {
+      ParseResponseHeader(header_line, response);
+    }
+  }
+
+  return true;
+}
+
+vector<byte>::const_iterator HttpConnection::GetTextLineFromData(
+    vector<byte>::const_iterator begin,
+    vector<byte>::const_iterator end,
+    string* text_line) const {
+  assert(text_line != nullptr);
+  while (begin != end) {
+    *text_line += *begin++;
+    if (text_line->size() >= 2 &&
+        (*text_line)[text_line->size() - 2] == '\r' &&
+        (*text_line)[text_line->size() - 1] == '\n') {
+      text_line->resize(text_line->size() - 2);
+    }
+  }
+  return begin;
+}
+
+void HttpConnection::ParseResponseStatus(
+    const string& status_line, HttpResponse* response) const {
+  assert(response != nullptr);
+  istringstream status_line_sstr(status_line);
+  string http_version;
+  int status_code = 0;
+
+  // TODO: Error handling?
+  status_line_sstr >> http_version >> status_code;
+
+  vector<string> version_parts;
+  split(version_parts, http_version, is_any_of("/"));
+  if (version_parts.size() >= 2) {
+    response->set_http_version(version_parts[1]);
+  }
+
+  response->set_status_code(status_code);
+  response->set_status_phrase(status_line_sstr.str());
+}
+
+void HttpConnection::ParseResponseHeader(
+    const string& header_line, HttpResponse* response) const {
+  // TODO: Regex seems heavyweight for this. Is there no simpler way
+  // to have a multi-character delimiter?
+  vector<string> header_parts;
+  split_regex(header_parts, header_line, regex(": "));
+
+  KeyValue* kv = CHECK_NOTNULL(response)->add_response_headers();
+  kv->set_key(header_parts[0]);
+  if (header_parts.size() >= 2) {
+    kv->set_value(header_parts[1]);
+  }
+}
+
+size_t HttpConnection::GetResponsePayloadSize(
+    const HttpResponse& response) const {
+  for (const auto& kv : response.response_headers()) {
+    if (iequals(kv.key(), "Content-Length: ")) {
+      try {
+        return lexical_cast<int>(kv.value());
+      } catch (bad_lexical_cast&) {
+        // Continue. There might be another, valid Content-Length header?
+      }
+    }
+  }
+  return 0;
 }
 
 void HttpConnection::RequestSent(
@@ -186,6 +276,7 @@ void HttpConnection::RequestSent(
 
   if (!still_ok) {
     last_request_succeeded_ = false;
+    CHECK_NOTNULL(response)->set_transport_succeeded(false);
     CleanUpRequestState();
     Close();
     send_request_callback();
@@ -201,18 +292,21 @@ void HttpConnection::ResponseReceived(
     Callback response_payload_received_callback =
         strand_dispatcher_->CreateStrandCallback(
             boost::bind(&HttpConnection::ResponsePayloadReceived, this,
-                        send_request_callback));
+                        response, response_payload, send_request_callback));
 
-    // TODO: Figure out how many bytes long the response is; deal with
-    // chunked mode.
+    // Ask to read, even if the payload size is zero, to simplify
+    // callback handling (so that ResponsePayloadRecieved is always
+    // the last callback in a successful response.)
     if (tcp_connection_->ReadSize(
-            0, response_payload, response_payload_received_callback)) {
+             GetResponsePayloadSize(*response),
+             response_payload, response_payload_received_callback)) {
       still_ok = true;
     }
   }
 
   if (!still_ok) {
     last_request_succeeded_ = false;
+    CHECK_NOTNULL(response)->set_transport_succeeded(false);
     CleanUpRequestState();
     Close();
     send_request_callback();
@@ -220,11 +314,13 @@ void HttpConnection::ResponseReceived(
 }
 
 void HttpConnection::ResponsePayloadReceived(
+    HttpResponse* response, vector<byte>* response_payload,
     Callback send_request_callback) {
   last_request_succeeded_ = tcp_connection_->last_read_succeeded();
   CleanUpRequestState();
   if (!last_request_succeeded_) {
-     Close();
+    CHECK_NOTNULL(response)->set_transport_succeeded(false);
+    Close();
   }
   send_request_callback();
 }

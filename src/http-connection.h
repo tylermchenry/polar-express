@@ -65,6 +65,24 @@ class HttpConnection {
 
   bool DeserializeResponse(HttpResponse* response);
 
+  // Extracts a line of text from a data buffer, consisting of all
+  // bytes from begin up to encountering an "\r\n" sequence, or end,
+  // whichever comes first. Returns an iterator to one byte past the
+  // end of the line. The "\r\n" sequence is not included in
+  // text_line, but the returned iterator points beyond it.
+  vector<byte>::const_iterator GetTextLineFromData(
+      vector<byte>::const_iterator begin,
+      vector<byte>::const_iterator end,
+      string* text_line) const;
+
+  void ParseResponseStatus(
+      const string& status_line, HttpResponse* response) const;
+
+  void ParseResponseHeader(
+      const string& header_line, HttpResponse* response) const;
+
+  size_t GetResponsePayloadSize(const HttpResponse& response) const;
+
   void RequestSent(
       HttpResponse* response, vector<byte>* response_payload,
       Callback send_request_callback);
@@ -74,6 +92,7 @@ class HttpConnection {
       Callback send_request_callback);
 
   void ResponsePayloadReceived(
+      HttpResponse* response, vector<byte>* response_payload,
       Callback send_request_callback);
 
   void CleanUpRequestState();
