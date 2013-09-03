@@ -52,6 +52,7 @@ asio_dispatcher = env.Library(
 tcp_connection_deplibs = [
     asio_dispatcher,
     asio_dispatcher_deplibs,
+    'boost_system-mt',
     'boost_thread',
     ];
 tcp_connection = env.Library(
@@ -96,6 +97,7 @@ candidate_snapshot_generator_deplibs = [
     'file_proto',
     'protobuf',
     'boost_filesystem-mt',
+    'boost_system-mt',
     'boost_thread',
     ];
 candidate_snapshot_generator = env.Library(
@@ -112,6 +114,7 @@ chunk_reader_deplibs = [
     asio_dispatcher_deplibs,
     'block_proto',
     'boost_filesystem-mt',
+    'boost_system-mt',
     'boost_iostreams-mt',
     ];
 chunk_reader = env.Library(
@@ -159,6 +162,7 @@ file_writer_deplibs = [
     asio_dispatcher_deplibs,
     'block_proto',
     'boost_filesystem-mt',
+    'boost_system-mt',
     'boost_iostreams-mt',
     ];
 file_writer = env.Library(
@@ -314,6 +318,7 @@ backup_executor_deplibs = [
     cryptors_deplibs,
     amazon_http_request_util_deplibs,
     'boost_filesystem-mt',
+    'boost_system-mt',
     'boost_thread',
     'crypto++',
     ];
@@ -387,3 +392,22 @@ run_amazon_http_request_util_test = Alias(
     [amazon_http_request_util_test],
     amazon_http_request_util_test[0].path)
 AlwaysBuild(run_amazon_http_request_util_test)
+
+tcp_connection_test = env.Program(
+    target='tcp-connection_test',
+    source=[
+        'tcp-connection_test.cc',
+        ],
+    LIBS=[
+        asio_dispatcher,
+        tcp_connection,
+        tcp_connection_deplibs,
+        asio_dispatcher_deplibs,
+        testlibs,
+        ],
+    )
+run_tcp_connection_test = Alias(
+    'run_tcp_connection_test',
+    [tcp_connection_test],
+    tcp_connection_test[0].path)
+AlwaysBuild(run_tcp_connection_test)
