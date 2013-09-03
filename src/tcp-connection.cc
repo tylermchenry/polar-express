@@ -186,6 +186,19 @@ void TcpConnection::DestroyNetworkingObjects() {
   protocol_.clear();
 }
 
+void TcpConnection::TryConnect(
+    asio::ip::tcp::resolver::iterator endpoint_iterator,
+    Callback open_callback) {
+  auto handler = MakeStrandCallbackWithArgs<
+    const system::error_code&, asio::ip::tcp::resolver::iterator>(
+      strand_dispatcher_,
+      boost::bind(&TcpConnection::HandleConnect, this, _1, _2, open_callback),
+      asio::placeholders::error,
+      asio::placeholders::iterator);
+
+  boost::asio::async_connect(*socket_, endpoint_iterator, handler);
+}
+
 void TcpConnection::HandleResolve(
     const boost::system::error_code& err,
     tcp::resolver::iterator endpoint_iterator,
@@ -197,16 +210,9 @@ void TcpConnection::HandleResolve(
     return;
   }
 
-  auto handler = MakeStrandCallbackWithArgs<
-    const system::error_code&, asio::ip::tcp::resolver::iterator>(
-      strand_dispatcher_,
-      boost::bind(&TcpConnection::HandleConnect, this, _1, _2, open_callback),
-      asio::placeholders::error,
-      asio::placeholders::iterator);
-
   // Attempt a connection to each endpoint in the list until we
   // successfully establish a connection.
-  boost::asio::async_connect(*socket_, endpoint_iterator, handler);
+  TryConnect(endpoint_iterator, open_callback);
 }
 
 void TcpConnection::HandleConnect(
@@ -216,7 +222,13 @@ void TcpConnection::HandleConnect(
   is_opening_ = false;
 
   if (err) {
-    DestroyNetworkingObjects();
+    if (endpoint_iterator == tcp::resolver::iterator()) {
+      DestroyNetworkingObjects();
+    } else {
+      // There is another endpoint to try...
+      TryConnect(endpoint_iterator, open_callback);
+      return;
+    }
   } else {
     is_open_ = true;
   }

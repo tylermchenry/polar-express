@@ -70,6 +70,9 @@ class TcpConnection {
       AsioDispatcher::NetworkUsageType network_usage_type);
   void DestroyNetworkingObjects();
 
+  void TryConnect(asio::ip::tcp::resolver::iterator endpoint_iterator,
+                  Callback open_callback);
+
   void HandleResolve(
       const system::error_code& err,
       asio::ip::tcp::resolver::iterator endpoint_iterator,
