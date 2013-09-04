@@ -71,6 +71,8 @@ class TcpConnection {
       size_t max_data_size, vector<byte>* data, Callback callback);
 
  private:
+  class MatchByteSequenceCondition;
+
   bool CreateNetworkingObjects(
       AsioDispatcher::NetworkUsageType network_usage_type);
   void DestroyNetworkingObjects();
@@ -92,9 +94,14 @@ class TcpConnection {
       const system::error_code& err, size_t bytes_transferred,
       Callback write_callback);
 
-  void HandleRead(
+  void HandleReadSize(
       const system::error_code& err, size_t bytes_transferred,
-      Callback read_callback);
+      vector<byte>* read_data, Callback read_callback);
+
+  void HandleReadUntil(
+      const system::error_code& err, size_t bytes_transferred,
+      const MatchByteSequenceCondition& termination_condition,
+      vector<byte>* read_data, Callback read_callback);
 
   bool is_opening_;
   bool is_open_;
@@ -113,8 +120,8 @@ class TcpConnection {
   unique_ptr<asio::ip::tcp::socket> socket_;
 
   vector<asio::const_buffer> write_buffers_;
-  vector<byte>* read_data_;  // Not owned
-  unique_ptr<asio::streambuf> read_streambuf_;
+  unique_ptr<vector<byte> > read_buffer_;  // For ReadSize
+  unique_ptr<asio::streambuf> read_streambuf_;  // For ReadUntil
 
   DISALLOW_COPY_AND_ASSIGN(TcpConnection);
 };

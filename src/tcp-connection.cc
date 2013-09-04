@@ -47,7 +47,9 @@ boost::function<void(T1, T2)> MakeStrandCallbackWithArgs(
 typedef boost::asio::buffers_iterator<
     boost::asio::streambuf::const_buffers_type> boost_streambuf_iterator;
 
-class MatchByteSequenceCondition {
+}  // namespace
+
+class TcpConnection::MatchByteSequenceCondition {
  public:
   explicit MatchByteSequenceCondition(const vector<byte>& byte_sequence)
       : byte_sequence_(byte_sequence) {
@@ -60,16 +62,21 @@ class MatchByteSequenceCondition {
     return make_pair(pos, pos != end);
   }
 
+  size_t sequence_length() const {
+    return byte_sequence_.size();
+  }
+
  private:
   vector<byte> byte_sequence_;
 };
 
-}  // namespace
 }  // namespace polar_express
 
 namespace boost {
 namespace asio {
-template <> struct is_match_condition<polar_express::MatchByteSequenceCondition>
+template <>
+struct is_match_condition<
+  polar_express::TcpConnection::MatchByteSequenceCondition>
     : public boost::true_type {};
 }  // namespace asio
 }  // namespace boost
@@ -83,8 +90,7 @@ TcpConnection::TcpConnection()
       is_reading_(false),
       network_usage_type_(AsioDispatcher::NetworkUsageType::kInvalid),
       last_write_succeeded_(false),
-      last_read_succeeded_(false),
-      read_data_(nullptr) {
+      last_read_succeeded_(false) {
 }
 
 TcpConnection::~TcpConnection() {
@@ -196,20 +202,16 @@ bool TcpConnection::ReadUntil(
 
   is_reading_ = true;
 
-  assert(read_data_ == nullptr);
-  assert(read_streambuf_ == nullptr);
-  read_data_ = CHECK_NOTNULL(data);
-  read_streambuf_.reset(new asio::streambuf);
-
+  auto termination_condition = MatchByteSequenceCondition(terminator_bytes);
   auto handler = MakeStrandCallbackWithArgs<const system::error_code&, size_t>(
       strand_dispatcher_,
-      boost::bind(&TcpConnection::HandleRead, this, _1, _2, callback),
+      boost::bind(&TcpConnection::HandleReadUntil, this, _1, _2,
+                  termination_condition, data, callback),
       asio::placeholders::error,
       asio::placeholders::bytes_transferred);
 
   asio::async_read_until(
-      *socket_, *read_streambuf_, MatchByteSequenceCondition(terminator_bytes),
-      handler);
+      *socket_, *read_streambuf_, termination_condition, handler);
 
   return true;
 }
@@ -222,21 +224,28 @@ bool TcpConnection::ReadSize(
 
   is_reading_ = true;
 
-  assert(read_data_ == nullptr);
-  assert(read_streambuf_ == nullptr);
-  read_data_ = CHECK_NOTNULL(data);
-
-  if (read_data_->size() < max_data_size) {
-    read_data_->resize(max_data_size);
-  }
+  // Consume as much data as possible from the read streambuf. There
+  // may be data left over in this buffer from previous calls to
+  // ReadUntil.
+  size_t existing_output_size = min(max_data_size, read_streambuf_->size());
+  data->resize(existing_output_size);
+  copy(asio::buffers_begin(read_streambuf_->data()),
+       asio::buffers_begin(read_streambuf_->data()) + existing_output_size,
+       data->begin());
+  read_streambuf_->consume(existing_output_size);
 
   auto handler = MakeStrandCallbackWithArgs<const system::error_code&, size_t>(
       strand_dispatcher_,
-      boost::bind(&TcpConnection::HandleRead, this, _1, _2, callback),
+      boost::bind(&TcpConnection::HandleReadSize, this, _1, _2, data, callback),
       asio::placeholders::error,
       asio::placeholders::bytes_transferred);
 
-  asio::async_read(*socket_, asio::buffer(*read_data_), handler);
+  // Read the amount of data necessary to reach max_data_size. It is
+  // possible that the existing output from read_streambuf_ has
+  // already completely satisfied this, but call async_read anyway; it
+  // will simply invoke the callback without doing anything.
+  read_buffer_.reset(new vector<byte>(max_data_size - existing_output_size));
+  asio::async_read(*socket_, asio::buffer(*read_buffer_), handler);
 
   return true;
 }
@@ -258,6 +267,7 @@ bool TcpConnection::CreateNetworkingObjects(
   io_service_work_ = strand_dispatcher_->make_work();
   resolver_.reset(new tcp::resolver(strand_dispatcher_->io_service()));
   socket_.reset(new tcp::socket(strand_dispatcher_->io_service()));
+  read_streambuf_.reset(new asio::streambuf);
   return true;
 }
 
@@ -266,6 +276,7 @@ void TcpConnection::DestroyNetworkingObjects() {
   resolver_.reset();
   io_service_work_.reset();
   strand_dispatcher_.reset();
+  read_streambuf_.reset();
   network_usage_type_ = AsioDispatcher::NetworkUsageType::kInvalid;
   hostname_.clear();
   protocol_.clear();
@@ -333,22 +344,62 @@ void TcpConnection::HandleWrite(
   write_callback();
 }
 
-void TcpConnection::HandleRead(
+void TcpConnection::HandleReadSize(
     const system::error_code& err,
     size_t bytes_transferred,
+    vector<byte>* read_data,
     Callback read_callback) {
-  // If ReadUntil was used, then the data is actually in
-  // read_streambuf_. Otherwise the data went directly into
-  // read_data_, but may have stopped short of filling the entire
-  // buffer.
-  CHECK_NOTNULL(read_data_)->resize(bytes_transferred);
-  if (read_streambuf_.get()) {
-    copy(asio::buffers_begin(read_streambuf_->data()),
-         asio::buffers_begin(read_streambuf_->data()) + bytes_transferred,
-         read_data_->begin());
-    read_streambuf_.reset();
+  assert(read_data != nullptr);
+  read_buffer_->resize(bytes_transferred);
+
+  if (read_data->empty()) {
+    read_data->swap(*read_buffer_);
+  } else {
+    size_t existing_data_size = read_data->size();
+    read_data->resize(existing_data_size + read_buffer_->size());
+    copy(read_buffer_->begin(), read_buffer_->end(),
+         read_data->begin() + existing_data_size);
   }
-  read_data_ = nullptr;
+
+  read_buffer_.reset();
+  is_reading_ = false;
+  last_read_succeeded_ = !err;
+
+  read_callback();
+}
+
+void TcpConnection::HandleReadUntil(
+    const system::error_code& err,
+    size_t bytes_transferred,
+    const MatchByteSequenceCondition& termination_condition,
+    vector<byte>* read_data,
+    Callback read_callback) {
+  // The read_streambuf contains data up to AT LEAST the terminator,
+  // but may contain additional data beyond this. In addition, if
+  // read_streambuf_ was not empty to begin with (e.g. multiple
+  // ReadUntil calls in sequence), bytes_transferred only indicates
+  // how much additional data was added to it with this call, which
+  // may be zero if it already contained a terminator. So the only
+  // reliable way to figure out where the output to should end is to
+  // find the next terminator again here.
+  pair<boost_streambuf_iterator, bool> termination_check =
+      termination_condition(
+          asio::buffers_begin(read_streambuf_->data()),
+          asio::buffers_begin(read_streambuf_->data()) +
+          read_streambuf_->size());
+
+  if (termination_check.second) {
+    boost_streambuf_iterator output_end =
+        termination_check.first + termination_condition.sequence_length();
+    size_t output_size =
+        output_end - asio::buffers_begin(read_streambuf_->data());
+    CHECK_NOTNULL(read_data)->resize(output_size);
+    copy(asio::buffers_begin(read_streambuf_->data()), output_end,
+         read_data->begin());
+    read_streambuf_->consume(output_size);
+  } else {
+    CHECK_NOTNULL(read_data)->clear();
+  }
 
   is_reading_ = false;
   last_read_succeeded_ = !err;
