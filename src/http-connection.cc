@@ -181,16 +181,23 @@ bool HttpConnection::DeserializeResponse(HttpResponse* response) {
       serialized_response_itr, serialized_response_end_itr, &status_line);
   ParseResponseStatus(status_line, response);
 
+  ParseResponseHeaders(
+      serialized_response_itr, serialized_response_end_itr, response);
+
+  return true;
+}
+
+void HttpConnection::ParseResponseHeaders(
+    vector<byte>::const_iterator begin,
+    vector<byte>::const_iterator end,
+    HttpResponse* response) const {
   string header_line;
-  while (serialized_response_itr != serialized_response_end_itr) {
-    serialized_response_itr = GetTextLineFromData(
-        serialized_response_itr, serialized_response_end_itr, &header_line);
+  while (begin != end) {
+    begin = GetTextLineFromData(begin, end, &header_line);
     if (!header_line.empty()) {
       ParseResponseHeader(header_line, response);
     }
   }
-
-  return true;
 }
 
 vector<byte>::const_iterator HttpConnection::GetTextLineFromData(
@@ -247,18 +254,48 @@ void HttpConnection::ParseResponseHeader(
   }
 }
 
-size_t HttpConnection::GetResponsePayloadSize(
-    const HttpResponse& response) const {
+const string& HttpConnection::GetResponseHeaderValue(
+    const HttpResponse& response, const string& key) const {
   for (const auto& kv : response.response_headers()) {
-    if (iequals(kv.key(), "Content-Length: ")) {
-      try {
-        return lexical_cast<int>(kv.value());
-      } catch (bad_lexical_cast&) {
-        // Continue. There might be another, valid Content-Length header?
-      }
+    if (iequals(kv.key(), key)) {
+      return kv.value();
     }
   }
-  return 0;
+  return KeyValue::default_instance().value();
+}
+
+bool HttpConnection::IsChunkedPayload(const HttpResponse& response) const {
+  return iequals(
+      GetResponseHeaderValue(response, "Transfer-Encoding"), "chunked");
+}
+
+size_t HttpConnection::GetResponsePayloadSize(
+    const HttpResponse& response) const {
+  try {
+    return lexical_cast<size_t>(
+        GetResponseHeaderValue(response, "Content-Length"));
+  } catch (bad_lexical_cast&) {
+    return 0;
+  }
+}
+
+size_t HttpConnection::GetPayloadChunkSize(
+    const vector<byte>& chunk_header) const {
+  string chunk_header_str;
+  const auto itr = find(chunk_header.begin(), chunk_header.end(), ';');
+  try {
+    // boost::lexical_cast doesn't support hexadecimal, and
+    // strtoi/strtol require that we know what fundamental type size_t
+    // maps to. So do it the roundabout way.
+    istringstream sstr(string(chunk_header.begin(), itr));
+    size_t chunk_size;
+    sstr >> hex >> chunk_size;
+    return chunk_size;
+  } catch (...) {
+    // Must use max instead of 0 or -1, since 0 is a meaningful value
+    // and size_t is unsigned.
+    return std::numeric_limits<size_t>::max();
+  }
 }
 
 void HttpConnection::RequestSent(
@@ -271,49 +308,162 @@ void HttpConnection::RequestSent(
             boost::bind(&HttpConnection::ResponseReceived, this,
                         response, response_payload, send_request_callback));
     serialized_response_.reset(new vector<byte>);
-    if (tcp_connection_->ReadUntil(
-            { '\r', '\n', '\r', '\n' }, serialized_response_.get(),
-            response_received_callback)) {
-      still_ok = true;
-    }
+    still_ok = tcp_connection_->ReadUntil(
+        { '\r', '\n', '\r', '\n' }, serialized_response_.get(),
+        response_received_callback);
   }
 
   if (!still_ok) {
-    last_request_succeeded_ = false;
-    CHECK_NOTNULL(response)->set_transport_succeeded(false);
-    CleanUpRequestState();
-    Close();
-    send_request_callback();
+    HandleRequestError(response, send_request_callback);
   }
 }
 
 void HttpConnection::ResponseReceived(
     HttpResponse* response, vector<byte>* response_payload,
     Callback send_request_callback) {
-    bool still_ok = false;
+  bool still_ok = false;
   if (tcp_connection_->last_read_succeeded() &&
       DeserializeResponse(response)) {
-    Callback response_payload_received_callback =
-        strand_dispatcher_->CreateStrandCallback(
-            boost::bind(&HttpConnection::ResponsePayloadReceived, this,
-                        response, response_payload, send_request_callback));
+    if (IsChunkedPayload(*response)) {
+      Callback response_payload_chunk_header_received_callback =
+          strand_dispatcher_->CreateStrandCallback(
+              boost::bind(&HttpConnection::ResponsePayloadChunkHeaderReceived,
+                          this, response, response_payload,
+                          send_request_callback));
+      response_payload_chunk_buffer_.reset(new vector<byte>);
+      still_ok = tcp_connection_->ReadUntil(
+          { '\r', '\n' }, response_payload_chunk_buffer_.get(),
+          response_payload_chunk_header_received_callback);
+    } else {
+      Callback response_payload_received_callback =
+          strand_dispatcher_->CreateStrandCallback(
+              boost::bind(&HttpConnection::ResponsePayloadReceived, this,
+                          response, response_payload, send_request_callback));
 
-    // Ask to read, even if the payload size is zero, to simplify
-    // callback handling (so that ResponsePayloadRecieved is always
-    // the last callback in a successful response.)
-    if (tcp_connection_->ReadSize(
-             GetResponsePayloadSize(*response),
-             response_payload, response_payload_received_callback)) {
-      still_ok = true;
+      // Ask to read, even if the payload size is zero, to simplify
+      // callback handling (so that ResponsePayloadRecieved is always
+      // the last callback in a successful response.)
+      still_ok = tcp_connection_->ReadSize(
+          GetResponsePayloadSize(*response),
+          response_payload, response_payload_received_callback);
     }
   }
 
   if (!still_ok) {
-    last_request_succeeded_ = false;
-    CHECK_NOTNULL(response)->set_transport_succeeded(false);
-    CleanUpRequestState();
-    Close();
-    send_request_callback();
+    HandleRequestError(response, send_request_callback);
+  }
+}
+
+void HttpConnection::ResponsePayloadChunkHeaderReceived(
+    HttpResponse* response, vector<byte>* response_payload,
+    Callback send_request_callback) {
+  bool still_ok = false;
+  if (tcp_connection_->last_read_succeeded()) {
+    size_t chunk_size = GetPayloadChunkSize(*response_payload_chunk_buffer_);
+
+    // A chunk size of 0 indicates that the payload has finished, but
+    // there may be more headers suffixed to the message. A chunk size
+    // of size_t-max is an error value from GetPayloadChunkSize
+    // indicating that the size could not be parsed.
+    if (chunk_size > 0 && chunk_size < std::numeric_limits<size_t>::max()) {
+      Callback response_payload_chunk_received_callback =
+          strand_dispatcher_->CreateStrandCallback(
+              boost::bind(&HttpConnection::ResponsePayloadChunkReceived,
+                          this, response, response_payload,
+                          send_request_callback));
+      still_ok = tcp_connection_->ReadSize(
+          chunk_size, response_payload_chunk_buffer_.get(),
+          response_payload_chunk_received_callback);
+    } else if (chunk_size == 0) {
+      Callback response_payload_post_chunk_header_received_callback =
+          strand_dispatcher_->CreateStrandCallback(
+              boost::bind(
+                  &HttpConnection::ResponsePayloadPostChunkHeaderReceived,
+                  this, response, response_payload, send_request_callback));
+      still_ok = tcp_connection_->ReadUntil(
+          { '\r', '\n', }, response_payload_chunk_buffer_.get(),
+          response_payload_post_chunk_header_received_callback);
+    }
+  }
+
+  if (!still_ok) {
+    HandleRequestError(response, send_request_callback);
+  }
+}
+
+void HttpConnection::ResponsePayloadChunkSeparatorReceived(
+    HttpResponse* response, vector<byte>* response_payload,
+    Callback send_request_callback) {
+  bool still_ok = false;
+  if (tcp_connection_->last_read_succeeded()) {
+    Callback response_payload_chunk_header_received_callback =
+        strand_dispatcher_->CreateStrandCallback(
+            boost::bind(&HttpConnection::ResponsePayloadChunkHeaderReceived,
+                        this, response, response_payload,
+                        send_request_callback));
+    still_ok = tcp_connection_->ReadUntil(
+        { '\r', '\n' }, response_payload_chunk_buffer_.get(),
+        response_payload_chunk_header_received_callback);
+  }
+
+  if (!still_ok) {
+    HandleRequestError(response, send_request_callback);
+  }
+}
+
+void HttpConnection::ResponsePayloadChunkReceived(
+    HttpResponse* response, vector<byte>* response_payload,
+    Callback send_request_callback) {
+  bool still_ok = false;
+
+  // Copy partial payload even if the read did not succeed.
+  response_payload->insert(response_payload->end(),
+                           response_payload_chunk_buffer_->begin(),
+                           response_payload_chunk_buffer_->end());
+
+  if (tcp_connection_->last_read_succeeded()) {
+    // There is a line terminator ("\r\n") at the end of each chunk
+    // which is not part of the chunk and not counted in the chunk
+    // size. Consume this "separator" before attempting to consume the
+    // next chunk header.
+    Callback response_payload_chunk_separator_received_callback =
+        strand_dispatcher_->CreateStrandCallback(
+            boost::bind(&HttpConnection::ResponsePayloadChunkSeparatorReceived,
+                        this, response, response_payload,
+                        send_request_callback));
+    still_ok = tcp_connection_->ReadUntil(
+        { '\r', '\n' }, serialized_response_.get(),
+        response_payload_chunk_separator_received_callback);
+  }
+
+  if (!still_ok) {
+    HandleRequestError(response, send_request_callback);
+  }
+}
+
+void HttpConnection::ResponsePayloadPostChunkHeaderReceived(
+    HttpResponse* response, vector<byte>* response_payload,
+    Callback send_request_callback) {
+  // If the header is blank (consists only of "\r\n") then this is the
+  // end of the transmission. Else, parse this header and look for the
+  // next one.
+  if (response_payload_chunk_buffer_->size() <= 2) {
+    ResponsePayloadReceived(response, response_payload, send_request_callback);
+    return;
+  } else {
+    ParseResponseHeaders(response_payload_chunk_buffer_->begin(),
+                         response_payload_chunk_buffer_->end(),
+                         response);
+    Callback response_payload_post_chunk_header_received_callback =
+        strand_dispatcher_->CreateStrandCallback(
+            boost::bind(
+                &HttpConnection::ResponsePayloadPostChunkHeaderReceived,
+                this, response, response_payload, send_request_callback));
+    if (!tcp_connection_->ReadUntil(
+            { '\r', '\n', }, response_payload_chunk_buffer_.get(),
+            response_payload_post_chunk_header_received_callback)) {
+      HandleRequestError(response, send_request_callback);
+    }
   }
 }
 
@@ -329,10 +479,20 @@ void HttpConnection::ResponsePayloadReceived(
   send_request_callback();
 }
 
+void HttpConnection::HandleRequestError(
+    HttpResponse* response, Callback send_request_callback) {
+  last_request_succeeded_ = false;
+  CHECK_NOTNULL(response)->set_transport_succeeded(false);
+  CleanUpRequestState();
+  Close();
+  send_request_callback();
+}
+
 void HttpConnection::CleanUpRequestState() {
   serialized_request_.reset();
   serialized_response_.reset();
   tmp_response_payload_.reset();
+  response_payload_chunk_buffer_.reset();
   request_pending_ = false;
 }
 

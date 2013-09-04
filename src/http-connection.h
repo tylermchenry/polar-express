@@ -65,6 +65,11 @@ class HttpConnection {
 
   bool DeserializeResponse(HttpResponse* response);
 
+  void ParseResponseHeaders(
+      vector<byte>::const_iterator begin,
+      vector<byte>::const_iterator end,
+      HttpResponse* response) const;
+
   // Extracts a line of text from a data buffer, consisting of all
   // bytes from begin up to encountering an "\r\n" sequence, or end,
   // whichever comes first. Returns an iterator to one byte past the
@@ -81,7 +86,14 @@ class HttpConnection {
   void ParseResponseHeader(
       const string& header_line, HttpResponse* response) const;
 
+  const string& GetResponseHeaderValue(
+      const HttpResponse& response, const string& key) const;
+
+  bool IsChunkedPayload(const HttpResponse& response) const;
+
   size_t GetResponsePayloadSize(const HttpResponse& response) const;
+
+  size_t GetPayloadChunkSize(const vector<byte>& chunk_header) const;
 
   void RequestSent(
       HttpResponse* response, vector<byte>* response_payload,
@@ -91,9 +103,28 @@ class HttpConnection {
       HttpResponse* response, vector<byte>* response_payload,
       Callback send_request_callback);
 
+  void ResponsePayloadChunkHeaderReceived(
+      HttpResponse* response, vector<byte>* response_payload,
+      Callback send_request_callback);
+
+  void ResponsePayloadChunkSeparatorReceived(
+      HttpResponse* response, vector<byte>* response_payload,
+      Callback send_request_callback);
+
+  void ResponsePayloadChunkReceived(
+      HttpResponse* response, vector<byte>* response_payload,
+      Callback send_request_callback);
+
+  void ResponsePayloadPostChunkHeaderReceived(
+      HttpResponse* response, vector<byte>* response_payload,
+      Callback send_request_callback);
+
   void ResponsePayloadReceived(
       HttpResponse* response, vector<byte>* response_payload,
       Callback send_request_callback);
+
+  void HandleRequestError(
+      HttpResponse* response, Callback send_response_callback);
 
   void CleanUpRequestState();
 
@@ -102,6 +133,7 @@ class HttpConnection {
   unique_ptr<vector<byte> > serialized_request_;
   unique_ptr<vector<byte> > serialized_response_;
   unique_ptr<vector<byte> > tmp_response_payload_;
+  unique_ptr<vector<byte> > response_payload_chunk_buffer_;
 
   boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher_;
   const unique_ptr<TcpConnection> tcp_connection_;

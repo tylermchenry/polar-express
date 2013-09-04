@@ -131,6 +131,7 @@ TEST_F(HttpConnectionTest, Open) {
 
 TEST_F(HttpConnectionTest, OpenAndSendRequest) {
   expect_open_ = true;
+  expect_request_success_ = true;
 
   ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(
       "method: GET                 "
@@ -176,16 +177,6 @@ TEST_F(HttpConnectionTest, OpenAndSendRequest) {
   EXPECT_THAT(
       response_without_headers, EqualsProto(expected_response_without_headers));
   EXPECT_FALSE(response_payload_.empty());
-
-  // This test actually fails until HttpConnection supports Chunked
-  // encoding. Output response for diagnostic purposes.
-
-  std::cerr << "Response:\n" << response_.DebugString();
-
-  string response_payload_str;
-  std::copy(response_payload_.begin(), response_payload_.end(),
-            std::back_inserter(response_payload_str));
-  std::cerr << "Response Payload:\n" << response_payload_str;
 }
 
 }  // namespace
