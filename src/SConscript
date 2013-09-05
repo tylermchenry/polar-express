@@ -102,6 +102,7 @@ glacier_connection_deplibs = [
     asio_dispatcher_deplibs,
     'crypto++',
     'glacier_proto',
+    'http_proto',
     ];
 glacier_connection = env.Library(
     target='glacier-connection',

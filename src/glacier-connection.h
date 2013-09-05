@@ -3,9 +3,11 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "crypto++/secblock.h"
 
+#include "amazon-http-request-util.h"
 #include "asio-dispatcher.h"
 #include "callback.h"
 #include "macros.h"
@@ -15,6 +17,8 @@ namespace polar_express {
 class GlacierVaultDescription;
 class GlacierVaultList;
 class HttpConnection;
+class HttpRequest;
+class HttpResponse;
 
 class GlacierConnection {
  public:
@@ -24,14 +28,14 @@ class GlacierConnection {
   virtual bool is_opening() const;
   virtual bool is_open() const;
   virtual AsioDispatcher::NetworkUsageType network_usage_type() const;
-  virtual const string& aws_region() const;
+  virtual const string& aws_region_name() const;
   virtual const string& aws_access_key() const;
   virtual const CryptoPP::SecByteBlock& aws_secret_key() const;
   virtual bool last_operation_succeeded() const;
 
   virtual bool Open(
       AsioDispatcher::NetworkUsageType network_usage_type,
-      const string& aws_region, const string& aws_access_key,
+      const string& aws_region_name, const string& aws_access_key,
       const CryptoPP::SecByteBlock& aws_secret_key,
       Callback callback);
 
@@ -49,12 +53,22 @@ class GlacierConnection {
       GlacierVaultList* vault_list, Callback callback);
 
  private:
-  string aws_region_;
+  bool SendRequest(
+      const HttpRequest& request, const vector<byte>& payload,
+      const string& payload_sha256_digest, Callback callback);
+
+  void CleanUpRequestState();
+
+  string aws_region_name_;
   string aws_access_key_;
   CryptoPP::SecByteBlock aws_secret_key_;
 
+  unique_ptr<HttpResponse> response_;
+  unique_ptr<vector<byte> > response_payload_;
+
   boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher_;
   const unique_ptr<HttpConnection> http_connection_;
+  const unique_ptr<AmazonHttpRequestUtil> amazon_http_request_util_;
 
   DISALLOW_COPY_AND_ASSIGN(GlacierConnection);
 };
