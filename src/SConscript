@@ -81,8 +81,6 @@ http_connection = env.Library(
     )
 
 amazon_http_request_util_deplibs = [
-    http_connection,
-    http_connection_deplibs,
     'crypto++',
     'curl',
     'http_proto',
@@ -93,6 +91,24 @@ amazon_http_request_util = env.Library(
         'amazon-http-request-util.cc',
         ],
     LIBS=amazon_http_request_util_deplibs,
+    )
+
+glacier_connection_deplibs = [
+    asio_dispatcher,
+    http_connection,
+    amazon_http_request_util,
+    amazon_http_request_util_deplibs,
+    http_connection_deplibs,
+    asio_dispatcher_deplibs,
+    'crypto++',
+    'glacier_proto',
+    ];
+glacier_connection = env.Library(
+    target='glacier-connection',
+    source=[
+        'glacier-connection.cc',
+        ],
+    LIBS=glacier_connection_deplibs,
     )
 
 snapshot_util_deplibs = [
@@ -321,7 +337,7 @@ bundle_state_machine = env.Library(
     )
 
 backup_executor_deplibs = [
-    amazon_http_request_util,
+    glacier_connection,
     cryptors,
     bundle,
     bundle_state_machine,
@@ -334,7 +350,7 @@ backup_executor_deplibs = [
     bundle_state_machine_deplibs,
     bundle_deplibs,
     cryptors_deplibs,
-    amazon_http_request_util_deplibs,
+    glacier_connection_deplibs,
     'boost_filesystem-mt',
     'boost_system-mt',
     'boost_thread',
