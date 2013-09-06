@@ -136,7 +136,7 @@ void HttpConnection::SerializeRequest(
 void HttpConnection::BuildQueryParameters(
     const HttpRequest& request, string* query_parameters) const {
   vector<string> parameter_pairs;
-  for (const auto& kv : request.request_headers()) {
+  for (const auto& kv : request.query_parameters()) {
     parameter_pairs.push_back(
         UriEncode(kv.key()) + "=" + UriEncode(kv.value()));
   }
