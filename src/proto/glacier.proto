@@ -1,12 +1,13 @@
 package polar_express;
 
-// Next tag: 6
+// Next tag: 7
 message GlacierVaultDescription {
   optional string creation_date = 1;
   optional string last_inventory_date = 2;
   optional int64 number_of_archives = 3;
-  optional string vault_arn = 4;
-  optional string vault_name = 5;
+  optional int64 size_in_bytes = 4;
+  optional string vault_arn = 5;
+  optional string vault_name = 6;
 }
 
 // Next tag: 3

@@ -11,7 +11,7 @@ env.Append(CCFLAGS='-std=c++11 -O2')
 env.Append(CPPFLAGS=('-I. -DSQLITE_THREADSAFE -DZLIB_CONST '
                      '-DBOOST_MPL_CFG_NO_PREPROCESSED_HEADERS '
                      '-DFUSION_MAX_VECTOR_SIZE=30 -DFUSION_MAX_SET_SIZE=30 '
-                     '-DBOOST_MPL_LIMIT_VECTOR_SIZE=30'))
+                     '-DBOOST_MPL_LIMIT_VECTOR_SIZE=30 '))
 env.Append(LIBPATH='.')
 env.Append(LIBPATH='./src/proto')
 
@@ -103,6 +103,7 @@ glacier_connection_deplibs = [
     'crypto++',
     'glacier_proto',
     'http_proto',
+    'json_spirit',
     ];
 glacier_connection = env.Library(
     target='glacier-connection',
@@ -467,3 +468,24 @@ run_http_connection_test = Alias(
     [http_connection_test],
     http_connection_test[0].path)
 AlwaysBuild(run_http_connection_test)
+
+glacier_connection_test = env.Program(
+    target='glacier-connection_test',
+    source=[
+        'glacier-connection_test.cc',
+        ],
+    LIBS=[
+        asio_dispatcher,
+        glacier_connection,
+        glacier_connection_deplibs,
+        asio_dispatcher_deplibs,
+        testlibs,
+        'glacier_proto',
+        'protobuf',
+        ],
+    )
+run_glacier_connection_test = Alias(
+    'run_glacier_connection_test',
+    [glacier_connection_test],
+    glacier_connection_test[0].path)
+AlwaysBuild(run_glacier_connection_test)

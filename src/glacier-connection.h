@@ -57,11 +57,19 @@ class GlacierConnection {
       const HttpRequest& request, const vector<byte>& payload,
       const string& payload_sha256_digest, Callback callback);
 
+  void HandleDescribeVault(
+      GlacierVaultDescription* vault_description,
+      Callback describe_vault_callback);
+
+  void HandleOperationError(Callback callback);
+
   void CleanUpRequestState();
 
   string aws_region_name_;
   string aws_access_key_;
   CryptoPP::SecByteBlock aws_secret_key_;
+  bool operation_pending_;
+  bool last_operation_succeeded_;
 
   unique_ptr<HttpResponse> response_;
   unique_ptr<vector<byte> > response_payload_;
