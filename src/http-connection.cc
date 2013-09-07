@@ -123,7 +123,7 @@ void HttpConnection::SerializeRequest(
   if (!request_headers.empty()) {
     serialized_request_sstr << request_headers << "\r\n";
   }
-  if (payload_size > 0) {
+  if (payload_size > 0 || request.method() == HttpRequest::POST) {
     serialized_request_sstr << "Content-Length: " << payload_size << "\r\n";
   }
   serialized_request_sstr << "\r\n";
