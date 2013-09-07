@@ -49,7 +49,13 @@ class GlacierConnection {
       const string& vault_name, GlacierVaultDescription* vault_description,
       Callback callback);
 
+  // Lists up to max_vaults vaults starting from the position denoted
+  // by start_marker (normally obtained through a previous ListVaults
+  // request). max_vaults must be between 1 and 1000 inclusive (or
+  // false will be returned). start_marker may be empty, in which case the
+  // listing will start from the beginning.
   virtual bool ListVaults(
+      int max_vaults, const string& start_marker,
       GlacierVaultList* vault_list, Callback callback);
 
  private:
@@ -60,6 +66,10 @@ class GlacierConnection {
   void HandleDescribeVault(
       GlacierVaultDescription* vault_description,
       Callback describe_vault_callback);
+
+  void HandleListVaults(
+      GlacierVaultList* vault_list,
+      Callback list_vaults_callback);
 
   void HandleOperationError(Callback callback);
 

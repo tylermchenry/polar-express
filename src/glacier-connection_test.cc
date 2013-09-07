@@ -42,6 +42,8 @@ class GlacierConnectionTest : public testing::Test {
         expect_open_(false),
         describe_callback_invoked_(false),
         expect_describe_success_(false),
+        list_callback_invoked_(false),
+        expect_list_success_(false),
         // Be sure not to include the trailing NUL in the key block.
         aws_secret_key_(kAwsSecretKey,  sizeof(kAwsSecretKey) - 1),
         glacier_connection_(new GlacierConnection) {
@@ -74,6 +76,21 @@ class GlacierConnectionTest : public testing::Test {
     }
   }
 
+  void ListVaults(
+      int max_vaults, const string& start_marker,
+      GlacierVaultList* vault_list,
+      bool expect_success, Callback next_action) {
+    ASSERT_TRUE(glacier_connection_.get() != nullptr);
+
+    bool success = glacier_connection_->ListVaults(
+        max_vaults, start_marker, vault_list, next_action);
+    EXPECT_EQ(expect_success, success);
+
+    if (!success) {
+      next_action();
+    }
+  }
+
   Callback GetOpenCallback(Callback next_action) {
     return boost::bind(
         &GlacierConnectionTest::open_callback_function, this, next_action);
@@ -84,12 +101,26 @@ class GlacierConnectionTest : public testing::Test {
         &GlacierConnectionTest::describe_callback_function, this, next_action);
   }
 
+  Callback GetListCallback(Callback next_action) {
+    return boost::bind(
+        &GlacierConnectionTest::list_callback_function, this, next_action);
+  }
+
   Callback GetDescribeVaultAction(
       const string& vault_name, GlacierVaultDescription* vault_description,
       bool expect_success, Callback next_action) {
     return boost::bind(
         &GlacierConnectionTest::DescribeVault,
         this, vault_name, vault_description, expect_success, next_action);
+  }
+
+  Callback GetListVaultsAction(
+      int max_vaults, const string& start_marker, GlacierVaultList* vault_list,
+      bool expect_success, Callback next_action) {
+    return boost::bind(
+        &GlacierConnectionTest::ListVaults,
+        this, max_vaults, start_marker, vault_list, expect_success,
+        next_action);
   }
 
   Callback GetDestroyConnectionAction() {
@@ -101,6 +132,9 @@ class GlacierConnectionTest : public testing::Test {
 
   bool describe_callback_invoked_;
   bool expect_describe_success_;
+
+  bool list_callback_invoked_;
+  bool expect_list_success_;
 
   const CryptoPP::SecByteBlock aws_secret_key_;
   unique_ptr<GlacierConnection> glacier_connection_;
@@ -125,6 +159,18 @@ class GlacierConnectionTest : public testing::Test {
     EXPECT_EQ(expect_describe_success_,
               glacier_connection_->last_operation_succeeded());
     EXPECT_EQ(expect_describe_success_, glacier_connection_->is_open());
+
+    next_action();
+  }
+
+  void list_callback_function(Callback next_action) {
+    EXPECT_FALSE(list_callback_invoked_);
+    list_callback_invoked_ = true;
+
+    ASSERT_TRUE(glacier_connection_.get() != nullptr);
+    EXPECT_EQ(expect_list_success_,
+              glacier_connection_->last_operation_succeeded());
+    EXPECT_EQ(expect_list_success_, glacier_connection_->is_open());
 
     next_action();
   }
@@ -169,6 +215,28 @@ TEST_F(GlacierConnectionTest, OpenAndDescribeVault) {
   EXPECT_THAT(vault_description.vault_arn(), HasSubstr(kAwsRegionName));
   EXPECT_THAT(vault_description.vault_arn(), EndsWith(kAwsGlacierVaultName));
   EXPECT_EQ(kAwsGlacierVaultName, vault_description.vault_name());
+}
+
+TEST_F(GlacierConnectionTest, OpenAndListVaults) {
+  expect_open_ = true;
+  expect_list_success_ = true;
+
+  GlacierVaultList vault_list;
+
+  EXPECT_TRUE(glacier_connection_->Open(
+      AsioDispatcher::NetworkUsageType::kDownlinkBound, kAwsRegionName,
+      kAwsAccessKey, aws_secret_key_, GetOpenCallback(
+          GetListVaultsAction(
+              100, "", &vault_list, true,
+              GetListCallback(GetDestroyConnectionAction())))));
+
+  WaitForFinish();
+  EXPECT_TRUE(open_callback_invoked_);
+  EXPECT_TRUE(list_callback_invoked_);
+
+  // No good way to know what the exact contents should be, if using a
+  // live Amazon account for an E2E test.
+  EXPECT_LT(0, vault_list.vault_descriptions_size());
 }
 
 }  // namespace

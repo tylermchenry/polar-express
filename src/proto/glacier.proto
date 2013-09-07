@@ -12,6 +12,6 @@ message GlacierVaultDescription {
 
 // Next tag: 3
 message GlacierVaultList {
-  optional string marker = 1;
-  repeated GlacierVaultDescription vault_descriptions = 2;
+  repeated GlacierVaultDescription vault_descriptions = 1;
+  optional string next_start_marker = 2;
 }
