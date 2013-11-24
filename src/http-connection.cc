@@ -18,6 +18,36 @@ namespace {
 
 const char kHttpProtocol[] = "http";
 
+const char* GetMethodString(HttpRequest::Method method) {
+  switch (method) {
+    case HttpRequest::GET:
+      return "GET";
+    case HttpRequest::PUT:
+      return "PUT";
+    case HttpRequest::POST:
+      return "POST";
+    case HttpRequest::DELETE:
+      return "DELETE";
+    default:
+      assert(false);
+      return "";
+  }
+}
+
+bool MethodRequiresContentLength(HttpRequest::Method method) {
+  switch (method) {
+    case HttpRequest::PUT:
+    case HttpRequest::POST:
+      return true;
+    case HttpRequest::GET:
+    case HttpRequest::DELETE:
+      return false;
+    default:
+      assert(false);
+      return false;
+  }
+}
+
 }  // namespace
 
 HttpConnection::HttpConnection()
@@ -102,8 +132,7 @@ bool HttpConnection::SendRequest(
 
 void HttpConnection::SerializeRequest(
     const HttpRequest& request, size_t payload_size) {
-  const char* const method =
-      request.method() == HttpRequest::POST ? "POST" : "GET";
+  const char* const method = GetMethodString(request.method());
   const string& hostname =
       request.hostname().empty() ? this->hostname() : request.hostname();
 
@@ -123,7 +152,7 @@ void HttpConnection::SerializeRequest(
   if (!request_headers.empty()) {
     serialized_request_sstr << request_headers << "\r\n";
   }
-  if (payload_size > 0 || request.method() == HttpRequest::POST) {
+  if (payload_size > 0 || MethodRequiresContentLength(request.method())) {
     serialized_request_sstr << "Content-Length: " << payload_size << "\r\n";
   }
   serialized_request_sstr << "\r\n";

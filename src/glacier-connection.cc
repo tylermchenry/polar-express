@@ -12,6 +12,22 @@
 #include "proto/glacier.pb.h"
 #include "proto/http.pb.h"
 
+#define TMP_VALUE(field_name) field_name ## _value_tmp
+
+#define SET_FIELD_METHOD(field_name) set_ ## field_name
+
+#define GET_TYPE_METHOD(json_type) get_ ## json_type
+
+#define COPY_VALUE_IF_NOT_NULL(json_name, json_type, protobuf, field_name) \
+  do {                                                                     \
+    auto TMP_VALUE(field_name) =                                           \
+        json_spirit::find_value(json_obj, #json_name);                     \
+    if (!TMP_VALUE(field_name).is_null()) {                                \
+      (protobuf)->SET_FIELD_METHOD(field_name)(                            \
+          TMP_VALUE(field_name).GET_TYPE_METHOD(json_type)());             \
+    }                                                                      \
+  } while (false)
+
 namespace polar_express {
 namespace {
 
@@ -42,18 +58,15 @@ bool ParseJsonVaultDescription(
     GlacierVaultDescription* vault_description) {
   assert(vault_description != nullptr);
   try {
-    vault_description->set_creation_date(
-        json_spirit::find_value(json_obj, "CreationDate").get_str());
-    vault_description->set_last_inventory_date(
-        json_spirit::find_value(json_obj, "LastInventoryDate").get_str());
-    vault_description->set_number_of_archives(
-        json_spirit::find_value(json_obj, "NumberOfArchives").get_int64());
-    vault_description->set_size_in_bytes(
-        json_spirit::find_value(json_obj, "SizeInBytes").get_int64());
-    vault_description->set_vault_arn(
-        json_spirit::find_value(json_obj, "VaultARN").get_str());
-    vault_description->set_vault_name(
-        json_spirit::find_value(json_obj, "VaultName").get_str());
+    COPY_VALUE_IF_NOT_NULL(CreationDate, str, vault_description, creation_date);
+    COPY_VALUE_IF_NOT_NULL(LastInventoryDate, str, vault_description,
+                           last_inventory_date);
+    COPY_VALUE_IF_NOT_NULL(NumberOfArchives, int64, vault_description,
+                           number_of_archives);
+    COPY_VALUE_IF_NOT_NULL(SizeInBytes, int64, vault_description,
+                           size_in_bytes);
+    COPY_VALUE_IF_NOT_NULL(VaultARN, str, vault_description, vault_arn);
+    COPY_VALUE_IF_NOT_NULL(VaultName, str, vault_description, vault_name);
   } catch (std::runtime_error&) {
     // json_spirit throws std::runtime_error when the value is not the
     // expected type.
@@ -132,8 +145,24 @@ void GlacierConnection::Close() {
 bool GlacierConnection::CreateVault(
     const string& vault_name, bool* vault_created,
     Callback callback) {
-  // TODO: Implement
-  return false;
+  if (!is_open() || operation_pending_) {
+    return false;
+  }
+
+  operation_pending_ = true;
+
+  HttpRequest request;
+  request.set_method(HttpRequest::PUT);
+  request.set_hostname(http_connection_->hostname());
+  request.set_path(kAwsGlacierVaultPathPrefix + vault_name);
+
+  SendRequest(
+      request, {}, "",
+      strand_dispatcher_->CreateStrandCallback(
+          boost::bind(&GlacierConnection::HandleCreateVault, this,
+                      vault_created, callback)));
+
+  return true;
 }
 
 bool GlacierConnection::DescribeVault(
@@ -192,6 +221,29 @@ bool GlacierConnection::ListVaults(
   return true;
 }
 
+bool GlacierConnection::DeleteVault(
+    const string& vault_name, bool* vault_deleted,
+    Callback callback) {
+  if (!is_open() || operation_pending_) {
+    return false;
+  }
+
+  operation_pending_ = true;
+
+  HttpRequest request;
+  request.set_method(HttpRequest::DELETE);
+  request.set_hostname(http_connection_->hostname());
+  request.set_path(kAwsGlacierVaultPathPrefix + vault_name);
+
+  SendRequest(
+      request, {}, "",
+      strand_dispatcher_->CreateStrandCallback(
+          boost::bind(&GlacierConnection::HandleDeleteVault, this,
+                      vault_deleted, callback)));
+
+  return true;
+}
+
 bool GlacierConnection::SendRequest(
     const HttpRequest& request, const vector<byte>& payload,
     const string& payload_sha256_digest, Callback callback) {
@@ -216,6 +268,19 @@ bool GlacierConnection::SendRequest(
   }
 
   return false;
+}
+
+void GlacierConnection::HandleCreateVault(
+    bool* vault_created,
+    Callback create_vault_callback) {
+  // Note that AWS returns "201 Created", NOT "200 OK" for success.
+  *CHECK_NOTNULL(vault_created) =
+      http_connection_->last_request_succeeded() &&
+      response_->status_code() == 201;
+
+  last_operation_succeeded_ = *vault_created;
+  CleanUpRequestState();
+  create_vault_callback();
 }
 
 void GlacierConnection::HandleDescribeVault(
@@ -297,6 +362,19 @@ void GlacierConnection::HandleListVaults(
 
   CleanUpRequestState();
   list_vaults_callback();
+}
+
+void GlacierConnection::HandleDeleteVault(
+    bool* vault_deleted,
+    Callback delete_vault_callback) {
+  // Note that AWS returns "204 No Content", NOT "200 OK" for success.
+  *CHECK_NOTNULL(vault_deleted) =
+      http_connection_->last_request_succeeded() &&
+      response_->status_code() == 204;
+
+  last_operation_succeeded_ = *vault_deleted;
+  CleanUpRequestState();
+  delete_vault_callback();
 }
 
 void GlacierConnection::HandleOperationError(Callback callback) {

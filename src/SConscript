@@ -11,7 +11,9 @@ env.Append(CCFLAGS='-std=c++11 -O2')
 env.Append(CPPFLAGS=('-I. -DSQLITE_THREADSAFE -DZLIB_CONST '
                      '-DBOOST_MPL_CFG_NO_PREPROCESSED_HEADERS '
                      '-DFUSION_MAX_VECTOR_SIZE=30 -DFUSION_MAX_SET_SIZE=30 '
-                     '-DBOOST_MPL_LIMIT_VECTOR_SIZE=30 '))
+                     '-DBOOST_MPL_LIMIT_VECTOR_SIZE=30 '
+                     '-D"GTEST_EXCLUSIVE_LOCK_REQUIRED_(x)=" '
+                     '-D"GTEST_LOCK_EXCLUDED_(x)= " '))
 env.Append(LIBPATH='.')
 env.Append(LIBPATH='./src/proto')
 
@@ -389,7 +391,7 @@ Default(polar_express)
 
 ### Unit Tests
 
-testlibs = ['gmock', 'gtest', 'gtest_main', 'pthread']
+testlibs = ['gtest', 'gtest_main', 'pthread']
 
 # Template for a unit test:
 

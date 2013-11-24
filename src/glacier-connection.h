@@ -58,10 +58,18 @@ class GlacierConnection {
       int max_vaults, const string& start_marker,
       GlacierVaultList* vault_list, Callback callback);
 
+  virtual bool DeleteVault(
+      const string& vault_name, bool* vault_deleted,
+      Callback callback);
+
  private:
   bool SendRequest(
       const HttpRequest& request, const vector<byte>& payload,
       const string& payload_sha256_digest, Callback callback);
+
+  void HandleCreateVault(
+      bool* vault_created,
+      Callback create_vault_callback);
 
   void HandleDescribeVault(
       GlacierVaultDescription* vault_description,
@@ -70,6 +78,10 @@ class GlacierConnection {
   void HandleListVaults(
       GlacierVaultList* vault_list,
       Callback list_vaults_callback);
+
+  void HandleDeleteVault(
+      bool* vault_deleted,
+      Callback delete_vault_callback);
 
   void HandleOperationError(Callback callback);
 
