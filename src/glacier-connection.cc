@@ -36,8 +36,18 @@ const char kAwsGlacierServiceName[] = "glacier";
 const char kAwsGlacierVersionHeaderKey[] = "x-amz-glacier-version";
 const char kAwsGlacierVersion[] = "2012-06-01";
 const char kAwsGlacierVaultPathPrefix[] = "/-/vaults/";
+const char kAwsGlacierArchivesDirectory[] = "archives";
 const char kSha256DigestOfEmptyString[] =
     "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+const size_t kUploadArchivePayloadDescriptionMaxLength = 1024;
+const char kUploadArchivePayloadSha256LinearDigestHeaderKey[] =
+    "x-amz-content-sha256";
+const char kUploadArchivePayloadSha256TreeDigestHeaderKey[] =
+    "x-amz-sha256-tree-hash";
+const char kUploadArchivePayloadDescriptionHeaderKey[] =
+    "x-amz-archive-description";
+const char kUploadArchiveArchiveIdHeaderKey[] = "x-amz-archive-id";
 
 const char kListVaultsMaxVaultsKey[] = "limit";
 const char kListVaultsStartMarkerKey[] = "marker";
@@ -157,7 +167,7 @@ bool GlacierConnection::CreateVault(
   request.set_path(kAwsGlacierVaultPathPrefix + vault_name);
 
   SendRequest(
-      request, {}, "",
+      request, &empty_request_payload_, "",
       strand_dispatcher_->CreateStrandCallback(
           boost::bind(&GlacierConnection::HandleCreateVault, this,
                       vault_created, callback)));
@@ -180,7 +190,7 @@ bool GlacierConnection::DescribeVault(
   request.set_path(kAwsGlacierVaultPathPrefix + vault_name);
 
   SendRequest(
-      request, {}, "",
+      request, &empty_request_payload_, "",
       strand_dispatcher_->CreateStrandCallback(
           boost::bind(&GlacierConnection::HandleDescribeVault, this,
                       vault_description, callback)));
@@ -213,7 +223,7 @@ bool GlacierConnection::ListVaults(
   }
 
   SendRequest(
-      request, {}, "",
+      request, &empty_request_payload_, "",
       strand_dispatcher_->CreateStrandCallback(
           boost::bind(&GlacierConnection::HandleListVaults, this,
                       vault_list, callback)));
@@ -224,7 +234,7 @@ bool GlacierConnection::ListVaults(
 bool GlacierConnection::DeleteVault(
     const string& vault_name, bool* vault_deleted,
     Callback callback) {
-  if (!is_open() || operation_pending_) {
+  if (!is_open() || operation_pending_ || vault_name.empty()) {
     return false;
   }
 
@@ -236,7 +246,7 @@ bool GlacierConnection::DeleteVault(
   request.set_path(kAwsGlacierVaultPathPrefix + vault_name);
 
   SendRequest(
-      request, {}, "",
+      request, &empty_request_payload_, "",
       strand_dispatcher_->CreateStrandCallback(
           boost::bind(&GlacierConnection::HandleDeleteVault, this,
                       vault_deleted, callback)));
@@ -244,8 +254,84 @@ bool GlacierConnection::DeleteVault(
   return true;
 }
 
+bool GlacierConnection::UploadArchive(
+    const string& vault_name, const vector<byte>* payload,
+    const string& payload_sha256_linear_digest,
+    const string& payload_sha256_tree_digest, const string& payload_description,
+    string* archive_id, Callback callback) {
+  if (!is_open() || operation_pending_ ||
+      payload == nullptr ||
+      payload_sha256_linear_digest.empty() ||
+      payload_sha256_tree_digest.empty() ||
+      payload_description.size() > kUploadArchivePayloadDescriptionMaxLength) {
+    return false;
+  }
+
+  // Check restrictions on characters in description.
+  for (const char c : payload_description) {
+    if (c < ' ' || c > '~') {
+      return false;
+    }
+  }
+
+  operation_pending_ = true;
+
+  HttpRequest request;
+  request.set_method(HttpRequest::POST);
+  request.set_hostname(http_connection_->hostname());
+  request.set_path(kAwsGlacierVaultPathPrefix + vault_name + '/' +
+                   kAwsGlacierArchivesDirectory);
+
+  KeyValue* kv = request.add_request_headers();
+  kv->set_key(kUploadArchivePayloadSha256LinearDigestHeaderKey);
+  kv->set_value(payload_sha256_linear_digest);
+
+  kv = request.add_request_headers();
+  kv->set_key(kUploadArchivePayloadSha256TreeDigestHeaderKey);
+  kv->set_value(payload_sha256_tree_digest);
+
+  if (!payload_description.empty()) {
+    kv = request.add_request_headers();
+    kv->set_key(kUploadArchivePayloadDescriptionHeaderKey);
+    kv->set_value(payload_description);
+  }
+
+  SendRequest(
+      request, payload, payload_sha256_linear_digest,
+      strand_dispatcher_->CreateStrandCallback(
+          boost::bind(&GlacierConnection::HandleUploadArchive, this,
+                      archive_id, callback)));
+  return true;
+}
+
+bool GlacierConnection::DeleteArchive(const string& vault_name,
+                                      const string& archive_id,
+                                      bool* archive_deleted,
+                                      Callback callback) {
+  if (!is_open() || operation_pending_ || vault_name.empty() ||
+      archive_id.empty()) {
+    return false;
+  }
+
+  operation_pending_ = true;
+
+  HttpRequest request;
+  request.set_method(HttpRequest::DELETE);
+  request.set_hostname(http_connection_->hostname());
+  request.set_path(kAwsGlacierVaultPathPrefix + vault_name + '/' +
+                   kAwsGlacierArchivesDirectory + '/' + archive_id);
+
+  SendRequest(
+      request, &empty_request_payload_, "",
+      strand_dispatcher_->CreateStrandCallback(
+          boost::bind(&GlacierConnection::HandleDeleteArchive, this,
+                      archive_deleted, callback)));
+
+  return true;
+}
+
 bool GlacierConnection::SendRequest(
-    const HttpRequest& request, const vector<byte>& payload,
+    const HttpRequest& request, const vector<byte>* payload,
     const string& payload_sha256_digest, Callback callback) {
   HttpRequest authorized_request(request);
   KeyValue* kv = authorized_request.add_request_headers();
@@ -257,7 +343,7 @@ bool GlacierConnection::SendRequest(
           aws_access_key_,
           aws_region_name_,
           kAwsGlacierServiceName,
-          (payload.empty() ?
+          (payload->empty() ?
            kSha256DigestOfEmptyString : payload_sha256_digest),
           &authorized_request)) {
     response_.reset(new HttpResponse);
@@ -375,6 +461,43 @@ void GlacierConnection::HandleDeleteVault(
   last_operation_succeeded_ = *vault_deleted;
   CleanUpRequestState();
   delete_vault_callback();
+}
+
+void GlacierConnection::HandleUploadArchive(
+    string* archive_id,
+    Callback upload_archive_callback) {
+  *CHECK_NOTNULL(archive_id) = "";
+
+  // Note that AWS returns "201 Created", NOT "200 OK" for success.
+  if (!http_connection_->last_request_succeeded() ||
+      response_->status_code() != 201) {
+    HandleOperationError(upload_archive_callback);
+    return;
+  }
+
+  for (const auto& kv : response_->response_headers()) {
+    if (kv.key() == kUploadArchiveArchiveIdHeaderKey) {
+      *archive_id = kv.value();
+      break;
+    }
+  }
+
+  last_operation_succeeded_ = !archive_id->empty();
+  CleanUpRequestState();
+  upload_archive_callback();
+}
+
+void GlacierConnection::HandleDeleteArchive(
+    bool* archive_deleted,
+    Callback delete_archive_callback) {
+  // Note that AWS returns "204 No Content", NOT "200 OK" for success.
+  *CHECK_NOTNULL(archive_deleted) =
+      http_connection_->last_request_succeeded() &&
+      response_->status_code() == 204;
+
+  last_operation_succeeded_ = *archive_deleted;
+  CleanUpRequestState();
+  delete_archive_callback();
 }
 
 void GlacierConnection::HandleOperationError(Callback callback) {

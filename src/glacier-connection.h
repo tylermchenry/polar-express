@@ -62,9 +62,29 @@ class GlacierConnection {
       const string& vault_name, bool* vault_deleted,
       Callback callback);
 
+  // Uploads an archive into the named vault. The named vault must already
+  // exist, and the caller must provide pre-computed SHA256 linear and tree
+  // digests for the payload. The description may be left black. If specified,
+  // it is restricted to at most 1024 characters of printable ASCII.
+  //
+  // When the upload completes successfully, the Amazon-assigned archive ID (not
+  // the same as the description) is filled in to archive_id. If there is an
+  // error, the archive ID will be set to the empty string.
+  virtual bool UploadArchive(
+      const string& vault_name,
+      const vector<byte>* payload,
+      const string& payload_sha256_linear_digest,
+      const string& payload_sha256_tree_digest,
+      const string& payload_description,
+      string* archive_id, Callback callback);
+
+  virtual bool DeleteArchive(
+      const string& vault_name, const string& archive_id,
+      bool* archive_deleted, Callback callback);
+
  private:
   bool SendRequest(
-      const HttpRequest& request, const vector<byte>& payload,
+      const HttpRequest& request, const vector<byte>* payload,
       const string& payload_sha256_digest, Callback callback);
 
   void HandleCreateVault(
@@ -83,6 +103,14 @@ class GlacierConnection {
       bool* vault_deleted,
       Callback delete_vault_callback);
 
+  void HandleUploadArchive(
+      string* archive_id,
+      Callback upload_archive_callback);
+
+  void HandleDeleteArchive(
+      bool* archive_deleted,
+      Callback delete_archive_callback);
+
   void HandleOperationError(Callback callback);
 
   void CleanUpRequestState();
@@ -92,6 +120,8 @@ class GlacierConnection {
   CryptoPP::SecByteBlock aws_secret_key_;
   bool operation_pending_;
   bool last_operation_succeeded_;
+
+  const vector<byte>empty_request_payload_;
 
   unique_ptr<HttpResponse> response_;
   unique_ptr<vector<byte> > response_payload_;

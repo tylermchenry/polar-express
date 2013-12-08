@@ -10,6 +10,7 @@
 #include "gtest/gtest.h"
 
 #include "asio-dispatcher.h"
+#include "bundle-hasher.h"
 #include "macros.h"
 #include "callback.h"
 #include "proto/glacier.pb.h"
@@ -26,6 +27,16 @@ const char kAwsRegionName[] = "";
 const char kAwsAccessKey[] = "";
 const byte kAwsSecretKey[] = "";
 const char kAwsGlacierVaultName[] = "";
+
+const char kTestArchiveDescription[] = "Lorem Ipsum";
+const byte kTestArchivePayloadData[] =
+    "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod "
+    "tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim "
+    "veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea "
+    "commodo consequat. Duis aute irure dolor in reprehenderit in voluptate "
+    "velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint "
+    "occaecat cupidatat non proident, sunt in culpa qui officia deserunt "
+    "mollit anim id est laborum.";
 
 // No friendly proto matcher in GoogleMock? Lame.
 MATCHER_P(EqualsProto, message, "") {
@@ -49,6 +60,10 @@ class GlacierConnectionTest : public testing::Test {
         expect_list_success_(false),
         delete_callback_invoked_(false),
         expect_delete_success_(false),
+        upload_archive_callback_invoked_(false),
+        expect_upload_archive_success_(false),
+        delete_archive_callback_invoked_(false),
+        expect_delete_archive_success_(false),
         // Be sure not to include the trailing NUL in the key block.
         aws_secret_key_(kAwsSecretKey,  sizeof(kAwsSecretKey) - 1),
         glacier_connection_(new GlacierConnection) {
@@ -124,6 +139,48 @@ class GlacierConnectionTest : public testing::Test {
     }
   }
 
+  void HashArchive(const vector<byte>* payload,
+                   string* payload_sha256_linear_digest,
+                   string* payload_sha256_tree_digest,
+                   Callback next_action) {
+    bundle_hasher_.ComputeHashes(payload, payload_sha256_linear_digest,
+                                 payload_sha256_tree_digest, next_action);
+  }
+
+  void UploadArchive(const string& vault_name, const vector<byte>* payload,
+                     const string* payload_sha256_linear_digest,
+                     const string* payload_sha256_tree_digest,
+                     const string& payload_description, string* archive_id,
+                     bool expect_success, Callback next_action) {
+    ASSERT_TRUE(glacier_connection_.get() != nullptr);
+
+    bool success = glacier_connection_->UploadArchive(
+        vault_name, payload,
+        *CHECK_NOTNULL(payload_sha256_linear_digest),
+        *CHECK_NOTNULL(payload_sha256_tree_digest),
+        payload_description, archive_id,
+        next_action);
+    EXPECT_EQ(expect_success, success);
+
+    if (!success) {
+      next_action();
+    }
+  }
+
+  void DeleteArchive(
+      const string& vault_name, const string* archive_id, bool* archive_deleted,
+      bool expect_success, Callback next_action) {
+    ASSERT_TRUE(glacier_connection_.get() != nullptr);
+
+    bool success = glacier_connection_->DeleteArchive(
+        vault_name, *CHECK_NOTNULL(archive_id), archive_deleted, next_action);
+    EXPECT_EQ(expect_success, success);
+
+    if (!success) {
+      next_action();
+    }
+  }
+
   Callback GetOpenCallback(Callback next_action) {
     return boost::bind(
         &GlacierConnectionTest::open_callback_function, this, next_action);
@@ -147,6 +204,22 @@ class GlacierConnectionTest : public testing::Test {
   Callback GetDeleteCallback(Callback next_action) {
     return boost::bind(
         &GlacierConnectionTest::delete_callback_function, this, next_action);
+  }
+
+  Callback GetHashArchiveCallback(Callback next_action) {
+    return next_action;  // No special post-processing for this.
+  }
+
+  Callback GetUploadArchiveCallback(Callback next_action) {
+    return boost::bind(
+        &GlacierConnectionTest::upload_archive_callback_function,
+        this, next_action);
+  }
+
+  Callback GetDeleteArchiveCallback(Callback next_action) {
+    return boost::bind(
+        &GlacierConnectionTest::delete_archive_callback_function,
+        this, next_action);
   }
 
   Callback GetCreateVaultAction(const string& vault_name, bool* vault_created,
@@ -180,6 +253,41 @@ class GlacierConnectionTest : public testing::Test {
         this, vault_name, vault_deleted, expect_success, next_action);
   }
 
+  Callback GetHashArchiveAction(const vector<byte>* payload,
+                                string* payload_sha256_linear_digest,
+                                string* payload_sha256_tree_digest,
+                                Callback next_action) {
+    return boost::bind(
+        &GlacierConnectionTest::HashArchive,
+        this, payload, payload_sha256_linear_digest,
+        payload_sha256_tree_digest, next_action);
+  }
+
+  Callback GetUploadArchiveAction(const string& vault_name,
+                                  const vector<byte>* payload,
+                                  const string* payload_sha256_linear_digest,
+                                  const string* payload_sha256_tree_digest,
+                                  const string& payload_description,
+                                  string* archive_id, bool expect_success,
+                                  Callback next_action) {
+    return boost::bind(
+        &GlacierConnectionTest::UploadArchive,
+        this, vault_name, payload, payload_sha256_linear_digest,
+        payload_sha256_tree_digest, payload_description, archive_id,
+        expect_success, next_action);
+  }
+
+  Callback GetDeleteArchiveAction(const string& vault_name,
+                                  const string* archive_id,
+                                  bool* archive_deleted, bool expect_success,
+                                  Callback next_action) {
+    return boost::bind(
+        &GlacierConnectionTest::DeleteArchive,
+        this, vault_name, archive_id, archive_deleted, expect_success,
+        next_action);
+  }
+
+
   Callback GetDestroyConnectionAction() {
     return boost::bind(&GlacierConnectionTest::DestroyConnection, this);
   }
@@ -198,6 +306,12 @@ class GlacierConnectionTest : public testing::Test {
 
   bool delete_callback_invoked_;
   bool expect_delete_success_;
+
+  bool upload_archive_callback_invoked_;
+  bool expect_upload_archive_success_;
+
+  bool delete_archive_callback_invoked_;
+  bool expect_delete_archive_success_;
 
   const CryptoPP::SecByteBlock aws_secret_key_;
   unique_ptr<GlacierConnection> glacier_connection_;
@@ -261,6 +375,32 @@ class GlacierConnectionTest : public testing::Test {
 
     next_action();
   }
+
+  void upload_archive_callback_function(Callback next_action) {
+    EXPECT_FALSE(upload_archive_callback_invoked_);
+    upload_archive_callback_invoked_ = true;
+
+    ASSERT_TRUE(glacier_connection_.get() != nullptr);
+    EXPECT_EQ(expect_upload_archive_success_,
+              glacier_connection_->last_operation_succeeded());
+    EXPECT_EQ(expect_upload_archive_success_, glacier_connection_->is_open());
+
+    next_action();
+  }
+
+  void delete_archive_callback_function(Callback next_action) {
+    EXPECT_FALSE(delete_archive_callback_invoked_);
+    delete_archive_callback_invoked_ = true;
+
+    ASSERT_TRUE(glacier_connection_.get() != nullptr);
+    EXPECT_EQ(expect_delete_archive_success_,
+              glacier_connection_->last_operation_succeeded());
+    EXPECT_EQ(expect_delete_archive_success_, glacier_connection_->is_open());
+
+    next_action();
+  }
+
+  BundleHasher bundle_hasher_;
 };
 
 TEST_F(GlacierConnectionTest, Open) {
@@ -344,15 +484,14 @@ TEST_F(GlacierConnectionTest, CreateAndDeleteVault) {
 
   EXPECT_TRUE(glacier_connection_->Open(
       AsioDispatcher::NetworkUsageType::kDownlinkBound, kAwsRegionName,
-      kAwsAccessKey, aws_secret_key_, GetOpenCallback(
-          GetCreateVaultAction(
-              kTestVaultName, &vault_created, true, GetCreateCallback(
-              GetDescribeVaultAction(
-                  kTestVaultName, &vault_description, true, GetDescribeCallback(
-                      GetDeleteVaultAction(
-                          kTestVaultName, &vault_deleted, true,
-                          GetDeleteCallback(
-                              GetDestroyConnectionAction())))))))));
+      kAwsAccessKey, aws_secret_key_,
+      GetOpenCallback(GetCreateVaultAction(
+          kTestVaultName, &vault_created, true,
+          GetCreateCallback(GetDescribeVaultAction(
+              kTestVaultName, &vault_description, true,
+              GetDescribeCallback(GetDeleteVaultAction(
+                  kTestVaultName, &vault_deleted, true,
+                  GetDeleteCallback(GetDestroyConnectionAction())))))))));
 
   WaitForFinish();
   EXPECT_TRUE(open_callback_invoked_);
@@ -376,6 +515,68 @@ TEST_F(GlacierConnectionTest, CreateAndDeleteVault) {
 
   // TODO: Now try to describe the deleted vault, which should fail.
 }
+
+// Change 0 to 1 to run this test. This test will leave an empty test vault on
+// your test glacier account that you will have to remove manually. Glacier does
+// not allow you to delete vaults immediately after writing to them, even if you
+// have already deleted the archive that you wrote.
+#if 0
+
+TEST_F(GlacierConnectionTest, UploadAndDeleteArchive) {
+  ostringstream test_vault_name;
+  test_vault_name << "glacier_connection_test_vault_" << time(nullptr);
+
+  const string& kTestVaultName = test_vault_name.str();
+
+  vector<byte> kTestArchivePayload;
+
+  for (int i = 0; i < 15000; ++i) {
+    kTestArchivePayload.insert(
+        kTestArchivePayload.end(), kTestArchivePayloadData,
+        kTestArchivePayloadData + sizeof(kTestArchivePayloadData));
+  }
+
+  string payload_sha256_linear_digest;
+  string payload_sha256_tree_digest;
+
+  expect_open_ = true;
+  expect_create_success_ = true;
+  expect_upload_archive_success_ = true;
+  expect_delete_archive_success_ = true;
+
+  bool vault_created = false;
+  string archive_id;
+  bool archive_deleted = false;
+
+  EXPECT_TRUE(glacier_connection_->Open(
+      AsioDispatcher::NetworkUsageType::kUplinkBound, kAwsRegionName,
+      kAwsAccessKey, aws_secret_key_,
+      GetOpenCallback(GetCreateVaultAction(
+          kTestVaultName, &vault_created, true,
+          GetCreateCallback(GetHashArchiveAction(
+              &kTestArchivePayload, &payload_sha256_linear_digest,
+              &payload_sha256_tree_digest,
+              GetHashArchiveCallback(GetUploadArchiveAction(
+                  kTestVaultName, &kTestArchivePayload,
+                  &payload_sha256_linear_digest, &payload_sha256_tree_digest,
+                  kTestArchiveDescription, &archive_id, true,
+                  GetUploadArchiveCallback(GetDeleteArchiveAction(
+                      kTestVaultName, &archive_id, &archive_deleted, true,
+                      GetDeleteArchiveCallback(
+                          GetDestroyConnectionAction())))))))))));
+
+  WaitForFinish();
+  EXPECT_TRUE(open_callback_invoked_);
+  EXPECT_TRUE(create_callback_invoked_);
+  EXPECT_TRUE(upload_archive_callback_invoked_);
+  EXPECT_TRUE(delete_archive_callback_invoked_);
+
+  EXPECT_TRUE(vault_created);
+  EXPECT_FALSE(archive_id.empty());
+  EXPECT_TRUE(archive_deleted);
+}
+
+#endif
 
 }  // namespace
 }  // namespace polar_express
