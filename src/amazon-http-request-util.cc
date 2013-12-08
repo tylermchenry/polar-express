@@ -26,6 +26,7 @@ const char kAuthorizationHeaderCredentialKey[] = "Credential";
 const char kAuthorizationHeaderSignedHeadersKey[] = "SignedHeaders";
 const char kAuthorizationHeaderSignatureKey[] = "Signature";
 const char kAmazonCanonicalTimestampHeader[] = "x-amz-date";
+const char kAmazonPayloadSha256LinearDigestHeader[] = "x-amz-content-sha256";
 const char kAmazonSha256AlgorithmId[] = "AWS4-HMAC-SHA256";
 const char kAmazonTerminationString[] = "aws4_request";
 
@@ -117,11 +118,21 @@ bool AmazonHttpRequestUtil::MakeCanonicalRequest(
   // Same ASCII-ordering requirements on request headers as on query
   // parameters.
   map<string, string> canonical_request_headers;
+  string header_payload_sha256_digest;
   for (const auto& kv : http_request.request_headers()) {
     if (!canonical_request_headers.insert(
             make_pair(boost::algorithm::to_lower_copy(kv.key()),
                       TrimWhitespace(kv.value()))).second) {
       return false;
+    }
+    if (kv.key() == kAmazonPayloadSha256LinearDigestHeader) {
+      header_payload_sha256_digest = kv.value();
+      // Not all messages will have a payload digest header, but if they have
+      // one it must match the argument, except for case.
+      if (!boost::iequals(payload_sha256_digest,
+                          header_payload_sha256_digest)) {
+        return false;
+      }
     }
   }
   if (!canonical_request_headers.insert(
@@ -135,8 +146,14 @@ bool AmazonHttpRequestUtil::MakeCanonicalRequest(
     signed_headers.push_back(kv.first);
   }
 
+  // If there was a payload digest header, re-use that value here exactly. (It
+  // was checked above that it matches payload_sha256_digest except for case).
+  // This canonical digest must match the header exactly (including case) if
+  // such a header is present, but otherwise must be lowercase.
   string canonical_payload_sha256_digest =
-      boost::algorithm::to_lower_copy(payload_sha256_digest);
+      header_payload_sha256_digest.empty()
+          ? boost::algorithm::to_lower_copy(payload_sha256_digest)
+          : header_payload_sha256_digest;
 
   // Note the extra linebreak after the request headers. Technically
   // the "canonical request headers" portion of the canonical request
