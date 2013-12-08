@@ -17,9 +17,9 @@ BundleHasher::~BundleHasher() {
 }
 
 void BundleHasher::ComputeHashes(
-    const vector<byte>& data, string* sha256_linear_digest,
+    const vector<byte>* data, string* sha256_linear_digest,
     string* sha256_tree_digest, Callback callback) {
-  ComputeSequentialHashes({ &data }, sha256_linear_digest,
+  ComputeSequentialHashes({ data }, sha256_linear_digest,
                           sha256_tree_digest, callback);
 }
 
@@ -34,7 +34,7 @@ void BundleHasher::ComputeSequentialHashes(
 }
 
 void BundleHasher::ValidateHashes(
-    const vector<byte>& data, const string& sha256_linear_digest,
+    const vector<byte>* data, const string& sha256_linear_digest,
     const string& sha256_tree_digest, bool* is_valid, Callback callback) {
   AsioDispatcher::GetInstance()->PostCpuBound(
       bind(&BundleHasher::ValidateHashes,

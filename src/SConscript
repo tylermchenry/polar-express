@@ -71,6 +71,7 @@ http_connection_deplibs = [
     tcp_connection_deplibs,
     asio_dispatcher_deplibs,
     'curl',
+    'boost_date_time',
     'boost_regex',
     'http_proto',
     ];
@@ -167,6 +168,7 @@ chunk_reader = env.Library(
 bundle_hasher_deplibs = [
     asio_dispatcher,
     asio_dispatcher_deplibs,
+    'boost_system',
     'crypto++',
     ];
 bundle_hasher = env.Library(
@@ -431,6 +433,23 @@ run_amazon_http_request_util_test = Alias(
     amazon_http_request_util_test[0].path)
 AlwaysBuild(run_amazon_http_request_util_test)
 
+bundle_hasher_impl_test = env.Program(
+    target='bundle-hasher-impl_test',
+    source=[
+        'bundle-hasher-impl_test.cc',
+        ],
+    LIBS=[
+        bundle_hasher,
+        bundle_hasher_deplibs,
+        testlibs,
+        ],
+    )
+run_bundle_hasher_impl_test = Alias(
+    'run_bundle_hasher_impl_test',
+    [bundle_hasher_impl_test],
+    bundle_hasher_impl_test[0].path)
+AlwaysBuild(run_bundle_hasher_impl_test)
+
 tcp_connection_test = env.Program(
     target='tcp-connection_test',
     source=[
@@ -478,8 +497,10 @@ glacier_connection_test = env.Program(
         ],
     LIBS=[
         asio_dispatcher,
+        bundle_hasher,
         glacier_connection,
         glacier_connection_deplibs,
+        bundle_hasher_deplibs,
         asio_dispatcher_deplibs,
         testlibs,
         'glacier_proto',

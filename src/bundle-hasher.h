@@ -21,7 +21,7 @@ class BundleHasher {
   virtual ~BundleHasher();
 
   void ComputeHashes(
-      const vector<byte>& data, string* sha256_linear_digest,
+      const vector<byte>* data, string* sha256_linear_digest,
       string* sha256_tree_digest, Callback callback);
 
   // Version of ComputeHash with multiple data inputs, which are fed
@@ -32,7 +32,7 @@ class BundleHasher {
       Callback callback);
 
   virtual void ValidateHashes(
-      const vector<byte>& data, const string& sha256_linear_digest,
+      const vector<byte>* data, const string& sha256_linear_digest,
       const string& sha256_tree_digest, bool* is_valid, Callback callback);
 
   // TODO(tylermchenry): Is a sequential version of validate needed?

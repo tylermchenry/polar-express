@@ -40,11 +40,11 @@ void BundleHasherImpl::ComputeSequentialHashes(
 }
 
 void BundleHasherImpl::ValidateHashes(
-    const vector<byte>& data, const string& sha256_linear_digest,
+    const vector<byte>* data, const string& sha256_linear_digest,
     const string& sha256_tree_digest, bool* is_valid, Callback callback) {
   string tmp_sha256_linear_digest;
   string tmp_sha256_tree_digest;
-  HashData({ &data }, &tmp_sha256_linear_digest, &tmp_sha256_tree_digest);
+  HashData({ data }, &tmp_sha256_linear_digest, &tmp_sha256_tree_digest);
   *CHECK_NOTNULL(is_valid) =
       (sha256_linear_digest == tmp_sha256_linear_digest) &&
       (sha256_tree_digest == tmp_sha256_tree_digest);
@@ -153,38 +153,43 @@ void BundleHasherImpl::ComputeFinalTreeHash(
   const size_t num_intermediate_digests = std::distance(
       sha256_intermediate_digests_begin, sha256_intermediate_digests_end);
 
-  vector<byte> sha256_left_intermediate_digest;
-  vector<byte> sha256_right_intermediate_digest;
-  if (num_intermediate_digests == 2) {
-    sha256_left_intermediate_digest = *sha256_intermediate_digests_begin;
-    sha256_right_intermediate_digest = *(sha256_intermediate_digests_end - 1);
-  } else if (num_intermediate_digests % 2 != 0) {
-    ComputeFinalTreeHash(
-        sha256_intermediate_digests_begin,
-        sha256_intermediate_digests_end - 1,
-        &sha256_left_intermediate_digest);
-    sha256_right_intermediate_digest = *(sha256_intermediate_digests_end - 1);
-  } else {
-    ComputeFinalTreeHash(
-        sha256_intermediate_digests_begin,
-        sha256_intermediate_digests_begin + (num_intermediate_digests / 2),
-        &sha256_left_intermediate_digest);
-    ComputeFinalTreeHash(
-        sha256_intermediate_digests_begin + (num_intermediate_digests / 2),
-        sha256_intermediate_digests_end,
-        &sha256_right_intermediate_digest);
+  if (num_intermediate_digests == 0) {
+    // Should never happen.
+    return;
+  } else if (num_intermediate_digests == 1) {
+    // Base case of only one intermediate digest left.
+    *sha256_tree_digest = *sha256_intermediate_digests_begin;
+    return;
   }
 
-  CryptoPP::SHA256 sha256_engine;
-  sha256_engine.Update(
-      sha256_left_intermediate_digest.data(),
-      sha256_left_intermediate_digest.size());
-  sha256_engine.Update(
-      sha256_right_intermediate_digest.data(),
-      sha256_right_intermediate_digest.size());
+  vector<vector<byte> > next_level_sha256_intermediate_digests;
+  for (auto left_digest_itr = sha256_intermediate_digests_begin;
+       left_digest_itr < sha256_intermediate_digests_end - 1;
+       std::advance(left_digest_itr, 2)) {
+    auto right_digest_itr = left_digest_itr;
+    std::advance(right_digest_itr, 1);
 
-  CHECK_NOTNULL(sha256_tree_digest)->resize(CryptoPP::SHA256::DIGESTSIZE);
-  sha256_engine.Final(sha256_tree_digest->data());
+    CryptoPP::SHA256 sha256_engine;
+    sha256_engine.Update(left_digest_itr->data(), left_digest_itr->size());
+    sha256_engine.Update(right_digest_itr->data(), right_digest_itr->size());
+
+    vector<byte> next_level_sha256_intermediate_digest(
+        CryptoPP::SHA256::DIGESTSIZE);
+    sha256_engine.Final(next_level_sha256_intermediate_digest.data());
+
+    next_level_sha256_intermediate_digests.push_back(
+        next_level_sha256_intermediate_digest);
+  }
+
+  if (num_intermediate_digests % 2 != 0) {
+    auto last_digest_itr = sha256_intermediate_digests_end - 1;
+    next_level_sha256_intermediate_digests.push_back(*last_digest_itr);
+  }
+
+  ComputeFinalTreeHash(
+      next_level_sha256_intermediate_digests.begin(),
+      next_level_sha256_intermediate_digests.end(),
+      sha256_tree_digest);
 }
 
 }  // namespace polar_express

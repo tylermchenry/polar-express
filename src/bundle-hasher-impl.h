@@ -22,7 +22,7 @@ class BundleHasherImpl : public BundleHasher {
       Callback callback);
 
   virtual void ValidateHashes(
-      const vector<byte>& data, const string& sha256_linear_digest,
+      const vector<byte>* data, const string& sha256_linear_digest,
       const string& sha256_tree_digest, bool* is_valid, Callback callback);
 
  private:
@@ -36,6 +36,7 @@ class BundleHasherImpl : public BundleHasher {
         sha256_intermediate_digests_end,
       vector<byte>* sha256_tree_digest) const;
 
+  friend class BundleHasherImplTest;
   DISALLOW_COPY_AND_ASSIGN(BundleHasherImpl);
 };
 
