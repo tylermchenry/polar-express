@@ -48,7 +48,7 @@ class HttpConnection {
   // If any part of the request fails, the connection will be closed,
   // so as not to leave stray data behind in the TCP stream.
   virtual bool SendRequest(
-      const HttpRequest& request, const vector<byte>& request_payload,
+      const HttpRequest& request, const vector<byte>* request_payload,
       HttpResponse* response, vector<byte>* response_payload,
       Callback callback);
 

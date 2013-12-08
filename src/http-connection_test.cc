@@ -52,7 +52,7 @@ class HttpConnectionTest : public testing::Test {
     ASSERT_TRUE(http_connection_.get() != nullptr);
 
     bool success = http_connection_->SendRequest(
-        request_, request_payload_, &response_, &response_payload_,
+        request_, &request_payload_, &response_, &response_payload_,
         next_action);
     EXPECT_EQ(expect_success, success);
 

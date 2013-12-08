@@ -47,7 +47,7 @@ class TcpConnection {
   // Write methods immediately return false if the connection is not
   // open or if another write is still in progress.
 
-  virtual bool Write(const vector<byte>& data, Callback callback);
+  virtual bool Write(const vector<byte>* data, Callback callback);
 
   virtual bool WriteAll(
       const vector<const vector<byte>*>& sequential_data,

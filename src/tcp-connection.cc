@@ -164,8 +164,8 @@ bool TcpConnection::Close() {
 }
 
 bool TcpConnection::Write(
-    const vector<byte>& data, Callback callback) {
-  return WriteAll({ &data }, callback);
+    const vector<byte>* data, Callback callback) {
+  return WriteAll({ data }, callback);
 }
 
 bool TcpConnection::WriteAll(

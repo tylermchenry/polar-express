@@ -100,15 +100,15 @@ bool HttpConnection::Close() {
 }
 
 bool HttpConnection::SendRequest(
-    const HttpRequest& request, const vector<byte>& request_payload,
+    const HttpRequest& request, const vector<byte>* request_payload,
     HttpResponse* response, vector<byte>* response_payload,
     Callback callback) {
-  if (!is_open() || request_pending_) {
+  if (!is_open() || request_pending_ || request_payload == nullptr) {
     return false;
   }
 
   request_pending_ = true;
-  SerializeRequest(request, request_payload.size());
+  SerializeRequest(request, request_payload->size());
 
   CHECK_NOTNULL(response)->Clear();
   if (response_payload == nullptr) {
@@ -121,7 +121,7 @@ bool HttpConnection::SendRequest(
           boost::bind(&HttpConnection::RequestSent, this,
                       response, response_payload, callback));
   if (tcp_connection_->WriteAll(
-          { serialized_request_.get(), &request_payload },
+          { serialized_request_.get(), request_payload },
           request_sent_callback)) {
     return true;
   }
