@@ -17,9 +17,9 @@ FileWriter::~FileWriter() {
 }
 
 void FileWriter::WriteDataToPath(
-    const vector<byte>& data, const boost::filesystem::path& path,
+    const vector<byte>* data, const boost::filesystem::path& path,
     Callback callback) {
-  WriteSequentialDataToPath({ &data }, path, callback);
+  WriteSequentialDataToPath({ data }, path, callback);
 }
 
 void FileWriter::WriteSequentialDataToPath(
@@ -32,10 +32,10 @@ void FileWriter::WriteSequentialDataToPath(
 }
 
 void FileWriter::WriteDataToTemporaryFile(
-    const vector<byte>& data, const string& filename_prefix,
+    const vector<byte>* data, const string& filename_prefix,
     string* path_str, Callback callback) {
   WriteSequentialDataToTemporaryFile(
-      { &data }, filename_prefix, path_str, callback);
+      { data }, filename_prefix, path_str, callback);
 }
 
 void FileWriter::WriteSequentialDataToTemporaryFile(
