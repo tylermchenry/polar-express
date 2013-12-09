@@ -230,6 +230,16 @@ filesystem_scanner = env.Library(
     LIBS=filesystem_scanner_deplibs,
     )
 
+encrypted_file_headers_deplibs = [
+    ];
+encrypted_file_headers = env.Library(
+    target='encrypted-file-headers',
+    source=[
+        'encrypted-file-headers.cc',
+    ],
+    libs=encrypted_file_headers_deplibs,
+)
+
 compressors_deplibs = [
     asio_dispatcher,
     asio_dispatcher_deplibs,
@@ -249,6 +259,8 @@ compressors = env.Library(
 
 cryptors_deplibs = [
     asio_dispatcher,
+    encrypted_file_headers,
+    encrypted_file_headers_deplibs,
     asio_dispatcher_deplibs,
     'bundle_manifest_proto',
     'crypto++',
