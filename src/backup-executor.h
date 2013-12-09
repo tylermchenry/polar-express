@@ -46,7 +46,7 @@ class BackupExecutor {
   virtual void Start(
       const string& root,
       Cryptor::EncryptionType encryption_type,
-      boost::shared_ptr<const CryptoPP::SecByteBlock> encryption_key);
+      boost::shared_ptr<const Cryptor::KeyingData> encryption_keying_data);
 
   // Returns the number of files processed during the backup. Should be called
   // only after the backup has completed.
@@ -105,7 +105,7 @@ class BackupExecutor {
 
   string root_;
   Cryptor::EncryptionType encryption_type_;
-  boost::shared_ptr<const CryptoPP::SecByteBlock> encryption_key_;
+  boost::shared_ptr<const Cryptor::KeyingData> encryption_keying_data_;
 
   queue<boost::filesystem::path> pending_snapshot_paths_;
   unique_ptr<boost::object_pool<SnapshotStateMachine> >

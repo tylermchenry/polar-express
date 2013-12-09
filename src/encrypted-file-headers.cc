@@ -12,12 +12,6 @@ namespace {
 // Express encrypted bundle.
 const byte kMagic[4] = {'P', 'E', 'X', '\0'};
 
-const char kKeyDerivationTypeIdPbkdf2[] = "pbkdf2";
-const char kKeyDerivationTypeIdPexSha256Hkdf[] = "pex-sha256-hkdf";
-const char kEncryptionTypeIdAes256Cbf[] = "aes-256-cbf";
-const char kMacTypeIdSha256[] = "sha256";
-const char kMacTypeIdNone[] = "";
-
 template <int N>
 void SetTypeId(char (&type_id_field)[N], const char* type_id) {
   assert(type_id != nullptr);
@@ -58,6 +52,7 @@ struct EncryptedFileHeaders::GenericHeaderFields {
 } __attribute__((packed));
 
 // Parameters for PBKDF2 key derivation ("pbkdf2"). This struct is version 0.
+const char* const EncryptedFileHeaders::kKeyDerivationTypeIdPbkdf2 = "pbkdf2";
 struct EncryptedFileHeaders::KeyDerivationParametersPbkdf2 {
   uint32_t iteration_count;
   byte encryption_key_salt[32];
@@ -69,17 +64,23 @@ struct EncryptedFileHeaders::KeyDerivationParametersPbkdf2 {
 // algorithm implemented inside Polar Express (on top of Crypto++ SHA256 HMAC)
 // since as of this writing Crypto++ does not have a native HKDF API. This
 // struct is version 0.
+const char* const EncryptedFileHeaders::kKeyDerivationTypeIdPexSha256Hkdf =
+    "pex-sha256-hkdf";
 struct EncryptedFileHeaders::KeyDerivationParametersPexSha256Hkdf {
   byte encryption_key_salt[32];
   byte mac_key_salt[32];
 } __attribute__((packed));
 
 // Parameters used for the AES 256 CBF-mode cipher. This struct is version 0.
+const char* const EncryptedFileHeaders::kEncryptionTypeIdAes256Cbf =
+    "aes-256-cbf";
 struct EncryptedFileHeaders::EncryptionParametersAes256Cbf {
   byte initialization_vector[16];
 } __attribute__((packed));
 
 // There are no parameters for the null or SHA256 MAC types
+const char* const EncryptedFileHeaders::kMacTypeIdSha256 = "sha256";
+const char* const EncryptedFileHeaders::kMacTypeIdNone = "";
 
 EncryptedFileHeaders::EncryptedFileHeaders()
     : generic_header_fields_(new GenericHeaderFields({})),

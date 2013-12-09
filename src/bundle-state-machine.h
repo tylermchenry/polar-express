@@ -280,7 +280,7 @@ class BundleStateMachineImpl
   void InternalStart(
       const string& root,
       Cryptor::EncryptionType encryption_type,
-      boost::shared_ptr<const CryptoPP::SecByteBlock> encryption_key);
+      boost::shared_ptr<const Cryptor::KeyingData> encryption_keying_data);
 
  private:
   void PushPendingChunksForSnapshot(boost::shared_ptr<Snapshot> snapshot);
@@ -302,7 +302,7 @@ class BundleStateMachineImpl
   void NextChunk();
 
   string root_;
-  boost::shared_ptr<const CryptoPP::SecByteBlock> encryption_key_;
+  boost::shared_ptr<const Cryptor::KeyingData> encryption_keying_data_;
   Callback snapshot_done_callback_;
   Callback bundle_ready_callback_;
   bool exit_requested_;
@@ -340,14 +340,14 @@ class BundleStateMachine : public BundleStateMachineImpl::BackEnd {
   virtual void Start(
       const string& root,
       Cryptor::EncryptionType encryption_type,
-      boost::shared_ptr<const CryptoPP::SecByteBlock> encryption_key);
+      boost::shared_ptr<const Cryptor::KeyingData> encryption_keying_data);
 
  protected:
   virtual BundleStateMachineImpl::BackEnd* GetBackEnd();
 
  private:
   Cryptor::EncryptionType encryption_type_;
-  boost::shared_ptr<const CryptoPP::SecByteBlock> encryption_key_;
+  boost::shared_ptr<const Cryptor::KeyingData> encryption_keying_data_;
 
   DISALLOW_COPY_AND_ASSIGN(BundleStateMachine);
 };

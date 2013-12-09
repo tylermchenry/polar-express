@@ -48,6 +48,12 @@ class EncryptedFileHeaders {
 
   void GetHeaderBlock(vector<byte>* header_block) const;
 
+  static const char* const kKeyDerivationTypeIdPbkdf2;
+  static const char* const kKeyDerivationTypeIdPexSha256Hkdf;
+  static const char* const kEncryptionTypeIdAes256Cbf;
+  static const char* const kMacTypeIdSha256;
+  static const char* const kMacTypeIdNone;
+
  private:
   struct GenericHeaderFields;
   struct KeyDerivationParametersPbkdf2;

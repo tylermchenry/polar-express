@@ -25,8 +25,8 @@ const size_t kMaxCompressionBufferSize = 2 * (1 << 20);  // 2 MiB
 void BundleStateMachine::Start(
     const string& root,
     Cryptor::EncryptionType encryption_type,
-    boost::shared_ptr<const CryptoPP::SecByteBlock> encryption_key) {
-  InternalStart(root, encryption_type, encryption_key);
+    boost::shared_ptr<const Cryptor::KeyingData> encryption_keying_data) {
+  InternalStart(root, encryption_type, encryption_keying_data);
 }
 
 BundleStateMachineImpl::BackEnd* BundleStateMachine::GetBackEnd() {
@@ -195,9 +195,7 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, EncryptBundle) {
   assert(generated_bundle_ != nullptr);
   assert(cryptor_ != nullptr);
 
-  cryptor_->InitializeEncryption(
-      *CHECK_NOTNULL(encryption_key_),
-      generated_bundle_->mutable_encryption_iv());
+  cryptor_->InitializeEncryption(*CHECK_NOTNULL(encryption_keying_data_));
   cryptor_->EncryptData(
       generated_bundle_->mutable_data(),
       CreateExternalEventCallback<EncryptionDone>());
@@ -206,6 +204,8 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, EncryptBundle) {
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, HashBundle) {
   assert(generated_bundle_ != nullptr);
   assert(cryptor_ != nullptr);
+
+  // TODO: Finalize encryption and append appropriate data.
 
   bundle_hasher_->ComputeSequentialHashes(
       generated_bundle_->file_contents(),
@@ -260,9 +260,9 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, CleanUp) {
 void BundleStateMachineImpl::InternalStart(
     const string& root,
     Cryptor::EncryptionType encryption_type,
-    boost::shared_ptr<const CryptoPP::SecByteBlock> encryption_key) {
+    boost::shared_ptr<const Cryptor::KeyingData> encryption_keying_data) {
   root_ = root;
-  encryption_key_ = CHECK_NOTNULL(encryption_key);
+  encryption_keying_data_ = CHECK_NOTNULL(encryption_keying_data);
   cryptor_ = Cryptor::CreateCryptor(encryption_type);
 }
 

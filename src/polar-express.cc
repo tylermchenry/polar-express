@@ -2,7 +2,6 @@
 #include <string>
 
 #include "boost/shared_ptr.hpp"
-#include "crypto++/secblock.h"
 
 #include "asio-dispatcher.h"
 #include "backup-executor.h"
@@ -19,18 +18,17 @@ int main(int argc, char** argv) {
     AsioDispatcher::GetInstance()->Start();
 
     Cryptor::EncryptionType encryption_type = Cryptor::EncryptionType::kAES;
-    boost::shared_ptr<const CryptoPP::SecByteBlock> encryption_key;
+    boost::shared_ptr<const Cryptor::KeyingData> encryption_keying_data;
 
     {
-      CryptoPP::SecByteBlock passphrase(
+      Cryptor::KeyingData tmp_keying_data;
+      tmp_keying_data.passphrase.Assign(
           reinterpret_cast<const byte*>(kPassphrase), sizeof(kPassphrase));
-      encryption_key =
-          Cryptor::CreateCryptor(encryption_type)->DeriveKeyFromPassword(
-              passphrase, {});
+      encryption_keying_data.reset(new Cryptor::KeyingData(tmp_keying_data));
     }
 
     BackupExecutor backup_executor;
-    backup_executor.Start(root, encryption_type, encryption_key);
+    backup_executor.Start(root, encryption_type, encryption_keying_data);
 
     AsioDispatcher::GetInstance()->WaitForFinish();
     std::cout << "Processed " << backup_executor.GetNumFilesProcessed()

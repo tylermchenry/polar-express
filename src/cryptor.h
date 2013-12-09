@@ -2,7 +2,6 @@
 #define CRYPTOR_H
 
 #include <memory>
-#include <string>
 #include <vector>
 
 #include "boost/shared_ptr.hpp"
@@ -22,6 +21,14 @@ class Cryptor {
     kAES,
   };
 
+  // The keying data provided by the user. Generally only one of these should be
+  // non-empty, but the secret key will be preferred to the password if both are
+  // available.
+  struct KeyingData {
+    CryptoPP::SecByteBlock secret_key;
+    CryptoPP::SecByteBlock passphrase;
+  };
+
   static unique_ptr<Cryptor> CreateCryptor(EncryptionType encryption_type);
 
   virtual ~Cryptor();
@@ -30,37 +37,25 @@ class Cryptor {
 
   virtual size_t key_length() const;
 
-  virtual size_t iv_length() const;
-
-  // Uses password-based key derivation to derive a key of the
-  // appropriate length for the cryptor.
+  // This method must be called once before the first call to EncryptData and
+  // again after FinalizeEncryption before EncryptData may be called again.
+  // Calling InitializeEncryption discards any buffered encrypted data that has
+  // not yet been finalized.
   //
-  // If salt is shorter than the key length, it is hashed to
-  // expand. If the salt is longer than the key length, it is
-  // truncated. THIS MAY REDUCE SECURITY. For maximum security,
-  // provide a randomly-generated salt equal to the key length.
-  //
-  // This call is NOT lightweight but IS synchronous. It should not be
-  // called frequently.
-  boost::shared_ptr<const CryptoPP::SecByteBlock> DeriveKeyFromPassword(
-      const CryptoPP::SecByteBlock& password, const vector<byte>& salt) const;
-
-  // This must be called once before the first call to EncryptData
-  // and again after FinalizeEncryption before EncryptData may be
-  // called again. Calling InitializeEncryption discards any
-  // buffered encrypted data that has not yet been finalized.
-  //
-  // If the encryption mechanism requires an initialization vecotr, it
-  // is returned in the iv parameter. The iv parameter pay be null if
-  // the caller is not interested in the initialization vector.
-  //
-  // This call is lightweight and synchronous.
-  virtual void InitializeEncryption(
-      const CryptoPP::SecByteBlock& key, boost::shared_ptr<vector<byte> > iv);
+  // This call is lightweight and synchronous (faster if secret key is
+  // populated).
+  virtual void InitializeEncryption(const KeyingData& keying_data);
 
   // Encrypts data in place.
   virtual void EncryptData(
       boost::shared_ptr<vector<byte> > data, Callback callback);
+
+  // Returns a header block containing vital information about the encryption
+  // process that should be prepended to the file and a MAC code that
+  // authenticates the contents of the file, which should be appended to the
+  // file. Either or both of these may be empty.
+  virtual void FinalizeEncryption(vector<byte>* encrypted_file_header_block,
+                                  vector<byte>* message_authentication_code);
 
   // TODO(tylermchenry): Add decryption.
 
@@ -72,9 +67,7 @@ class Cryptor {
   template<typename CryptorImplT>
   static unique_ptr<Cryptor> CreateCryptorWithImpl();
 
-  vector<byte> GenerateRealSalt(const vector<byte>& salt) const;
-
-  unique_ptr<Cryptor> impl_;
+  std::unique_ptr<Cryptor> impl_;
 
   DISALLOW_COPY_AND_ASSIGN(Cryptor);
 };

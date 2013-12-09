@@ -24,13 +24,13 @@ class NullCryptorImpl : public Cryptor {
 
   virtual size_t key_length() const;
 
-  virtual size_t iv_length() const;
-
-  virtual void InitializeEncryption(
-      const CryptoPP::SecByteBlock& key, boost::shared_ptr<vector<byte> > iv);
+  virtual void InitializeEncryption(const Cryptor::KeyingData& keying_data);
 
   virtual void EncryptData(
       boost::shared_ptr<vector<byte> > data, Callback callback);
+
+  virtual void FinalizeEncryption(vector<byte>* encrypted_file_header_block,
+                                  vector<byte>* message_authentication_code);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(NullCryptorImpl);
