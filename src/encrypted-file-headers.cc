@@ -75,7 +75,7 @@ struct EncryptedFileHeaders::KeyDerivationParametersPexSha256Hkdf {
 const char* const EncryptedFileHeaders::kEncryptionTypeIdAes256Cbf =
     "aes-256-cbf";
 struct EncryptedFileHeaders::EncryptionParametersAes256Cbf {
-  byte initialization_vector[16];
+  byte initialization_vector[32];
 } __attribute__((packed));
 
 // There are no parameters for the null or SHA256 MAC types

@@ -39,7 +39,7 @@ class EncryptedFileHeaders {
   void SetKeyDerivationPexSha256Hkdf(const vector<byte>& encryption_key_salt,
                                      const vector<byte>& mac_key_salt);
 
-  // Initialization vector must be exactly 16 bytes.
+  // Initialization vector must be exactly 32 bytes.
   void SetEncryptionAes256Cbf(const vector<byte>& initialization_vector);
 
   void SetMacSha256();

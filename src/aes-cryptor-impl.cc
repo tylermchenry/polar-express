@@ -8,12 +8,9 @@
 namespace polar_express {
 namespace {
 
-// TODO(tylermchenry): Should be configurable.
-const size_t kAesKeyLength = 256;
-
-const size_t kShaHmacKeyLength = 256;
-
-// Use 128-bit salts for key derivation.
+// 32 bytes = 256 bits
+const size_t kAesKeyLength = 32;
+const size_t kShaHmacKeyLength = 32;
 const size_t kKeyDerivationSaltLength = 32;
 
 }  // namespace
