@@ -1,4 +1,12 @@
+// Disable the clang deprecated warning for this file only. Uses of htonl
+// trigger it due to use of 'register' keyword. This is considered a bug in
+// clang and is being fixed.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated"
+
 #include "encrypted-file-headers.h"
+
+#include <arpa/inet.h>
 
 #include <cassert>
 #include <cstring>
@@ -33,7 +41,7 @@ void SetTypeId(char (&type_id_field)[N], const char* type_id) {
 // in a backwards-compatible way.
 //
 // All format version numbers are 32-bit, and all type ID strings are 16 bytes,
-// nul-terminated and nul-padded.
+// nul-terminated and nul-padded. All numbers are stored in NETWORK BYTE ORDER.
 //
 // This Generic Header also has a format version. This struct is version 0.
 //
@@ -105,9 +113,10 @@ void EncryptedFileHeaders::SetKeyDerivationPbkdf2(
 
   SetTypeId(generic_header_fields_->key_derivation_type_id,
             kKeyDerivationTypeIdPbkdf2);
-  generic_header_fields_->key_derivation_parameters_format_version = 0;
+  generic_header_fields_->key_derivation_parameters_format_version = htonl(0);
 
   *key_derivation_parameters_pbkdf2_ = {};
+  key_derivation_parameters_pbkdf2_->iteration_count = htonl(iteration_count);
   std::copy(encryption_key_salt.begin(), encryption_key_salt.end(),
             &key_derivation_parameters_pbkdf2_->encryption_key_salt[0]);
   std::copy(mac_key_salt.begin(), mac_key_salt.end(),
@@ -125,7 +134,7 @@ void EncryptedFileHeaders::SetKeyDerivationPexSha256Hkdf(
 
   SetTypeId(generic_header_fields_->key_derivation_type_id,
             kKeyDerivationTypeIdPexSha256Hkdf);
-  generic_header_fields_->key_derivation_parameters_format_version = 0;
+  generic_header_fields_->key_derivation_parameters_format_version = htonl(0);
 
   *key_derivation_parameters_pex_sha256_hkdf_ = {};
   std::copy(
@@ -143,7 +152,7 @@ void EncryptedFileHeaders::SetEncryptionAes256Cbf(
 
   SetTypeId(generic_header_fields_->encryption_type_id,
             kEncryptionTypeIdAes256Cbf);
-  generic_header_fields_->encryption_parameters_format_version = 0;
+  generic_header_fields_->encryption_parameters_format_version = htonl(0);
 
   *encryption_parameters_aes256_cbf_ = {};
   std::copy(initialization_vector.begin(), initialization_vector.end(),
@@ -152,12 +161,12 @@ void EncryptedFileHeaders::SetEncryptionAes256Cbf(
 
 void EncryptedFileHeaders::SetMacSha256() {
   SetTypeId(generic_header_fields_->mac_type_id, kMacTypeIdSha256);
-  generic_header_fields_->mac_parameters_format_version = 0;
+  generic_header_fields_->mac_parameters_format_version = htonl(0);
 }
 
 void EncryptedFileHeaders::SetMacNone() {
   SetTypeId(generic_header_fields_->mac_type_id, kMacTypeIdNone);
-  generic_header_fields_->mac_parameters_format_version = 0;
+  generic_header_fields_->mac_parameters_format_version = htonl(0);
 }
 
 void EncryptedFileHeaders::GetHeaderBlock(vector<byte>* header_block) const {
@@ -202,3 +211,5 @@ void EncryptedFileHeaders::GetHeaderBlock(vector<byte>* header_block) const {
 }
 
 }  // namespace polar_express
+
+#pragma clang diagnostic pop
