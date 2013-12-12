@@ -92,7 +92,6 @@ void Cryptor::DeriveKeysFromPassphrase(
                   keying_data->mac_key.get());
 }
 
-
 Cryptor::Cryptor() {
 }
 
@@ -126,7 +125,6 @@ void Cryptor::FinalizeEncryption(vector<byte>* encrypted_file_header_block,
   impl_->FinalizeEncryption(encrypted_file_header_block,
                             message_authentication_code);
 }
-
 
 void Cryptor::SetKeyDerivationHeaders(
     const KeyingData& keying_data,
@@ -165,6 +163,5 @@ void Cryptor::DeriveKeyPbkdf2(
       salt->data(), salt->size(),
       kPbkdf2Iterations);
 }
-
 
 }  // namespace polar_express
