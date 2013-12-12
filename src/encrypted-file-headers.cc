@@ -151,8 +151,16 @@ void EncryptedFileHeaders::GetHeaderBlock(vector<byte>* header_block) const {
             sizeof(*key_derivation_parameters_pbkdf2_));
   }
 
-  // None of the currently supported Encryption or HMAC types require a
-  // parameters block.
+  if (generic_header_fields_->encryption_type_id ==
+      kEncryptionTypeIdAes256Gcm) {
+    header_block->insert(
+        header_block->end(),
+        reinterpret_cast<const byte*>(encryption_parameters_aes256_gcm_.get()),
+        reinterpret_cast<const byte*>(encryption_parameters_aes256_gcm_.get()) +
+            sizeof(*encryption_parameters_aes256_gcm_));
+  }
+
+  // None of the currently supported HMAC types require a parameters block.
 }
 
 }  // namespace polar_express
