@@ -12,7 +12,7 @@
 namespace polar_express {
 namespace {
 
-const uint8_t kPbkdf2IterationsExponent = 17;
+const uint8_t kPbkdf2IterationsExponent = 20;
 
 }  // namespace
 
@@ -150,7 +150,7 @@ void Cryptor::DeriveKeyPbkdf2(
     const boost::shared_ptr<CryptoPP::SecByteBlock> passphrase,
     vector<byte>* salt, CryptoPP::SecByteBlock* derived_key) {
   assert(CHECK_NOTNULL(salt)->size() == CHECK_NOTNULL(derived_key)->size());
-  const int kPbkdf2Iterations = 1 << kPbkdf2IterationsExponent;  // About 13k
+  const int kPbkdf2Iterations = 1 << kPbkdf2IterationsExponent;
 
   CryptoPP::AutoSeededX917RNG<CryptoPP::AES> rng;
   rng.GenerateBlock(salt->data(), salt->size());
