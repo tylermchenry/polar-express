@@ -145,11 +145,14 @@ class AnnotatedBundleData {
 
   const BundleManifest& manifest() const;
 
+  const vector<byte>& encryption_headers() const;
+  boost::shared_ptr<vector<byte> > mutable_encryption_headers();
+
   const vector<byte>& data() const;
   boost::shared_ptr<vector<byte> > mutable_data();
 
-  const vector<byte>& encryption_iv() const;
-  boost::shared_ptr<vector<byte> > mutable_encryption_iv();
+  const vector<byte>& message_authentication_code() const;
+  boost::shared_ptr<vector<byte> > mutable_message_authentication_code();
 
   const BundleAnnotations& annotations() const;
   BundleAnnotations* mutable_annotations();
@@ -162,8 +165,9 @@ class AnnotatedBundleData {
 
  private:
   const BundleManifest manifest_;
+  const boost::shared_ptr<vector<byte> > encryption_headers_;
   const boost::shared_ptr<vector<byte> > data_;
-  const boost::shared_ptr<vector<byte> > encryption_iv_;
+  const boost::shared_ptr<vector<byte> > message_authentication_code_;
   BundleAnnotations annotations_;
   const vector<const vector<byte>* > file_contents_;
 

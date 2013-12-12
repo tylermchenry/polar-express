@@ -205,7 +205,9 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, HashBundle) {
   assert(generated_bundle_ != nullptr);
   assert(cryptor_ != nullptr);
 
-  // TODO: Finalize encryption and append appropriate data.
+  cryptor_->FinalizeEncryption(
+      generated_bundle_->mutable_encryption_headers().get(),
+      generated_bundle_->mutable_message_authentication_code().get());
 
   bundle_hasher_->ComputeSequentialHashes(
       generated_bundle_->file_contents(),

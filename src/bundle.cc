@@ -159,13 +159,23 @@ void Bundle::AppendSerializedManifest() {
 
 AnnotatedBundleData::AnnotatedBundleData(boost::shared_ptr<Bundle> bundle)
     : manifest_(CHECK_NOTNULL(bundle)->manifest()),
+      encryption_headers_(new vector<byte>),
       data_(CHECK_NOTNULL(bundle->mutable_data())),
-      encryption_iv_(new vector<byte>),
-      file_contents_({ encryption_iv_.get(), data_.get() }) {
-}
+      message_authentication_code_(new vector<byte>),
+      file_contents_({encryption_headers_.get(), data_.get(),
+                      message_authentication_code_.get()}) {}
 
 const BundleManifest& AnnotatedBundleData::manifest() const {
   return manifest_;
+}
+
+const vector<byte>& AnnotatedBundleData::encryption_headers() const {
+  return *encryption_headers_;
+}
+
+boost::shared_ptr<vector<byte> >
+AnnotatedBundleData::mutable_encryption_headers() {
+  return encryption_headers_;
 }
 
 const vector<byte>& AnnotatedBundleData::data() const {
@@ -176,12 +186,13 @@ boost::shared_ptr<vector<byte> > AnnotatedBundleData::mutable_data() {
   return data_;
 }
 
-const vector<byte>& AnnotatedBundleData::encryption_iv() const {
-  return *encryption_iv_;
+const vector<byte>& AnnotatedBundleData::message_authentication_code() const {
+  return *message_authentication_code_;
 }
 
-boost::shared_ptr<vector<byte> > AnnotatedBundleData::mutable_encryption_iv() {
-  return encryption_iv_;
+boost::shared_ptr<vector<byte> >
+AnnotatedBundleData::mutable_message_authentication_code() {
+  return message_authentication_code_;
 }
 
 const BundleAnnotations& AnnotatedBundleData::annotations() const {
