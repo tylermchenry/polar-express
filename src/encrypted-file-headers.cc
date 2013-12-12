@@ -142,8 +142,8 @@ void EncryptedFileHeaders::GetHeaderBlock(vector<byte>* header_block) const {
       reinterpret_cast<const byte*>(generic_header_fields_.get()) +
           sizeof(*generic_header_fields_));
 
-  if (generic_header_fields_->key_derivation_type_id ==
-      kKeyDerivationTypeIdPbkdf2) {
+  if (strcmp(generic_header_fields_->key_derivation_type_id,
+             kKeyDerivationTypeIdPbkdf2) == 0) {
     header_block->insert(
         header_block->end(),
         reinterpret_cast<const byte*>(key_derivation_parameters_pbkdf2_.get()),
@@ -151,8 +151,8 @@ void EncryptedFileHeaders::GetHeaderBlock(vector<byte>* header_block) const {
             sizeof(*key_derivation_parameters_pbkdf2_));
   }
 
-  if (generic_header_fields_->encryption_type_id ==
-      kEncryptionTypeIdAes256Gcm) {
+  if (strcmp(generic_header_fields_->encryption_type_id,
+             kEncryptionTypeIdAes256Gcm) == 0) {
     header_block->insert(
         header_block->end(),
         reinterpret_cast<const byte*>(encryption_parameters_aes256_gcm_.get()),
