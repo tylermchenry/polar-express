@@ -7,6 +7,7 @@
 
 #include "boost/shared_ptr.hpp"
 #include "crypto++/aes.h"
+#include "crypto++/gcm.h"
 #include "crypto++/modes.h"
 #include "crypto++/secblock.h"
 
@@ -42,25 +43,12 @@ class AesCryptorImpl : public Cryptor {
                                   vector<byte>* message_authentication_code);
 
  private:
-  void DeriveKeysFromSecretKey(const CryptoPP::SecByteBlock& secret_key,
-                               const vector<byte>& encryption_salt,
-                               const vector<byte>& authentication_salt);
+  void DeriveKeyFromPassphrase(const CryptoPP::SecByteBlock& passphrase,
+                               const vector<byte>& salt);
 
-  void DeriveKeysFromPassphrase(const CryptoPP::SecByteBlock& passphrase,
-                                const vector<byte>& encryption_salt,
-                                const vector<byte>& authentication_salt);
-
-  void GenerateRandomSalts(vector<byte>* encryption_salt,
-                           vector<byte>* authentication_salt) const;
-
-  void Sha256Hkdf(const CryptoPP::SecByteBlock& secret_key,
-                  const vector<byte>& salt,
-                  CryptoPP::SecByteBlock* derived_key) const;
-
-  unique_ptr<CryptoPP::CFB_Mode<CryptoPP::AES>::Encryption> aes_cfb_encryption_;
+  unique_ptr<CryptoPP::GCM<CryptoPP::AES>::Encryption> aes_gcm_encryption_;
   unique_ptr<EncryptedFileHeaders> encrypted_file_headers_;
   unique_ptr<CryptoPP::SecByteBlock> encryption_key_;
-  unique_ptr<CryptoPP::SecByteBlock> authentication_key_;
 
   DISALLOW_COPY_AND_ASSIGN(AesCryptorImpl);
 };
