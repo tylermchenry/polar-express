@@ -1,6 +1,7 @@
 #ifndef CRYPTOR_H
 #define CRYPTOR_H
 
+#include <cinttypes>
 #include <memory>
 #include <vector>
 
@@ -12,6 +13,8 @@
 
 namespace polar_express {
 
+class EncryptedFileHeaders;
+
 // Base class for asynchronous data cryptors (which use various
 // algorithms).
 class Cryptor {
@@ -21,15 +24,32 @@ class Cryptor {
     kAES,
   };
 
-  // The keying data provided by the user. Generally only one of these should be
-  // non-empty, but the secret key will be preferred to the password if both are
-  // available.
+  // The keying data derived from the credentials provided by the user (either a
+  // master key or a passphrase).
   struct KeyingData {
-    CryptoPP::SecByteBlock secret_key;
-    CryptoPP::SecByteBlock passphrase;
+    boost::shared_ptr<CryptoPP::SecByteBlock> encryption_key;
+    boost::shared_ptr<CryptoPP::SecByteBlock> mac_key;
+
+    const char* key_derivation_type_id;  // From encrypted-file-headers.h
+
+    // The below are relevant only when encryption_key and mac_key were
+    // derived using PBKDF2.
+    uint8_t pbkdf2_iterations_exponent;
+    boost::shared_ptr<vector<byte> > pbkdf2_encryption_key_salt;
+    boost::shared_ptr<vector<byte> > pbkdf2_mac_key_salt;
   };
 
   static unique_ptr<Cryptor> CreateCryptor(EncryptionType encryption_type);
+
+  static void DeriveKeysFromMasterKey(
+      const boost::shared_ptr<CryptoPP::SecByteBlock> master_key,
+      const EncryptionType encryption_type,
+      KeyingData* keying_data);
+
+  static void DeriveKeysFromPassphrase(
+      const boost::shared_ptr<CryptoPP::SecByteBlock> passphrase,
+      const EncryptionType encryption_type,
+      KeyingData* keying_data);
 
   virtual ~Cryptor();
 
@@ -63,9 +83,17 @@ class Cryptor {
   Cryptor();
   explicit Cryptor(unique_ptr<Cryptor>&& impl);
 
+  void SetKeyDerivationHeaders(
+      const KeyingData& keying_data,
+      EncryptedFileHeaders* encrypted_file_headers) const;
+
  private:
   template<typename CryptorImplT>
   static unique_ptr<Cryptor> CreateCryptorWithImpl();
+
+  static void DeriveKeyPbkdf2(
+      const boost::shared_ptr<CryptoPP::SecByteBlock> passphrase,
+      vector<byte>* salt, CryptoPP::SecByteBlock* derived_key);
 
   std::unique_ptr<Cryptor> impl_;
 

@@ -21,9 +21,14 @@ int main(int argc, char** argv) {
     boost::shared_ptr<const Cryptor::KeyingData> encryption_keying_data;
 
     {
+      boost::shared_ptr<CryptoPP::SecByteBlock> passphrase(
+          new CryptoPP::SecByteBlock);
+      passphrase->Assign(reinterpret_cast<const byte*>(kPassphrase),
+                         sizeof(kPassphrase));
+
       Cryptor::KeyingData tmp_keying_data;
-      tmp_keying_data.passphrase.Assign(
-          reinterpret_cast<const byte*>(kPassphrase), sizeof(kPassphrase));
+      Cryptor::DeriveKeysFromPassphrase(
+          passphrase, Cryptor::EncryptionType::kAES, &tmp_keying_data);
       encryption_keying_data.reset(new Cryptor::KeyingData(tmp_keying_data));
     }
 

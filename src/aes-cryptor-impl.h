@@ -43,12 +43,9 @@ class AesCryptorImpl : public Cryptor {
                                   vector<byte>* message_authentication_code);
 
  private:
-  void DeriveKeyFromPassphrase(const CryptoPP::SecByteBlock& passphrase,
-                               const vector<byte>& salt);
-
   unique_ptr<CryptoPP::GCM<CryptoPP::AES>::Encryption> aes_gcm_encryption_;
   unique_ptr<EncryptedFileHeaders> encrypted_file_headers_;
-  unique_ptr<CryptoPP::SecByteBlock> encryption_key_;
+  boost::shared_ptr<CryptoPP::SecByteBlock> encryption_key_;
 
   DISALLOW_COPY_AND_ASSIGN(AesCryptorImpl);
 };
