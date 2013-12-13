@@ -175,6 +175,12 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, FinalizeBundle) {
   assert(!active_bundle_->is_finalized());
   assert(generated_bundle_ == nullptr);
 
+  // May have been flushed here without adding any data to the bundle.
+  if (active_bundle_->manifest().payloads_size() == 0) {
+    PostEvent<BundleEmpty>();
+    return;
+  }
+
   compressor_->FinalizeCompression(&compressed_block_data_for_active_chunk_);
   active_bundle_->AppendBlockContents(compressed_block_data_for_active_chunk_);
   compressed_block_data_for_active_chunk_.clear();
