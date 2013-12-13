@@ -36,6 +36,12 @@ class AesCryptorImpl : public Cryptor {
 
   virtual void InitializeEncryption(const Cryptor::KeyingData& keying_data);
 
+  // Useful for testing. The normal version fo InitializeEncryption generates a
+  // strongly random initialization vector.
+  void InitializeEncryptionWithInitializationVector(
+      const Cryptor::KeyingData& keying_data,
+      const vector<byte>& initialization_vector);
+
   virtual void EncryptData(
       boost::shared_ptr<vector<byte> >, Callback callback);
 

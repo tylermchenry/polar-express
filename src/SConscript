@@ -426,6 +426,26 @@ testlibs = ['gtest', 'gtest_main', 'pthread']
 #     filesystem_scanner_test[0].path)
 # AlwaysBuild(run_filesystem_scanner_test)
 
+aes_cryptor_impl_test = env.Program(
+    target='aes-cryptor-impl_test',
+    source=[
+        'aes-cryptor-impl_test.cc',
+        ],
+    LIBS=[
+        asio_dispatcher,
+        cryptors,
+        cryptors_deplibs,
+        asio_dispatcher_deplibs,
+        testlibs,
+        'boost_system',
+        ],
+    )
+run_aes_cryptor_impl_test = Alias(
+    'run_aes_cryptor_impl_test',
+    [aes_cryptor_impl_test],
+    aes_cryptor_impl_test[0].path)
+AlwaysBuild(run_aes_cryptor_impl_test)
+
 amazon_http_request_util_test = env.Program(
     target='amazon-http-request-util_test',
     source=[
