@@ -318,6 +318,7 @@ snapshot_state_machine = env.Library(
     target='snapshot-state-machine',
     source=[
         'snapshot-state-machine.cc',
+        'snapshot-state-machine-pool.cc',
         ],
     LIBS=snapshot_state_machine_deplibs,
     )
@@ -351,11 +352,16 @@ bundle_state_machine = env.Library(
     target='bundle-state-machine',
     source=[
         'bundle-state-machine.cc',
+        'bundle-state-machine-pool.cc',
         ],
     LIBS=bundle_state_machine_deplibs,
     )
 
 upload_state_machine_deplibs = [
+    asio_dispatcher,
+    bundle,
+    bundle_deplibs,
+    asio_dispatcher_deplibs,
     'bundle_manifest_proto',
     'protobuf',
     ];
@@ -363,6 +369,7 @@ upload_state_machine = env.Library(
     target='upload-state-machine',
     source=[
         'upload-state-machine.cc',
+        'upload-state-machine-pool.cc',
         ],
     LIBS=upload_state_machine_deplibs,
     )

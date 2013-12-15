@@ -21,11 +21,11 @@
 namespace polar_express {
 
 class AnnotatedBundleData;
-class BundleStateMachine;
+class BundleStateMachinePool;
 class FilesystemScanner;
 class Snapshot;
-class SnapshotStateMachine;
-class UploadStateMachine;
+class SnapshotStateMachinePool;
+class UploadStateMachinePool;
 
 // Class which coordinates the execution of a backup: scanning for files,
 // creating snapshots for them, creating bundles for the new snapshots, and
@@ -62,6 +62,10 @@ class BackupExecutor {
   // be called only after the backup has completed.
   virtual int GetNumBundlesGenerated() const;
 
+  // Returns the number of bundles uploaded during the backup. Should
+  // be called only after the backup has completed.
+  virtual int GetNumBundlesUploaded() const;
+
  private:
   // Snapshot-Generation methods:
 
@@ -71,92 +75,7 @@ class BackupExecutor {
   // complete.
   void AddNewPendingSnapshotPaths();
 
-  // Runs another snapshot state machine if possible, on the next queued
-  // path. If after starting the state machine the path queue has dropped below
-  // half maximum, and the directory scanner is in the "waiting to continue"
-  // state, it tells the scanner to continue.
-  void RunNextSnapshotStateMachine();
-
-  void HandleSnapshotStateMachineFinished(
-      SnapshotStateMachine* snapshot_state_machine);
-
-  // Deletes the given snapshot state machine, counts it as finished, and posts
-  // a callback to try to start the next snapshot state machine.
-  void DeleteSnapshotStateMachine(
-      SnapshotStateMachine* snapshot_state_machine);
-
-  // Bundle-Generation methods:
-
-  void AddNewSnapshotToBundle(boost::shared_ptr<Snapshot> snapshot);
-
-  void TryRunNextBundleStateMachine();
-
-  // Attempts to active a bundle state machine from the idle queue, or
-  // to create a new one. If this is not possible (due to the limit on
-  // the number of simultaneous bundle state machines) return null.
-  boost::shared_ptr<BundleStateMachine> TryActivateBundleStateMachine();
-
-  void BundleNextSnapshot(
-      boost::shared_ptr<BundleStateMachine> bundle_state_machine);
-
-  void HandleBundleStateMachineBundleReady(
-      boost::shared_ptr<BundleStateMachine> bundle_state_machine);
-
-  void HandleBundleStateMachineFinished(
-      boost::shared_ptr<BundleStateMachine> bundle_state_machine);
-
-  void FlushAllBundleStateMachines();
-
-  // Bundle-Uploading methods:
-
-  // TODO(tylermchenry): There is a lot of code duplicated between the
-  // bundle-generation and bundle-uploading methods. Perhaps abstract into a
-  // templated class?
-
-  void AddNewBundleToUpload(boost::shared_ptr<AnnotatedBundleData> bundle_data);
-
-  // Attempts to active a upload state machine from the idle queue, or
-  // to create a new one. If this is not possible (due to the limit on
-  // the number of simultaneous upload state machines) return null.
-  boost::shared_ptr<UploadStateMachine> TryActivateUploadStateMachine();
-
-  void TryRunNextUploadStateMachine();
-
-  void UploadNextBundle(
-      boost::shared_ptr<UploadStateMachine> upload_state_machine);
-
-  void HandleUploadStateMachineBundleUploaded(
-      boost::shared_ptr<UploadStateMachine> upload_state_machine);
-
-  void HandleUploadStateMachineFinished(
-      boost::shared_ptr<UploadStateMachine> upload_state_machine);
-
-  void TerminateAllUploadStateMachines();
-
-  // Returns a callback that will post the given callback on this object's
-  // strand.
-  Callback CreateStrandCallback(Callback callback);
-
-  string root_;
-  Cryptor::EncryptionType encryption_type_;
-  boost::shared_ptr<const Cryptor::KeyingData> encryption_keying_data_;
-
-  queue<boost::filesystem::path> pending_snapshot_paths_;
-  unique_ptr<boost::object_pool<SnapshotStateMachine> >
-  snapshot_state_machine_pool_;
-  int num_running_snapshot_state_machines_;
-  int num_finished_snapshot_state_machines_;
-  int num_snapshots_generated_;
-
-  queue<boost::shared_ptr<Snapshot> > snapshots_waiting_to_bundle_;
-  queue<boost::shared_ptr<BundleStateMachine> > idle_bundle_state_machines_;
-  set<boost::shared_ptr<BundleStateMachine> > active_bundle_state_machines_;
-  int num_bundles_generated_;
-
-  queue<boost::shared_ptr<AnnotatedBundleData> > bundles_waiting_to_upload_;
-  queue<boost::shared_ptr<UploadStateMachine> > idle_upload_state_machines_;
-  set<boost::shared_ptr<UploadStateMachine> > active_upload_state_machines_;
-  int num_bundles_uploaded_;
+  void TryScanMorePaths();
 
   enum class ScanState {
     kNotStarted,
@@ -169,13 +88,11 @@ class BackupExecutor {
   boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher_;
 
   OverrideableUniquePtr<FilesystemScanner> filesystem_scanner_;
+  int num_files_processed_;
 
-  static const int kMaxPendingSnapshots;
-  static const int kMaxSimultaneousSnapshots;
-  static const int kMaxSnapshotsWaitingToBundle;
-  static const int kMaxSimultaneousBundles;
-  static const int kMaxBundlesWaitingToUpload;
-  static const int kMaxSimultaneousUploads;
+  boost::shared_ptr<SnapshotStateMachinePool> snapshot_state_machine_pool_;
+  boost::shared_ptr<BundleStateMachinePool> bundle_state_machine_pool_;
+  boost::shared_ptr<UploadStateMachinePool> upload_state_machine_pool_;
 
   DISALLOW_COPY_AND_ASSIGN(BackupExecutor);
 };

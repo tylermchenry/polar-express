@@ -299,6 +299,7 @@ void BundleStateMachineImpl::NextChunk() {
     PostEvent<FlushForced>();
   } else {
     PostEvent<NoChunksRemaining>();
+    SetIdle();
   }
 }
 

@@ -1,41 +1,18 @@
 #include "backup-executor.h"
 
-#include <iostream>
-
-#include <cassert>
-
-#include "boost/pool/object_pool.hpp"
-
-#include "bundle.h"
-#include "bundle-state-machine.h"
+#include "bundle-state-machine-pool.h"
 #include "filesystem-scanner.h"
-#include "make-unique.h"
-#include "proto/bundle-manifest.pb.h"
-#include "proto/snapshot.pb.h"
-#include "snapshot-state-machine.h"
-#include "upload-state-machine.h"
+#include "snapshot-state-machine-pool.h"
+#include "upload-state-machine-pool.h"
 
 namespace polar_express {
 
-const int BackupExecutor::kMaxPendingSnapshots = 200;
-const int BackupExecutor::kMaxSimultaneousSnapshots = 5;
-const int BackupExecutor::kMaxSnapshotsWaitingToBundle = 100;
-const int BackupExecutor::kMaxSimultaneousBundles = 2;
-const int BackupExecutor::kMaxBundlesWaitingToUpload = 10;
-const int BackupExecutor::kMaxSimultaneousUploads = 2;
-
 BackupExecutor::BackupExecutor()
-    : snapshot_state_machine_pool_(
-        new boost::object_pool<SnapshotStateMachine>),
-      num_running_snapshot_state_machines_(0),
-      num_finished_snapshot_state_machines_(0),
-      num_snapshots_generated_(0),
-      num_bundles_generated_(0),
-      num_bundles_uploaded_(0),
-      scan_state_(ScanState::kNotStarted),
+    : scan_state_(ScanState::kNotStarted),
       strand_dispatcher_(
           AsioDispatcher::GetInstance()->NewStrandDispatcherStateMachine()),
-      filesystem_scanner_(new FilesystemScanner) {
+      filesystem_scanner_(new FilesystemScanner),
+      num_files_processed_(0) {
 }
 
 BackupExecutor::~BackupExecutor() {
@@ -47,31 +24,50 @@ void BackupExecutor::Start(
     boost::shared_ptr<const Cryptor::KeyingData> encryption_keying_data) {
   // Ensure that the given root is reasonable, and that Start has not been
   // called twice.
-  assert(root_.empty());
   assert(!root.empty());
-  root_ = root;
-
   assert(encryption_keying_data != nullptr);
-  encryption_type_ = encryption_type;
-  encryption_keying_data_ = encryption_keying_data;
+  assert(snapshot_state_machine_pool_ == nullptr);
+  assert(bundle_state_machine_pool_ == nullptr);
+  assert(upload_state_machine_pool_ == nullptr);
+
+  snapshot_state_machine_pool_.reset(
+      new SnapshotStateMachinePool(strand_dispatcher_, root));
+
+  bundle_state_machine_pool_.reset(new BundleStateMachinePool(
+      strand_dispatcher_, root, encryption_type, encryption_keying_data,
+      snapshot_state_machine_pool_));
+  snapshot_state_machine_pool_->SetNextPool(bundle_state_machine_pool_);
+
+  upload_state_machine_pool_.reset(new UploadStateMachinePool(
+      strand_dispatcher_, bundle_state_machine_pool_));
+  // TODO: Uncomment the line below when the upload state machine works.
+  // bundle_state_machine_pool_.SetNextPool(upload_state_machine_pool_);
+
+  snapshot_state_machine_pool_->SetNeedMoreInputCallback(
+      strand_dispatcher_->CreateStrandCallback(
+          bind(&BackupExecutor::TryScanMorePaths, this)));
 
   filesystem_scanner_->StartScan(
-      root, kMaxPendingSnapshots / 2,
+      root, snapshot_state_machine_pool_->InputSlotsRemaining() / 2,
       strand_dispatcher_->CreateStrandCallback(
           bind(&BackupExecutor::AddNewPendingSnapshotPaths, this)));
   scan_state_ = ScanState::kInProgress;
 }
 
 int BackupExecutor::GetNumFilesProcessed() const {
-  return num_finished_snapshot_state_machines_;
+  return num_files_processed_;
 }
 
 int BackupExecutor::GetNumSnapshotsGenerated() const {
-  return num_snapshots_generated_;
+  return CHECK_NOTNULL(snapshot_state_machine_pool_)->num_snapshots_generated();
 }
 
 int BackupExecutor::GetNumBundlesGenerated() const {
-  return num_bundles_generated_;
+  return CHECK_NOTNULL(bundle_state_machine_pool_)->num_bundles_generated();
+}
+
+int BackupExecutor::GetNumBundlesUploaded() const {
+  return CHECK_NOTNULL(upload_state_machine_pool_)->num_bundles_uploaded();
 }
 
 void BackupExecutor::AddNewPendingSnapshotPaths() {
@@ -80,296 +76,26 @@ void BackupExecutor::AddNewPendingSnapshotPaths() {
     filesystem_scanner_->ClearPaths();
     scan_state_ = ScanState::kWaitingToContinue;
     for (const boost::filesystem::path& path : paths) {
-      pending_snapshot_paths_.push(path);
+      ++num_files_processed_;
+      assert(CHECK_NOTNULL(snapshot_state_machine_pool_)->CanAcceptNewInput());
+      // TODO: It might be nice if the StateMachinePool did not require inputs
+      // to be shared pointers.
+      snapshot_state_machine_pool_->AddNewInput(
+          boost::shared_ptr<boost::filesystem::path>(
+              new boost::filesystem::path(path)));
     }
-    strand_dispatcher_->Post(
-        bind(&BackupExecutor::RunNextSnapshotStateMachine, this));
   } else {
     scan_state_ = ScanState::kFinished;
   }
 }
 
-void BackupExecutor::RunNextSnapshotStateMachine() {
-  if (num_running_snapshot_state_machines_ >= kMaxSimultaneousSnapshots ||
-      pending_snapshot_paths_.empty()) {
-    return;
-  }
-
-  boost::filesystem::path path = pending_snapshot_paths_.front();
-  pending_snapshot_paths_.pop();
-
-  SnapshotStateMachine* snapshot_state_machine =
-      snapshot_state_machine_pool_->construct();
-  snapshot_state_machine->SetDoneCallback(
-      strand_dispatcher_->CreateStrandCallback(
-          bind(&BackupExecutor::HandleSnapshotStateMachineFinished,
-               this, snapshot_state_machine)));
-  snapshot_state_machine->Start(root_, path);
-
-  ++num_running_snapshot_state_machines_;
-
-  // If the paths queue has drained below half of its maximum size, and the
-  // filesystem scanner is waiting to scan more paths, tell it to do so.
-  if (scan_state_ == ScanState::kWaitingToContinue &&
-      (pending_snapshot_paths_.size() < kMaxPendingSnapshots / 2)) {
+void BackupExecutor::TryScanMorePaths() {
+  if (scan_state_ == ScanState::kWaitingToContinue) {
     filesystem_scanner_->ContinueScan(
-        kMaxPendingSnapshots / 2,
+        CHECK_NOTNULL(snapshot_state_machine_pool_)->InputSlotsRemaining() / 2,
         strand_dispatcher_->CreateStrandCallback(
             bind(&BackupExecutor::AddNewPendingSnapshotPaths, this)));
     scan_state_ = ScanState::kInProgress;
-  }
-}
-
-void BackupExecutor::HandleSnapshotStateMachineFinished(
-    SnapshotStateMachine* snapshot_state_machine) {
-  boost::shared_ptr<Snapshot> generated_snapshot =
-      snapshot_state_machine->GetGeneratedSnapshot();
-  if (generated_snapshot != nullptr) {
-    ++num_snapshots_generated_;
-    if (generated_snapshot->is_regular() &&
-        generated_snapshot->length() > 0) {
-      AddNewSnapshotToBundle(generated_snapshot);
-    }
-    // TODO: Handle non-regular files (directories, deletions, etc.)
-  }
-
-  DeleteSnapshotStateMachine(snapshot_state_machine);
-}
-
-void BackupExecutor::DeleteSnapshotStateMachine(
-    SnapshotStateMachine* snapshot_state_machine) {
-  snapshot_state_machine_pool_->destroy(snapshot_state_machine);
-  --num_running_snapshot_state_machines_;
-  ++num_finished_snapshot_state_machines_;
-  if (snapshots_waiting_to_bundle_.size() < kMaxSnapshotsWaitingToBundle) {
-    strand_dispatcher_->Post(
-        bind(&BackupExecutor::RunNextSnapshotStateMachine, this));
-  }
-}
-
-void BackupExecutor::AddNewSnapshotToBundle(
-    boost::shared_ptr<Snapshot> snapshot) {
-  snapshots_waiting_to_bundle_.push(snapshot);
-
-  // If possible, activate a new state machine to handle this snapshot
-  // right away.
-  TryRunNextBundleStateMachine();
-}
-
-void BackupExecutor::TryRunNextBundleStateMachine() {
-  boost::shared_ptr<BundleStateMachine> activated_bundle_state_machine =
-      TryActivateBundleStateMachine();
-  if (activated_bundle_state_machine != nullptr) {
-    BundleNextSnapshot(activated_bundle_state_machine);
-  }
-}
-
-boost::shared_ptr<BundleStateMachine>
-BackupExecutor::TryActivateBundleStateMachine() {
-  boost::shared_ptr<BundleStateMachine> activated_bundle_state_machine;
-  if (!idle_bundle_state_machines_.empty()) {
-    activated_bundle_state_machine = idle_bundle_state_machines_.front();
-    idle_bundle_state_machines_.pop();
-  } else if (active_bundle_state_machines_.size() < kMaxSimultaneousBundles) {
-    activated_bundle_state_machine.reset(new BundleStateMachine);
-    activated_bundle_state_machine->SetSnapshotDoneCallback(
-        strand_dispatcher_->CreateStrandCallback(
-            bind(&BackupExecutor::BundleNextSnapshot,
-                 this, activated_bundle_state_machine)));
-    activated_bundle_state_machine->SetBundleReadyCallback(
-        strand_dispatcher_->CreateStrandCallback(
-            bind(&BackupExecutor::HandleBundleStateMachineBundleReady,
-                 this, activated_bundle_state_machine)));
-    activated_bundle_state_machine->SetDoneCallback(
-        strand_dispatcher_->CreateStrandCallback(
-            bind(&BackupExecutor::HandleBundleStateMachineFinished,
-                 this, activated_bundle_state_machine)));
-    activated_bundle_state_machine->Start(
-        root_, encryption_type_, encryption_keying_data_);
-  }
-
-  if (activated_bundle_state_machine != nullptr) {
-    active_bundle_state_machines_.insert(activated_bundle_state_machine);
-  }
-  return activated_bundle_state_machine;
-}
-
-void BackupExecutor::BundleNextSnapshot(
-    boost::shared_ptr<BundleStateMachine> bundle_state_machine) {
-  assert(bundle_state_machine != nullptr);
-
-  boost::shared_ptr<Snapshot> snapshot;
-  if (!snapshots_waiting_to_bundle_.empty()) {
-    snapshot = snapshots_waiting_to_bundle_.front();
-    snapshots_waiting_to_bundle_.pop();
-  }
-
-  if (snapshot != nullptr) {
-    bundle_state_machine->BundleSnapshot(snapshot);
-  } else {
-    active_bundle_state_machines_.erase(bundle_state_machine);
-    idle_bundle_state_machines_.push(bundle_state_machine);
-  }
-
-  if (active_bundle_state_machines_.empty() &&
-      snapshots_waiting_to_bundle_.empty() &&
-      num_running_snapshot_state_machines_ == 0 &&
-      scan_state_ == ScanState::kFinished) {
-    FlushAllBundleStateMachines();
-  }
-
-  // If we just reduced the wait queue to below maximum, allow the
-  // snapshot state machines to start running again.
-  if (snapshots_waiting_to_bundle_.size() == kMaxSnapshotsWaitingToBundle - 1) {
-    int snapshot_state_machines_to_start = min<int>(
-        kMaxSimultaneousSnapshots - num_running_snapshot_state_machines_,
-        pending_snapshot_paths_.size());
-    for (int i = 0; i < snapshot_state_machines_to_start; ++i) {
-      strand_dispatcher_->Post(
-          bind(&BackupExecutor::RunNextSnapshotStateMachine, this));
-    }
-  }
-}
-
-void BackupExecutor::HandleBundleStateMachineBundleReady(
-    boost::shared_ptr<BundleStateMachine> bundle_state_machine) {
-  boost::shared_ptr<AnnotatedBundleData> bundle_data =
-      bundle_state_machine->RetrieveGeneratedBundle();
-  if (bundle_data != nullptr) {
-    ++num_bundles_generated_;
-    std::cerr << "Wrote bundle to: "
-              << bundle_data->annotations().persistence_file_path()
-              << std::endl;
-    // TODO: Upload bundle when upload state machine is implemented.
-  }
-  // The bundle state machine keeps running -- it may still have snapshot data
-  // to process that did not fit into the bundle that it just produced. So the
-  // state machine is still active, not idle.
-}
-
-void BackupExecutor::HandleBundleStateMachineFinished(
-    boost::shared_ptr<BundleStateMachine> bundle_state_machine) {
-  active_bundle_state_machines_.erase(bundle_state_machine);
-  // The bundle state machines don't finish at the end of each bundle, but
-  // continue until they have been flushed. So we should not put this state
-  // machine back into the idle pool.
-}
-
-void BackupExecutor::FlushAllBundleStateMachines() {
-  assert(active_bundle_state_machines_.empty());
-  while (!idle_bundle_state_machines_.empty()) {
-    boost::shared_ptr<BundleStateMachine> bundle_state_machine =
-        idle_bundle_state_machines_.front();
-    idle_bundle_state_machines_.pop();
-    active_bundle_state_machines_.insert(bundle_state_machine);
-    bundle_state_machine->FinishAndExit();
-  }
-}
-
-void BackupExecutor::AddNewBundleToUpload(
-    boost::shared_ptr<AnnotatedBundleData> bundle_data) {
-  bundles_waiting_to_upload_.push(bundle_data);
-
-  // If possible, activate a new state machine to upload this bundle
-  // right away.
-  TryRunNextUploadStateMachine();
-}
-
-void BackupExecutor::TryRunNextUploadStateMachine() {
-  boost::shared_ptr<UploadStateMachine> activated_upload_state_machine =
-      TryActivateUploadStateMachine();
-  if (activated_upload_state_machine != nullptr) {
-    UploadNextBundle(activated_upload_state_machine);
-  }
-}
-
-boost::shared_ptr<UploadStateMachine>
-BackupExecutor::TryActivateUploadStateMachine() {
-  boost::shared_ptr<UploadStateMachine> activated_upload_state_machine;
-  if (!idle_upload_state_machines_.empty()) {
-    activated_upload_state_machine = idle_upload_state_machines_.front();
-    idle_upload_state_machines_.pop();
-  } else if (active_upload_state_machines_.size() < kMaxSimultaneousUploads) {
-    activated_upload_state_machine.reset(new UploadStateMachine);
-    activated_upload_state_machine->SetBundleUploadedCallback(
-        strand_dispatcher_->CreateStrandCallback(
-            bind(&BackupExecutor::HandleUploadStateMachineBundleUploaded,
-                 this, activated_upload_state_machine)));
-    activated_upload_state_machine->SetDoneCallback(
-        strand_dispatcher_->CreateStrandCallback(
-            bind(&BackupExecutor::HandleUploadStateMachineFinished,
-                 this, activated_upload_state_machine)));
-    activated_upload_state_machine->Start();
-  }
-
-  if (activated_upload_state_machine != nullptr) {
-    active_upload_state_machines_.insert(activated_upload_state_machine);
-  }
-  return activated_upload_state_machine;
-}
-
-void BackupExecutor::UploadNextBundle(
-    boost::shared_ptr<UploadStateMachine> upload_state_machine) {
-  assert(upload_state_machine != nullptr);
-
-  boost::shared_ptr<AnnotatedBundleData> bundle;
-  if (!bundles_waiting_to_upload_.empty()) {
-    bundle = bundles_waiting_to_upload_.front();
-    bundles_waiting_to_upload_.pop();
-  }
-
-  if (bundle != nullptr) {
-    upload_state_machine->UploadBundle(bundle);
-  } else {
-    active_upload_state_machines_.erase(upload_state_machine);
-    idle_upload_state_machines_.push(upload_state_machine);
-  }
-
-  if (active_upload_state_machines_.empty() &&
-      bundles_waiting_to_upload_.empty() &&
-      active_bundle_state_machines_.empty() &&
-      idle_bundle_state_machines_.empty() &&
-      scan_state_ == ScanState::kFinished) {
-    TerminateAllUploadStateMachines();
-  }
-
-  // If we just reduced the wait queue to below maximum, allow the
-  // bundle state machines to start running again.
-  if (bundles_waiting_to_upload_.size() == kMaxBundlesWaitingToUpload - 1) {
-    TryRunNextBundleStateMachine();
-  }
-}
-
-void BackupExecutor::HandleUploadStateMachineBundleUploaded(
-    boost::shared_ptr<UploadStateMachine> upload_state_machine) {
-  boost::shared_ptr<AnnotatedBundleData> bundle_data =
-      upload_state_machine->GetLastUploadedBundle();
-  if (bundle_data != nullptr) {
-    ++num_bundles_uploaded_;
-    std::cerr << "Finished uploading bundle ID "
-              << bundle_data->annotations().id()
-              << std::endl;
-  }
-  active_upload_state_machines_.erase(upload_state_machine);
-  idle_upload_state_machines_.push(upload_state_machine);
-}
-
-void BackupExecutor::HandleUploadStateMachineFinished(
-    boost::shared_ptr<UploadStateMachine> upload_state_machine) {
-  active_upload_state_machines_.erase(upload_state_machine);
-  // The bundle state machines don't finish at the end of each upload, but
-  // continue until they have been terminated. So we should not put this state
-  // machine back into the idle pool.
-}
-
-void BackupExecutor::TerminateAllUploadStateMachines() {
-  assert(active_upload_state_machines_.empty());
-  while (!idle_upload_state_machines_.empty()) {
-    boost::shared_ptr<UploadStateMachine> upload_state_machine =
-        idle_upload_state_machines_.front();
-    idle_upload_state_machines_.pop();
-    active_upload_state_machines_.insert(upload_state_machine);
-    upload_state_machine->FinishAndExit();
   }
 }
 

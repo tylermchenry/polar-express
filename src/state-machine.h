@@ -149,12 +149,18 @@ class StateMachine
   // executed.
   template <typename EventT> Callback CreateExternalEventCallback();
 
+  // Sets an idle flag that prevents the done callback from being run when there
+  // are no more events left to execute. The idle flag is automatically cleared
+  // on the next EXTERNAL event.
+  void SetIdle();
+
  private:
   boost::shared_ptr<AsioDispatcher::StrandDispatcher> event_strand_dispatcher_;
 
   int num_active_external_callbacks_;
   queue<Callback> events_queue_;
   Callback done_callback_;
+  bool idle_;
 
   // Runs the next event in the event queue (i.e. call process_event on the back
   // end with the event's type). If is_external is true, then the count of
@@ -219,7 +225,8 @@ template <typename StateMachineImplT, typename StateMachineT>
 StateMachine<StateMachineImplT, StateMachineT>::StateMachine()
     : event_strand_dispatcher_(
         AsioDispatcher::GetInstance()->NewStrandDispatcherStateMachine()),
-      num_active_external_callbacks_(0) {
+      num_active_external_callbacks_(0),
+      idle_(false) {
 }
 
 template <typename StateMachineImplT, typename StateMachineT>
@@ -257,10 +264,18 @@ StateMachine<StateMachineImplT, StateMachineT>::CreateExternalEventCallback() {
 }
 
 template <typename StateMachineImplT, typename StateMachineT>
+void StateMachine<StateMachineImplT, StateMachineT>::SetIdle() {
+  idle_ = true;
+}
+
+template <typename StateMachineImplT, typename StateMachineT>
 void StateMachine<StateMachineImplT, StateMachineT>::RunNextEvent(
     bool is_external) {
-  if (is_external && num_active_external_callbacks_ > 0) {
-    --num_active_external_callbacks_;
+  if (is_external) {
+    idle_ = false;
+    if (num_active_external_callbacks_ > 0) {
+      --num_active_external_callbacks_;
+    }
   }
 
   if (!events_queue_.empty()) {
@@ -273,6 +288,7 @@ void StateMachine<StateMachineImplT, StateMachineT>::RunNextEvent(
   // finished, so invoke the done callback (if present).
   if ((num_active_external_callbacks_ == 0) &&
       events_queue_.empty() &&
+      !idle_ &&
       !done_callback_.empty()) {
     done_callback_();
   }
