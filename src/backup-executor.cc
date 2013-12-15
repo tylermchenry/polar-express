@@ -13,6 +13,7 @@
 #include "proto/bundle-manifest.pb.h"
 #include "proto/snapshot.pb.h"
 #include "snapshot-state-machine.h"
+#include "upload-state-machine.h"
 
 namespace polar_express {
 
@@ -20,6 +21,8 @@ const int BackupExecutor::kMaxPendingSnapshots = 200;
 const int BackupExecutor::kMaxSimultaneousSnapshots = 5;
 const int BackupExecutor::kMaxSnapshotsWaitingToBundle = 100;
 const int BackupExecutor::kMaxSimultaneousBundles = 2;
+const int BackupExecutor::kMaxBundlesWaitingToUpload = 10;
+const int BackupExecutor::kMaxSimultaneousUploads = 2;
 
 BackupExecutor::BackupExecutor()
     : snapshot_state_machine_pool_(
@@ -28,6 +31,7 @@ BackupExecutor::BackupExecutor()
       num_finished_snapshot_state_machines_(0),
       num_snapshots_generated_(0),
       num_bundles_generated_(0),
+      num_bundles_uploaded_(0),
       scan_state_(ScanState::kNotStarted),
       strand_dispatcher_(
           AsioDispatcher::GetInstance()->NewStrandDispatcherStateMachine()),
@@ -149,6 +153,10 @@ void BackupExecutor::AddNewSnapshotToBundle(
 
   // If possible, activate a new state machine to handle this snapshot
   // right away.
+  TryRunNextBundleStateMachine();
+}
+
+void BackupExecutor::TryRunNextBundleStateMachine() {
   boost::shared_ptr<BundleStateMachine> activated_bundle_state_machine =
       TryActivateBundleStateMachine();
   if (activated_bundle_state_machine != nullptr) {
@@ -232,12 +240,19 @@ void BackupExecutor::HandleBundleStateMachineBundleReady(
     std::cerr << "Wrote bundle to: "
               << bundle_data->annotations().persistence_file_path()
               << std::endl;
+    // TODO: Upload bundle when upload state machine is implemented.
   }
+  // The bundle state machine keeps running -- it may still have snapshot data
+  // to process that did not fit into the bundle that it just produced. So the
+  // state machine is still active, not idle.
 }
 
 void BackupExecutor::HandleBundleStateMachineFinished(
     boost::shared_ptr<BundleStateMachine> bundle_state_machine) {
   active_bundle_state_machines_.erase(bundle_state_machine);
+  // The bundle state machines don't finish at the end of each bundle, but
+  // continue until they have been flushed. So we should not put this state
+  // machine back into the idle pool.
 }
 
 void BackupExecutor::FlushAllBundleStateMachines() {
@@ -248,6 +263,113 @@ void BackupExecutor::FlushAllBundleStateMachines() {
     idle_bundle_state_machines_.pop();
     active_bundle_state_machines_.insert(bundle_state_machine);
     bundle_state_machine->FinishAndExit();
+  }
+}
+
+void BackupExecutor::AddNewBundleToUpload(
+    boost::shared_ptr<AnnotatedBundleData> bundle_data) {
+  bundles_waiting_to_upload_.push(bundle_data);
+
+  // If possible, activate a new state machine to upload this bundle
+  // right away.
+  TryRunNextUploadStateMachine();
+}
+
+void BackupExecutor::TryRunNextUploadStateMachine() {
+  boost::shared_ptr<UploadStateMachine> activated_upload_state_machine =
+      TryActivateUploadStateMachine();
+  if (activated_upload_state_machine != nullptr) {
+    UploadNextBundle(activated_upload_state_machine);
+  }
+}
+
+boost::shared_ptr<UploadStateMachine>
+BackupExecutor::TryActivateUploadStateMachine() {
+  boost::shared_ptr<UploadStateMachine> activated_upload_state_machine;
+  if (!idle_upload_state_machines_.empty()) {
+    activated_upload_state_machine = idle_upload_state_machines_.front();
+    idle_upload_state_machines_.pop();
+  } else if (active_upload_state_machines_.size() < kMaxSimultaneousUploads) {
+    activated_upload_state_machine.reset(new UploadStateMachine);
+    activated_upload_state_machine->SetBundleUploadedCallback(
+        strand_dispatcher_->CreateStrandCallback(
+            bind(&BackupExecutor::HandleUploadStateMachineBundleUploaded,
+                 this, activated_upload_state_machine)));
+    activated_upload_state_machine->SetDoneCallback(
+        strand_dispatcher_->CreateStrandCallback(
+            bind(&BackupExecutor::HandleUploadStateMachineFinished,
+                 this, activated_upload_state_machine)));
+    activated_upload_state_machine->Start();
+  }
+
+  if (activated_upload_state_machine != nullptr) {
+    active_upload_state_machines_.insert(activated_upload_state_machine);
+  }
+  return activated_upload_state_machine;
+}
+
+void BackupExecutor::UploadNextBundle(
+    boost::shared_ptr<UploadStateMachine> upload_state_machine) {
+  assert(upload_state_machine != nullptr);
+
+  boost::shared_ptr<AnnotatedBundleData> bundle;
+  if (!bundles_waiting_to_upload_.empty()) {
+    bundle = bundles_waiting_to_upload_.front();
+    bundles_waiting_to_upload_.pop();
+  }
+
+  if (bundle != nullptr) {
+    upload_state_machine->UploadBundle(bundle);
+  } else {
+    active_upload_state_machines_.erase(upload_state_machine);
+    idle_upload_state_machines_.push(upload_state_machine);
+  }
+
+  if (active_upload_state_machines_.empty() &&
+      bundles_waiting_to_upload_.empty() &&
+      active_bundle_state_machines_.empty() &&
+      idle_bundle_state_machines_.empty() &&
+      scan_state_ == ScanState::kFinished) {
+    TerminateAllUploadStateMachines();
+  }
+
+  // If we just reduced the wait queue to below maximum, allow the
+  // bundle state machines to start running again.
+  if (bundles_waiting_to_upload_.size() == kMaxBundlesWaitingToUpload - 1) {
+    TryRunNextBundleStateMachine();
+  }
+}
+
+void BackupExecutor::HandleUploadStateMachineBundleUploaded(
+    boost::shared_ptr<UploadStateMachine> upload_state_machine) {
+  boost::shared_ptr<AnnotatedBundleData> bundle_data =
+      upload_state_machine->GetLastUploadedBundle();
+  if (bundle_data != nullptr) {
+    ++num_bundles_uploaded_;
+    std::cerr << "Finished uploading bundle ID "
+              << bundle_data->annotations().id()
+              << std::endl;
+  }
+  active_upload_state_machines_.erase(upload_state_machine);
+  idle_upload_state_machines_.push(upload_state_machine);
+}
+
+void BackupExecutor::HandleUploadStateMachineFinished(
+    boost::shared_ptr<UploadStateMachine> upload_state_machine) {
+  active_upload_state_machines_.erase(upload_state_machine);
+  // The bundle state machines don't finish at the end of each upload, but
+  // continue until they have been terminated. So we should not put this state
+  // machine back into the idle pool.
+}
+
+void BackupExecutor::TerminateAllUploadStateMachines() {
+  assert(active_upload_state_machines_.empty());
+  while (!idle_upload_state_machines_.empty()) {
+    boost::shared_ptr<UploadStateMachine> upload_state_machine =
+        idle_upload_state_machines_.front();
+    idle_upload_state_machines_.pop();
+    active_upload_state_machines_.insert(upload_state_machine);
+    upload_state_machine->FinishAndExit();
   }
 }
 

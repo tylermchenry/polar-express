@@ -342,6 +342,7 @@ bundle_state_machine_deplibs = [
     compressors_deplibs,
     cryptors_deplibs,
     'block_proto',
+    'bundle_manifest_proto',
     'file_proto',
     'snapshot_proto',
     'protobuf',
@@ -354,10 +355,23 @@ bundle_state_machine = env.Library(
     LIBS=bundle_state_machine_deplibs,
     )
 
+upload_state_machine_deplibs = [
+    'bundle_manifest_proto',
+    'protobuf',
+    ];
+upload_state_machine = env.Library(
+    target='upload-state-machine',
+    source=[
+        'upload-state-machine.cc',
+        ],
+    LIBS=upload_state_machine_deplibs,
+    )
+
 backup_executor_deplibs = [
     glacier_connection,
     cryptors,
     bundle,
+    upload_state_machine,
     bundle_state_machine,
     snapshot_state_machine,
     filesystem_scanner,
@@ -366,6 +380,7 @@ backup_executor_deplibs = [
     filesystem_scanner_deplibs,
     snapshot_state_machine_deplibs,
     bundle_state_machine_deplibs,
+    upload_state_machine_deplibs,
     bundle_deplibs,
     cryptors_deplibs,
     glacier_connection_deplibs,
