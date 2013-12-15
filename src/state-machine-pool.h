@@ -23,11 +23,14 @@ class StateMachinePoolBase {
   virtual ~StateMachinePoolBase() {}
 
   virtual bool CanAcceptNewInput() const = 0;
+  virtual size_t InputSlotsRemaining() const = 0;
 
  protected:
   StateMachinePoolBase() {}
 
   virtual bool IsExpectingMoreInput() const = 0;
+  virtual size_t MaxNumSimultaneousStateMachines() const = 0;
+  virtual size_t NumRunningStateMachines() const = 0;
   virtual bool IsCompletelyIdle() const = 0;
   virtual void TryRunNextStateMachine() = 0;
   virtual void PostCallbackToStrand(Callback callback) = 0;
@@ -37,6 +40,11 @@ class StateMachinePoolBase {
   bool PoolIsCompletelyIdle(
       boost::shared_ptr<StateMachinePoolBase> pool) const {
     return CHECK_NOTNULL(pool)->IsCompletelyIdle();
+  }
+
+  size_t MaxNumSimultaneousStateMachinesForPool(
+      boost::shared_ptr<StateMachinePoolBase> pool) const {
+    return CHECK_NOTNULL(pool)->MaxNumSimultaneousStateMachines();
   }
 
   void TryRunNextStateMachineOnPool(
@@ -74,7 +82,7 @@ class StateMachinePool : public StateMachinePoolBase {
 
   virtual bool CanAcceptNewInput() const;
 
-  size_t InputSlotsRemaining() const;
+  virtual size_t InputSlotsRemaining() const;
 
   // Add a new input for this pool of state machines to process. Returns true if
   // the input was added, and false if it could not be added because the pool
@@ -95,10 +103,16 @@ class StateMachinePool : public StateMachinePoolBase {
   virtual void PostCallbackToStrand(Callback callback);
   virtual bool StrandDispatcherMatches(boost::shared_ptr<
       AsioDispatcher::StrandDispatcher> strand_dispatcher) const;
+  virtual size_t MaxNumSimultaneousStateMachines() const {
+    return max_simultaneous_state_machines();
+  }
 
   // Optional override. Called to see if more input is expected in the case that
   // the preceding pool object is null.
   virtual bool IsExpectingMoreInput() const { return false; }
+
+  // Derived classes must override.
+  virtual size_t NumRunningStateMachines() const = 0;
 
   // The top-level versions of these method are not to be overridden below this
   // level so that the StateMachinePool object can guarantee to execute some
@@ -182,8 +196,12 @@ bool StateMachinePool<InputT>::AddNewInput(boost::shared_ptr<InputT> input) {
 
 template <typename InputT>
 void StateMachinePool<InputT>::TryRunNextStateMachine() {
-  // Don't process new input if the next pool cannot accept our output.
-  if (next_pool_ != nullptr && !next_pool_->CanAcceptNewInput()) {
+  // Don't process new input if the next pool might not be able to accept our
+  // output, keeping in mind that other simultaneously-running state machines
+  // from this pool may produce output before the remaining input slots of the
+  // next pool increase.
+  if (next_pool_ != nullptr &&
+      next_pool_->InputSlotsRemaining() <= max_simultaneous_state_machines()) {
     return;
   }
 
@@ -191,8 +209,11 @@ void StateMachinePool<InputT>::TryRunNextStateMachine() {
 
   // If we just reduced the wait queue to below maximum, allow the
   // preceding pool to start running again in case it stopped.
-  if (pending_inputs_.size() == max_pending_inputs_ - 1 &&
-      preceding_pool_ != nullptr) {
+  if (preceding_pool_ != nullptr &&
+      pending_inputs_.size() < max_pending_inputs_ &&
+      pending_inputs_.size() >=
+          (max_pending_inputs_ -
+           MaxNumSimultaneousStateMachinesForPool(preceding_pool_))) {
     TryRunNextStateMachineOnPool(preceding_pool_);
   }
 }

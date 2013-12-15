@@ -44,6 +44,8 @@ class OneShotStateMachinePool : public StateMachinePool<InputT> {
       StateMachineT* state_machine) {}
 
  private:
+  virtual size_t NumRunningStateMachines() const;
+
   virtual bool IsCompletelyIdleInternal() const;
 
   virtual void TryRunNextStateMachineInternal();
@@ -78,6 +80,12 @@ OneShotStateMachinePool<StateMachineT, InputT>::OneShotStateMachinePool(
 
 template <typename StateMachineT, typename InputT>
 OneShotStateMachinePool<StateMachineT, InputT>::~OneShotStateMachinePool() {
+}
+
+template <typename StateMachineT, typename InputT>
+size_t OneShotStateMachinePool<StateMachineT, InputT>::NumRunningStateMachines()
+    const {
+  return num_running_state_machines_;
 }
 
 template <typename StateMachineT, typename InputT>

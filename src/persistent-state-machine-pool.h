@@ -60,6 +60,8 @@ class PersistentStateMachinePool : public StateMachinePool<InputT> {
   void TryRunNextInput(boost::shared_ptr<StateMachineT> state_machine);
 
  private:
+  virtual size_t NumRunningStateMachines() const;
+
   virtual bool IsCompletelyIdleInternal() const;
 
   virtual void TryRunNextStateMachineInternal();
@@ -97,11 +99,17 @@ template <typename StateMachineT, typename InputT>
 void PersistentStateMachinePool<StateMachineT, InputT>::DeactivateStateMachine(
     boost::shared_ptr<StateMachineT> state_machine) {
   assert(state_machine != nullptr);
-  assert(active_state_machines_.find(state_machine) !=
-         active_state_machines_.end());
+  if(active_state_machines_.find(state_machine) !=
+     active_state_machines_.end()) {
+    active_state_machines_.erase(state_machine);
+    idle_state_machines_.push(state_machine);
+  }
+}
 
-  active_state_machines_.erase(state_machine);
-  idle_state_machines_.push(state_machine);
+template <typename StateMachineT, typename InputT>
+size_t PersistentStateMachinePool<StateMachineT,
+                                  InputT>::NumRunningStateMachines() const {
+  return active_state_machines_.size();
 }
 
 template <typename StateMachineT, typename InputT>
