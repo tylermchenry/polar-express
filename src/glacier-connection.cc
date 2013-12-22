@@ -167,7 +167,7 @@ bool GlacierConnection::CreateVault(
   request.set_path(kAwsGlacierVaultPathPrefix + vault_name);
 
   SendRequest(
-      request, &empty_request_payload_, "",
+      request, {}, "",
       strand_dispatcher_->CreateStrandCallback(
           boost::bind(&GlacierConnection::HandleCreateVault, this,
                       vault_created, callback)));
@@ -190,7 +190,7 @@ bool GlacierConnection::DescribeVault(
   request.set_path(kAwsGlacierVaultPathPrefix + vault_name);
 
   SendRequest(
-      request, &empty_request_payload_, "",
+      request, {}, "",
       strand_dispatcher_->CreateStrandCallback(
           boost::bind(&GlacierConnection::HandleDescribeVault, this,
                       vault_description, callback)));
@@ -223,7 +223,7 @@ bool GlacierConnection::ListVaults(
   }
 
   SendRequest(
-      request, &empty_request_payload_, "",
+      request, {}, "",
       strand_dispatcher_->CreateStrandCallback(
           boost::bind(&GlacierConnection::HandleListVaults, this,
                       vault_list, callback)));
@@ -246,7 +246,7 @@ bool GlacierConnection::DeleteVault(
   request.set_path(kAwsGlacierVaultPathPrefix + vault_name);
 
   SendRequest(
-      request, &empty_request_payload_, "",
+      request, {}, "",
       strand_dispatcher_->CreateStrandCallback(
           boost::bind(&GlacierConnection::HandleDeleteVault, this,
                       vault_deleted, callback)));
@@ -259,8 +259,19 @@ bool GlacierConnection::UploadArchive(
     const string& payload_sha256_linear_digest,
     const string& payload_sha256_tree_digest, const string& payload_description,
     string* archive_id, Callback callback) {
+  return UploadArchive(vault_name, {payload}, payload_sha256_linear_digest,
+                       payload_sha256_tree_digest, payload_description,
+                       archive_id, callback);
+}
+
+bool GlacierConnection::UploadArchive(
+    const string& vault_name,
+    const vector<const vector<byte>*>& sequential_payload,
+    const string& payload_sha256_linear_digest,
+    const string& payload_sha256_tree_digest, const string& payload_description,
+    string* archive_id, Callback callback) {
   if (!is_open() || operation_pending_ ||
-      payload == nullptr ||
+      sequential_payload.empty() ||
       payload_sha256_linear_digest.empty() ||
       payload_sha256_tree_digest.empty() ||
       payload_description.size() > kUploadArchivePayloadDescriptionMaxLength) {
@@ -297,7 +308,7 @@ bool GlacierConnection::UploadArchive(
   }
 
   SendRequest(
-      request, payload, payload_sha256_linear_digest,
+      request, sequential_payload, payload_sha256_linear_digest,
       strand_dispatcher_->CreateStrandCallback(
           boost::bind(&GlacierConnection::HandleUploadArchive, this,
                       archive_id, callback)));
@@ -322,7 +333,7 @@ bool GlacierConnection::DeleteArchive(const string& vault_name,
                    kAwsGlacierArchivesDirectory + '/' + archive_id);
 
   SendRequest(
-      request, &empty_request_payload_, "",
+      request, {}, "",
       strand_dispatcher_->CreateStrandCallback(
           boost::bind(&GlacierConnection::HandleDeleteArchive, this,
                       archive_deleted, callback)));
@@ -331,26 +342,35 @@ bool GlacierConnection::DeleteArchive(const string& vault_name,
 }
 
 bool GlacierConnection::SendRequest(
-    const HttpRequest& request, const vector<byte>* payload,
+    const HttpRequest& request,
+    const vector<const vector<byte>*>& sequential_payload,
     const string& payload_sha256_digest, Callback callback) {
   HttpRequest authorized_request(request);
   KeyValue* kv = authorized_request.add_request_headers();
   kv->set_key(kAwsGlacierVersionHeaderKey);
   kv->set_value(kAwsGlacierVersion);
 
+  bool is_empty_payload = true;
+  for (const auto* buf : sequential_payload) {
+    if (buf != nullptr && !buf->empty()) {
+      is_empty_payload = false;
+      break;
+    }
+  }
+
   if (amazon_http_request_util_->AuthorizeRequest(
           aws_secret_key_,
           aws_access_key_,
           aws_region_name_,
           kAwsGlacierServiceName,
-          (payload->empty() ?
+          (is_empty_payload ?
            kSha256DigestOfEmptyString : payload_sha256_digest),
           &authorized_request)) {
     response_.reset(new HttpResponse);
     response_payload_.reset(new vector<byte>);
-    return http_connection_->SendRequest(
-        authorized_request, payload, response_.get(), response_payload_.get(),
-        callback);
+    return http_connection_->SendRequest(authorized_request, sequential_payload,
+                                         response_.get(),
+                                         response_payload_.get(), callback);
   }
 
   return false;

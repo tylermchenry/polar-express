@@ -78,13 +78,24 @@ class GlacierConnection {
       const string& payload_description,
       string* archive_id, Callback callback);
 
+  // Version of UploadArchive that accepts a series of sequential byte buffers
+  // for the payload.
+  virtual bool UploadArchive(
+      const string& vault_name,
+      const vector<const vector<byte>*>& sequential_payload,
+      const string& payload_sha256_linear_digest,
+      const string& payload_sha256_tree_digest,
+      const string& payload_description,
+      string* archive_id, Callback callback);
+
   virtual bool DeleteArchive(
       const string& vault_name, const string& archive_id,
       bool* archive_deleted, Callback callback);
 
  private:
   bool SendRequest(
-      const HttpRequest& request, const vector<byte>* payload,
+      const HttpRequest& request,
+      const vector<const vector<byte>*>& sequential_payload,
       const string& payload_sha256_digest, Callback callback);
 
   void HandleCreateVault(
@@ -120,8 +131,6 @@ class GlacierConnection {
   CryptoPP::SecByteBlock aws_secret_key_;
   bool operation_pending_;
   bool last_operation_succeeded_;
-
-  const vector<byte>empty_request_payload_;
 
   unique_ptr<HttpResponse> response_;
   unique_ptr<vector<byte> > response_payload_;

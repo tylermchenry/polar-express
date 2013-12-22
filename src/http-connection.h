@@ -52,6 +52,14 @@ class HttpConnection {
       HttpResponse* response, vector<byte>* response_payload,
       Callback callback);
 
+  // Version of SendRequest that accepts a series of sequential byte buffers
+  // for the payload.
+  virtual bool SendRequest(
+      const HttpRequest& request,
+      const vector<const vector<byte>*>& request_sequential_payload,
+      HttpResponse* response, vector<byte>* response_payload,
+      Callback callback);
+
  private:
   void SerializeRequest(const HttpRequest& request, size_t payload_size);
 
