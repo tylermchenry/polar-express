@@ -33,6 +33,15 @@ class MetadataDb {
   virtual void RecordNewBundle(
       boost::shared_ptr<AnnotatedBundleData> bundle, Callback callback);
 
+  // Creates a local-only mapping from (bundle_id, server_id) to the server-side
+  // bundle ID with status and timestamp.
+  //
+  // TODO: There should be some kind of server object, instead of taking server
+  // ID directly.
+  virtual void RecordUploadedBundle(
+      int server_id, boost::shared_ptr<AnnotatedBundleData> bundle,
+      Callback callback);
+
  protected:
   explicit MetadataDb(bool create_impl);
 

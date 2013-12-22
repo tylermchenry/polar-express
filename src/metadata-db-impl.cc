@@ -177,6 +177,38 @@ void MetadataDbImpl::RecordNewBundle(
   callback();
 }
 
+void MetadataDbImpl::RecordUploadedBundle(
+    int server_id, boost::shared_ptr<AnnotatedBundleData> bundle,
+    Callback callback) {
+  ScopedStatement uploaded_bundle_insert_stmt(db());
+
+  uploaded_bundle_insert_stmt.Prepare(
+      "insert into local_bundles_to_servers "
+      "('bundle_id', 'server_id', 'server_bundle_id', 'status', "
+      "'status_timestamp') "
+      "values (:bundle_id, :server_id, :server_bundle_id, :status, "
+      ":status_timestamp);");
+
+  uploaded_bundle_insert_stmt.BindInt64(
+      ":bundle_id", bundle->annotations().id());
+  uploaded_bundle_insert_stmt.BindInt64(
+      ":server_id", server_id);
+  uploaded_bundle_insert_stmt.BindText(
+      ":server_bundle_id", bundle->annotations().server_bundle_id());
+  uploaded_bundle_insert_stmt.BindInt(
+      ":status",
+      static_cast<int>(bundle->annotations().server_bundle_status()));
+  uploaded_bundle_insert_stmt.BindInt64(
+      ":status_timestamp",
+      bundle->annotations().server_bundle_status_timestamp());
+
+  int code = uploaded_bundle_insert_stmt.StepUntilNotBusy();
+  if (code != SQLITE_DONE) {
+    std::cerr << sqlite3_errmsg(db()) << std::endl;
+    std::cerr << bundle->annotations().DebugString() << std::endl;
+  }
+}
+
 int64_t MetadataDbImpl::GetLatestSnapshotId(const File& file) const {
   ScopedStatement snapshot_select_stmt(db());
   snapshot_select_stmt.Prepare(

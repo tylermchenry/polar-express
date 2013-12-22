@@ -24,10 +24,20 @@ message BundleManifest {
 // Proto to represent additional metadata which is NOT stored within
 // the bundle (id, persistence_file_path, etc.).
 //
-// Next tag: 5
+// Next tag: 8
 message BundleAnnotations {
   optional int64 id = 1 [default = -1];
   optional string sha256_linear_digest = 2;
   optional string sha256_tree_digest = 3;
   optional string persistence_file_path = 4;
+
+  // Server-side annotations.
+  // TODO: Figure out what the statuses should be.
+  enum ServerBundleStatus {
+    kUnknown = 0;
+    kOK = 1;
+  }
+  optional string server_bundle_id = 5;
+  optional ServerBundleStatus server_bundle_status = 6;
+  optional int64 server_bundle_status_timestamp = 7;
 }

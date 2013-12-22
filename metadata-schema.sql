@@ -97,6 +97,10 @@ create table local_servers (
   'name'                TEXT    NOT NULL,
   'connection_info'     TEXT
 );
+-- TEMPORARY: Create a fake server with ID = 1 to allow references
+-- from local_bundles_to_servers to work until real user-configuration
+-- is supported.
+insert into local_servers (id, name) values (1, 'Test Server');
 
 -- This table provides a quick lookup for which blocks corresponded to
 -- a file (at which offsets) at the time that a particular snapshot

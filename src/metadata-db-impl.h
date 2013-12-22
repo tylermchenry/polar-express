@@ -34,6 +34,10 @@ class MetadataDbImpl : public MetadataDb {
   virtual void RecordNewBundle(
       boost::shared_ptr<AnnotatedBundleData> bundle, Callback callback);
 
+  virtual void RecordUploadedBundle(
+      int server_id, boost::shared_ptr<AnnotatedBundleData> bundle,
+      Callback callback);
+
  private:
   // TODO(tylermchenry): Might be useful for this to be public later.
   int64_t GetLatestSnapshotId(const File& file) const;
