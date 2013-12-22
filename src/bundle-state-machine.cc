@@ -11,8 +11,6 @@
 #include "proto/file.pb.h"
 #include "proto/snapshot.pb.h"
 
-#include "boost/lexical_cast.hpp"
-
 namespace polar_express {
 namespace {
 
@@ -231,17 +229,9 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, RecordBundle) {
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, WriteBundle) {
   assert(generated_bundle_ != nullptr);
-  // TODO(tylermchenry): This will need to be factored out into some
-  // kind of util when writing the resume code that reads and parses
-  // these names.
-  const string bundle_file_prefix =
-      string("bundle_") +
-      boost::lexical_cast<string>(generated_bundle_->annotations().id()) + "_" +
-      generated_bundle_->annotations().sha256_linear_digest() + "_";
-
   file_writer_->WriteSequentialDataToTemporaryFile(
       generated_bundle_->file_contents(),
-      bundle_file_prefix,
+      generated_bundle_->unique_filename() + "_",
       generated_bundle_->mutable_annotations()->mutable_persistence_file_path(),
       CreateExternalEventCallback<BundleWritten>());
 }

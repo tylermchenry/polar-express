@@ -4,6 +4,7 @@
 
 #include <unistd.h>
 
+#include "boost/lexical_cast.hpp"
 #include "crypto++/hex.h"
 #include "crypto++/sha.h"
 
@@ -213,6 +214,11 @@ size_t AnnotatedBundleData::file_contents_size() const {
     size += data->size();
   }
   return size;
+}
+
+string AnnotatedBundleData::unique_filename() const {
+  return string("bundle_") + boost::lexical_cast<string>(annotations_.id()) +
+      "_" + annotations_.sha256_linear_digest();
 }
 
 }  // namespace polar_express

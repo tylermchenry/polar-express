@@ -163,6 +163,10 @@ class AnnotatedBundleData {
   const vector<const vector<byte>* >& file_contents() const;
   size_t file_contents_size() const;
 
+  // Returns a unique filename for the bundle composed using the ID and the
+  // linear digest from the annotations.
+  string unique_filename() const;
+
  private:
   const BundleManifest manifest_;
   const boost::shared_ptr<vector<byte> > encryption_headers_;
