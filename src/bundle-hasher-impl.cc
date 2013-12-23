@@ -88,7 +88,8 @@ void BundleHasherImpl::HashData(
     // TODO(tylermchenry): Gah, there has to be a cleaner way to write this!
     size_t offset = 0;
     if (bytes_in_current_intermediate_digest > 0) {
-      offset = std::min(data->size(), kTreeHashIntermediateDigestDataSize);
+      offset = std::min(data->size(), kTreeHashIntermediateDigestDataSize -
+                                          bytes_in_current_intermediate_digest);
       sha256_tree_engine.Update(&(*data)[0], offset);
       bytes_in_current_intermediate_digest += offset;
     }
