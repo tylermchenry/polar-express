@@ -207,6 +207,8 @@ void MetadataDbImpl::RecordUploadedBundle(
     std::cerr << sqlite3_errmsg(db()) << std::endl;
     std::cerr << bundle->annotations().DebugString() << std::endl;
   }
+
+  callback();
 }
 
 int64_t MetadataDbImpl::GetLatestSnapshotId(const File& file) const {
