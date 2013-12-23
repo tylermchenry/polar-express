@@ -360,9 +360,16 @@ bundle_state_machine = env.Library(
 upload_state_machine_deplibs = [
     asio_dispatcher,
     bundle,
+    glacier_connection,
+    metadata_db,
+    metadata_db_deplibs,
+    glacier_connection_deplibs,
     bundle_deplibs,
     asio_dispatcher_deplibs,
     'bundle_manifest_proto',
+    'glacier_proto',
+    'boost_filesystem-mt',
+    'crypto++',
     'protobuf',
     ];
 upload_state_machine = env.Library(

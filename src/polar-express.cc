@@ -11,6 +11,10 @@ using namespace polar_express;
 
 // TODO(tylermchenry): User configurable, obviously.
 const char kPassphrase[] = "correct horse battery staple";
+const char kAwsRegionName[] = "";
+const char kAwsAccessKey[] = "";
+const byte kAwsSecretKey[] = "";
+const char kAwsGlacierVaultName[] = "";
 
 int main(int argc, char** argv) {
   if (argc > 1) {
@@ -32,8 +36,14 @@ int main(int argc, char** argv) {
       encryption_keying_data.reset(new Cryptor::KeyingData(tmp_keying_data));
     }
 
+    // Be sure not to include the trailing NUL in the key block.
+    const CryptoPP::SecByteBlock aws_secret_key(kAwsSecretKey,
+                                                sizeof(kAwsSecretKey) - 1);
+
     BackupExecutor backup_executor;
-    backup_executor.Start(root, encryption_type, encryption_keying_data);
+    backup_executor.Start(root, encryption_type, encryption_keying_data,
+                          kAwsRegionName, kAwsAccessKey, aws_secret_key,
+                          kAwsGlacierVaultName);
 
     AsioDispatcher::GetInstance()->WaitForFinish();
     std::cout << "Processed " << backup_executor.GetNumFilesProcessed()

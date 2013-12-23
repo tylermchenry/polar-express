@@ -153,6 +153,7 @@ class StateMachine
   // are no more events left to execute. The idle flag is automatically cleared
   // on the next EXTERNAL event.
   void SetIdle();
+  bool IsIdle() const;
 
  private:
   boost::shared_ptr<AsioDispatcher::StrandDispatcher> event_strand_dispatcher_;
@@ -266,6 +267,11 @@ StateMachine<StateMachineImplT, StateMachineT>::CreateExternalEventCallback() {
 template <typename StateMachineImplT, typename StateMachineT>
 void StateMachine<StateMachineImplT, StateMachineT>::SetIdle() {
   idle_ = true;
+}
+
+template <typename StateMachineImplT, typename StateMachineT>
+bool StateMachine<StateMachineImplT, StateMachineT>::IsIdle() const {
+  return idle_;
 }
 
 template <typename StateMachineImplT, typename StateMachineT>

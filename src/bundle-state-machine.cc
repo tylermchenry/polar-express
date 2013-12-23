@@ -15,7 +15,7 @@ namespace polar_express {
 namespace {
 
 // TODO: These should be configurable.
-const size_t kMaxBundleSize = 100 * (1 << 20);  // 100 MiB
+const size_t kMaxBundleSize = 20 * (1 << 20);  // 20 MiB
 const size_t kMaxCompressionBufferSize = 2 * (1 << 20);  // 2 MiB
 
 }  // namespace
@@ -241,6 +241,7 @@ PE_STATE_MACHINE_ACTION_HANDLER(
   if (bundle_ready_callback_) {
     bundle_ready_callback_();
   }
+  SetIdle();
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, ResetForNextBundle) {

@@ -54,10 +54,13 @@ class PersistentStateMachinePool : public StateMachinePool<InputT> {
   virtual void HandleStateMachineFinishedInternal(
       boost::shared_ptr<StateMachineT> state_machine) {}
 
-  void DeactivateStateMachine(
+  // Deactivates the current state machine, and then tries to run the next
+  // available state machine if possible. It is necessary to go through these
+  // two steps in sequence, rather than just trying to run the next input on the
+  // given already-active state machine because this pool may need to wait for
+  // the next pool to have available input slots.
+  void DeactivateStateMachineAndTryRunNext(
       boost::shared_ptr<StateMachineT> state_machine);
-
-  void TryRunNextInput(boost::shared_ptr<StateMachineT> state_machine);
 
  private:
   virtual size_t NumRunningStateMachines() const;
@@ -67,6 +70,11 @@ class PersistentStateMachinePool : public StateMachinePool<InputT> {
   virtual void TryRunNextStateMachineInternal();
 
   boost::shared_ptr<StateMachineT> TryActivateStateMachine();
+
+  void DeactivateStateMachine(
+      boost::shared_ptr<StateMachineT> state_machine);
+
+  void TryRunNextInput(boost::shared_ptr<StateMachineT> state_machine);
 
   void HandleStateMachineFinished(
       boost::shared_ptr<StateMachineT> state_machine);
@@ -96,14 +104,11 @@ PersistentStateMachinePool<StateMachineT, InputT>::
 }
 
 template <typename StateMachineT, typename InputT>
-void PersistentStateMachinePool<StateMachineT, InputT>::DeactivateStateMachine(
+void PersistentStateMachinePool<StateMachineT,
+                                InputT>::DeactivateStateMachineAndTryRunNext(
     boost::shared_ptr<StateMachineT> state_machine) {
-  assert(state_machine != nullptr);
-  if(active_state_machines_.find(state_machine) !=
-     active_state_machines_.end()) {
-    active_state_machines_.erase(state_machine);
-    idle_state_machines_.push(state_machine);
-  }
+  DeactivateStateMachine(state_machine);
+  StateMachinePool<InputT>::TryRunNextStateMachine();
 }
 
 template <typename StateMachineT, typename InputT>
@@ -150,6 +155,17 @@ PersistentStateMachinePool<StateMachineT, InputT>::TryActivateStateMachine() {
     active_state_machines_.insert(activated_state_machine);
   }
   return activated_state_machine;
+}
+
+template <typename StateMachineT, typename InputT>
+void PersistentStateMachinePool<StateMachineT, InputT>::DeactivateStateMachine(
+    boost::shared_ptr<StateMachineT> state_machine) {
+  assert(state_machine != nullptr);
+  if(active_state_machines_.find(state_machine) !=
+     active_state_machines_.end()) {
+    active_state_machines_.erase(state_machine);
+    idle_state_machines_.push(state_machine);
+  }
 }
 
 template <typename StateMachineT, typename InputT>

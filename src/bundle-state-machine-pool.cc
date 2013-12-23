@@ -45,7 +45,8 @@ void BundleStateMachinePool::StartNewStateMachine(
   assert(state_machine != nullptr);
 
   state_machine->SetSnapshotDoneCallback(CreateStrandCallback(
-      bind(&BundleStateMachinePool::TryRunNextInput, this, state_machine)));
+      bind(&BundleStateMachinePool::DeactivateStateMachineAndTryRunNext, this,
+           state_machine)));
   state_machine->SetBundleReadyCallback(CreateStrandCallback(
       bind(&BundleStateMachinePool::HandleBundleReady, this, state_machine)));
 

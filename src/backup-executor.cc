@@ -21,7 +21,11 @@ BackupExecutor::~BackupExecutor() {
 void BackupExecutor::Start(
     const string& root,
     Cryptor::EncryptionType encryption_type,
-    boost::shared_ptr<const Cryptor::KeyingData> encryption_keying_data) {
+    boost::shared_ptr<const Cryptor::KeyingData> encryption_keying_data,
+    const string& aws_region_name,
+    const string& aws_access_key,
+    const CryptoPP::SecByteBlock& aws_secret_key,
+    const string& glacier_vault_name) {
   // Ensure that the given root is reasonable, and that Start has not been
   // called twice.
   assert(!root.empty());
@@ -39,9 +43,9 @@ void BackupExecutor::Start(
   snapshot_state_machine_pool_->SetNextPool(bundle_state_machine_pool_);
 
   upload_state_machine_pool_.reset(new UploadStateMachinePool(
-      strand_dispatcher_, bundle_state_machine_pool_));
-  // TODO: Uncomment the line below when the upload state machine works.
-  // bundle_state_machine_pool_.SetNextPool(upload_state_machine_pool_);
+      strand_dispatcher_, aws_region_name, aws_access_key, aws_secret_key,
+      glacier_vault_name, bundle_state_machine_pool_));
+  bundle_state_machine_pool_->SetNextPool(upload_state_machine_pool_);
 
   snapshot_state_machine_pool_->SetNeedMoreInputCallback(
       strand_dispatcher_->CreateStrandCallback(

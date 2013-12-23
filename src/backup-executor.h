@@ -48,7 +48,11 @@ class BackupExecutor {
   virtual void Start(
       const string& root,
       Cryptor::EncryptionType encryption_type,
-      boost::shared_ptr<const Cryptor::KeyingData> encryption_keying_data);
+      boost::shared_ptr<const Cryptor::KeyingData> encryption_keying_data,
+      const string& aws_region_name,
+      const string& aws_access_key,
+      const CryptoPP::SecByteBlock& aws_secret_key,
+      const string& glacier_vault_name);
 
   // Returns the number of files processed during the backup. Should be called
   // only after the backup has completed.
