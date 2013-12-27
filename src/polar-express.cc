@@ -52,7 +52,8 @@ int main(int argc, char** argv) {
               << " new snapshots." << std::endl;
     std::cout << "Generated " << backup_executor.GetNumBundlesGenerated()
               << " new bundles." << std::endl;
-
+    std::cout << "Uploaded " << backup_executor.GetNumBundlesUploaded()
+              << " new bundles." << std::endl;
   }
   return 0;
 }
