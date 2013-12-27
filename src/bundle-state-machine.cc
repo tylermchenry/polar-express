@@ -70,10 +70,15 @@ void BundleStateMachineImpl::FinishAndExit() {
 }
 
 boost::shared_ptr<AnnotatedBundleData>
-BundleStateMachineImpl::RetrieveGeneratedBundle() {
-  boost::shared_ptr<AnnotatedBundleData> ret_bundle = generated_bundle_;
-  PostEvent<BundleRetrieved>();
-  return ret_bundle;
+BundleStateMachineImpl::RetrieveGeneratedBundle() const {
+  assert(generated_bundle_ != nullptr);
+  return generated_bundle_;
+}
+
+void BundleStateMachineImpl::Continue() {
+  assert(generated_bundle_ != nullptr);
+  generated_bundle_.reset();
+  PostEvent<ContinueAfterBundleRetrieved>();
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, StartNewSnapshot) {

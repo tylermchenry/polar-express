@@ -201,7 +201,7 @@ void StateMachinePool<InputT>::TryRunNextStateMachine() {
   // from this pool may produce output before the remaining input slots of the
   // next pool increase.
   if (next_pool_ != nullptr &&
-      next_pool_->InputSlotsRemaining() <= max_simultaneous_state_machines()) {
+      next_pool_->InputSlotsRemaining() < max_simultaneous_state_machines()) {
     return;
   }
 
@@ -243,6 +243,7 @@ boost::shared_ptr<InputT> StateMachinePool<InputT>::PopNextInput() {
     next_input = pending_inputs_.front();
     pending_inputs_.pop();
   }
+
   return next_input;
 }
 

@@ -1,6 +1,7 @@
 #ifndef BUNDLE_STATE_MACHINE_POOL_H
 #define BUNDLE_STATE_MACHINE_POOL_H
 
+#include <set>
 #include <string>
 
 #include "boost/shared_ptr.hpp"
@@ -40,6 +41,9 @@ class BundleStateMachinePool
       boost::shared_ptr<Snapshot> input,
       boost::shared_ptr<BundleStateMachine> state_machine);
 
+  virtual bool TryContinue(
+      boost::shared_ptr<BundleStateMachine> state_machine);
+
   void HandleSnapshotDone(boost::shared_ptr<BundleStateMachine> state_machine);
 
   void HandleBundleReady(boost::shared_ptr<BundleStateMachine> state_machine);
@@ -49,6 +53,7 @@ class BundleStateMachinePool
   const boost::shared_ptr<const Cryptor::KeyingData> encryption_keying_data_;
 
   int num_bundles_generated_;
+  std::set<const BundleStateMachine*> continueable_state_machines_;
   boost::shared_ptr<StateMachinePool<AnnotatedBundleData> > next_pool_;
 
   DISALLOW_COPY_AND_ASSIGN(BundleStateMachinePool);

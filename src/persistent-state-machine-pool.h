@@ -62,6 +62,17 @@ class PersistentStateMachinePool : public StateMachinePool<InputT> {
   void DeactivateStateMachineAndTryRunNext(
       boost::shared_ptr<StateMachineT> state_machine);
 
+ protected:
+
+  // Pools for state machines that may retain partial input after producing
+  // output can override this method if they want to try to continue working on
+  // retained input before receiving new input. This method should return true
+  // if the given state machine CANNOT be continued, and needs new input.
+  virtual bool TryContinue(
+      boost::shared_ptr<StateMachineT> state_machine) {
+    return false;
+  }
+
  private:
   virtual size_t NumRunningStateMachines() const;
 
@@ -129,7 +140,9 @@ void PersistentStateMachinePool<StateMachineT,
   boost::shared_ptr<StateMachineT> activated_state_machine =
       TryActivateStateMachine();
   if (activated_state_machine != nullptr) {
-    TryRunNextInput(activated_state_machine);
+    if (!TryContinue(activated_state_machine)) {
+      TryRunNextInput(activated_state_machine);
+    }
   }
 }
 

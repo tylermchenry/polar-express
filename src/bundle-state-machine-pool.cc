@@ -1,7 +1,5 @@
 #include "bundle-state-machine-pool.h"
 
-#include <iostream>
-
 #include "bundle.h"
 #include "bundle-state-machine.h"
 
@@ -45,8 +43,7 @@ void BundleStateMachinePool::StartNewStateMachine(
   assert(state_machine != nullptr);
 
   state_machine->SetSnapshotDoneCallback(CreateStrandCallback(
-      bind(&BundleStateMachinePool::DeactivateStateMachineAndTryRunNext, this,
-           state_machine)));
+      bind(&BundleStateMachinePool::HandleSnapshotDone, this, state_machine)));
   state_machine->SetBundleReadyCallback(CreateStrandCallback(
       bind(&BundleStateMachinePool::HandleBundleReady, this, state_machine)));
 
@@ -59,22 +56,41 @@ void BundleStateMachinePool::RunInputOnStateMachine(
   CHECK_NOTNULL(state_machine)->BundleSnapshot(input);
 }
 
+bool BundleStateMachinePool::TryContinue(
+    boost::shared_ptr<BundleStateMachine> state_machine) {
+  assert(state_machine != nullptr);
+  if (continueable_state_machines_.find(state_machine.get()) ==
+      continueable_state_machines_.end()) {
+    return false;
+  }
+
+  continueable_state_machines_.erase(state_machine.get());
+  state_machine->Continue();
+  return true;
+}
+
+void BundleStateMachinePool::HandleSnapshotDone(
+    boost::shared_ptr<BundleStateMachine> state_machine) {
+  continueable_state_machines_.erase(state_machine.get());
+  DeactivateStateMachineAndTryRunNext(state_machine);
+}
+
 void BundleStateMachinePool::HandleBundleReady(
     boost::shared_ptr<BundleStateMachine> state_machine) {
   boost::shared_ptr<AnnotatedBundleData> bundle_data =
       state_machine->RetrieveGeneratedBundle();
   if (bundle_data != nullptr) {
     ++num_bundles_generated_;
-    std::cerr << "Wrote bundle to: "
-              << bundle_data->annotations().persistence_file_path()
-              << std::endl;
     if (next_pool_ != nullptr) {
       assert(next_pool_->CanAcceptNewInput());
       next_pool_->AddNewInput(bundle_data);
     }
   }
-  // The bundle state machine keeps running -- it may still have snapshot data
-  // to process that did not fit into the bundle that it just produced.
+
+  // This state machine should be continued to process existing left-over input
+  // that did not make it into this bundle before it is given any new input.
+  continueable_state_machines_.insert(state_machine.get());
+  DeactivateStateMachineAndTryRunNext(state_machine);
 }
 
 }  // namespace polar_express
