@@ -193,7 +193,7 @@ void PersistentStateMachinePool<StateMachineT, InputT>::TryRunNextInput(
     DeactivateStateMachine(state_machine);
   }
 
-  if (this->IsCompletelyIdle()) {
+  if (this->IsCompletelyIdleAndNotExpectingMoreInput()) {
     TerminateAllStateMachines();
   }
 }

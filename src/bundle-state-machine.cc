@@ -32,7 +32,8 @@ BundleStateMachineImpl::BackEnd* BundleStateMachine::GetBackEnd() {
 }
 
 BundleStateMachineImpl::BundleStateMachineImpl()
-    : exit_requested_(false),
+    : flush_requested_(false),
+      exit_requested_(false),
       active_chunk_(nullptr),
       active_chunk_hash_is_valid_(false),
       active_bundle_(new Bundle),
@@ -64,11 +65,6 @@ void BundleStateMachineImpl::BundleSnapshot(
   PostEvent<NewSnapshotReady>();
 }
 
-void BundleStateMachineImpl::FinishAndExit() {
-  exit_requested_ = true;
-  PostEvent<NewSnapshotReady>();
-}
-
 boost::shared_ptr<AnnotatedBundleData>
 BundleStateMachineImpl::RetrieveGeneratedBundle() const {
   assert(generated_bundle_ != nullptr);
@@ -79,6 +75,16 @@ void BundleStateMachineImpl::Continue() {
   assert(generated_bundle_ != nullptr);
   generated_bundle_.reset();
   PostEvent<ContinueAfterBundleRetrieved>();
+}
+
+void BundleStateMachineImpl::FlushCurrentBundle() {
+  flush_requested_ = true;
+  PostEvent<NewSnapshotReady>();
+}
+
+void BundleStateMachineImpl::FinishAndExit() {
+  exit_requested_ = true;
+  PostEvent<NewSnapshotReady>();
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, StartNewSnapshot) {
@@ -291,7 +297,8 @@ bool BundleStateMachineImpl::PopPendingChunk(const Chunk** chunk) {
 void BundleStateMachineImpl::NextChunk() {
   if (PopPendingChunk(&active_chunk_)) {
     PostEvent<NewChunkReady>();
-  } else if (exit_requested_) {
+  } else if (flush_requested_ || exit_requested_) {
+    flush_requested_ = false;
     PostEvent<FlushForced>();
   } else {
     PostEvent<NoChunksRemaining>();

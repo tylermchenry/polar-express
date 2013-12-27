@@ -1,6 +1,7 @@
 #ifndef BUNDLE_STATE_MACHINE_POOL_H
 #define BUNDLE_STATE_MACHINE_POOL_H
 
+#include <ctime>
 #include <set>
 #include <string>
 
@@ -53,6 +54,7 @@ class BundleStateMachinePool
   const boost::shared_ptr<const Cryptor::KeyingData> encryption_keying_data_;
 
   int num_bundles_generated_;
+  time_t last_bundle_generated_time_;
   std::set<const BundleStateMachine*> continueable_state_machines_;
   boost::shared_ptr<StateMachinePool<AnnotatedBundleData> > next_pool_;
 

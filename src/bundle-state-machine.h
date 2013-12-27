@@ -109,6 +109,11 @@ class BundleStateMachineImpl
   // Continue.
   void Continue();
 
+  // When SnapshotDoneCallback is invoked, FlushCurrentBundle may be called to
+  // force production of the currently pending bundle, even if it has not yet
+  // reached maximum size.
+  void FlushCurrentBundle();
+
   // Instructs the state machine to exit once it finishes processing
   // its queue of snapshots.
   //
@@ -312,6 +317,7 @@ class BundleStateMachineImpl
   boost::shared_ptr<const Cryptor::KeyingData> encryption_keying_data_;
   Callback snapshot_done_callback_;
   Callback bundle_ready_callback_;
+  bool flush_requested_;
   bool exit_requested_;
 
   boost::shared_ptr<Snapshot> pending_snapshot_;

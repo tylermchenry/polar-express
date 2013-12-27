@@ -1,5 +1,7 @@
 #include "bundle-state-machine-pool.h"
 
+#include <iostream>
+
 #include "bundle.h"
 #include "bundle-state-machine.h"
 
@@ -9,6 +11,7 @@ namespace {
 // TODO: Configurable.
 const size_t kMaxSnapshotsWaitingToBundle = 100;
 const size_t kMaxSimultaneousBundles = 2;
+const time_t kMaxUpstreamIdleTimeSeconds = 30;
 
 }  // namespace
 
@@ -23,7 +26,8 @@ BundleStateMachinePool::BundleStateMachinePool(
       root_(root),
       encryption_type_(encryption_type),
       encryption_keying_data_(CHECK_NOTNULL(encryption_keying_data)),
-      num_bundles_generated_(0) {}
+      num_bundles_generated_(0),
+      last_bundle_generated_time_(0) {}
 
 BundleStateMachinePool::~BundleStateMachinePool() {
 }
@@ -72,7 +76,15 @@ bool BundleStateMachinePool::TryContinue(
 void BundleStateMachinePool::HandleSnapshotDone(
     boost::shared_ptr<BundleStateMachine> state_machine) {
   continueable_state_machines_.erase(state_machine.get());
-  DeactivateStateMachineAndTryRunNext(state_machine);
+
+  if (next_pool_ != nullptr && last_bundle_generated_time_ > 0 &&
+      time(nullptr) - last_bundle_generated_time_ >
+          kMaxUpstreamIdleTimeSeconds &&
+      PoolIsCompletelyIdle(next_pool_)) {
+    CHECK_NOTNULL(state_machine)->FlushCurrentBundle();
+  } else {
+    DeactivateStateMachineAndTryRunNext(state_machine);
+  }
 }
 
 void BundleStateMachinePool::HandleBundleReady(
@@ -81,6 +93,10 @@ void BundleStateMachinePool::HandleBundleReady(
       state_machine->RetrieveGeneratedBundle();
   if (bundle_data != nullptr) {
     ++num_bundles_generated_;
+    last_bundle_generated_time_ = time(nullptr);
+    std::cerr << "Wrote bundle to: "
+              << bundle_data->annotations().persistence_file_path()
+              << std::endl;
     if (next_pool_ != nullptr) {
       assert(next_pool_->CanAcceptNewInput());
       next_pool_->AddNewInput(bundle_data);

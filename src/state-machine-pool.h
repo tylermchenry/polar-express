@@ -32,6 +32,7 @@ class StateMachinePoolBase {
   virtual size_t MaxNumSimultaneousStateMachines() const = 0;
   virtual size_t NumRunningStateMachines() const = 0;
   virtual bool IsCompletelyIdle() const = 0;
+  virtual bool IsCompletelyIdleAndNotExpectingMoreInput() const = 0;
   virtual void TryRunNextStateMachine() = 0;
   virtual void PostCallbackToStrand(Callback callback) = 0;
   virtual bool StrandDispatcherMatches(boost::shared_ptr<
@@ -40,6 +41,11 @@ class StateMachinePoolBase {
   bool PoolIsCompletelyIdle(
       boost::shared_ptr<StateMachinePoolBase> pool) const {
     return CHECK_NOTNULL(pool)->IsCompletelyIdle();
+  }
+
+  bool PoolIsCompletelyIdleAndNotExpectingMoreInput(
+      boost::shared_ptr<StateMachinePoolBase> pool) const {
+    return CHECK_NOTNULL(pool)->IsCompletelyIdleAndNotExpectingMoreInput();
   }
 
   size_t MaxNumSimultaneousStateMachinesForPool(
@@ -100,6 +106,7 @@ class StateMachinePool : public StateMachinePoolBase {
   // versions below instead.
   virtual void TryRunNextStateMachine();
   virtual bool IsCompletelyIdle() const;
+  virtual bool IsCompletelyIdleAndNotExpectingMoreInput() const;
   virtual void PostCallbackToStrand(Callback callback);
   virtual bool StrandDispatcherMatches(boost::shared_ptr<
       AsioDispatcher::StrandDispatcher> strand_dispatcher) const;
@@ -220,7 +227,13 @@ void StateMachinePool<InputT>::TryRunNextStateMachine() {
 
 template <typename InputT>
 bool StateMachinePool<InputT>::IsCompletelyIdle() const {
-  return pending_inputs_.empty() && IsCompletelyIdleInternal() &&
+  return pending_inputs_.empty() && IsCompletelyIdleInternal();
+}
+
+template <typename InputT>
+bool StateMachinePool<InputT>::IsCompletelyIdleAndNotExpectingMoreInput()
+    const {
+  return IsCompletelyIdle() &&
          (preceding_pool_ != nullptr ? PoolIsCompletelyIdle(preceding_pool_)
                                      : IsExpectingMoreInput());
 }
