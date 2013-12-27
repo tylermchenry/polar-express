@@ -63,8 +63,25 @@ UploadStateMachineImpl::RetrieveLastUploadedBundle() {
   return ret_bundle;
 }
 
+PE_STATE_MACHINE_ACTION_HANDLER(UploadStateMachineImpl, ReopenConnection) {
+  std::cerr << "Reopening Glacier connection..." << std::endl;
+  if (current_bundle_data_ != nullptr) {
+    assert(next_bundle_data_ == nullptr);
+    next_bundle_data_ = current_bundle_data_;
+    current_bundle_data_.reset();
+    attempted_vault_creation_ = false;
+  }
+  bool success = CHECK_NOTNULL(glacier_connection_)
+      ->Reopen(CreateExternalEventCallback<ConnectionReady>());
+  assert(success);
+}
+
 PE_STATE_MACHINE_ACTION_HANDLER(UploadStateMachineImpl, GetVaultDescription) {
-  assert(CHECK_NOTNULL(glacier_connection_)->is_open());
+  if (!CHECK_NOTNULL(glacier_connection_)->is_open()) {
+    PostEvent<ConnectionClosed>();
+    return;
+  }
+  std::cerr << "Glacier connection is open." << std::endl;
 
   // TODO: Error handling for the case where we fail to create a vault.
   assert(!attempted_vault_creation_ || vault_created_);
@@ -78,7 +95,12 @@ PE_STATE_MACHINE_ACTION_HANDLER(UploadStateMachineImpl, GetVaultDescription) {
 
 PE_STATE_MACHINE_ACTION_HANDLER(UploadStateMachineImpl,
                                 InspectVaultDescription) {
-  assert(CHECK_NOTNULL(glacier_connection_)->is_open());
+  if (!CHECK_NOTNULL(glacier_connection_)->is_open() ||
+      !glacier_connection_->last_operation_succeeded()) {
+    glacier_connection_->Close();
+    PostEvent<ConnectionClosed>();
+    return;
+  }
 
   if (glacier_connection_->last_operation_succeeded() &&
       vault_description_->vault_name() == glacier_vault_name_) {
@@ -89,7 +111,12 @@ PE_STATE_MACHINE_ACTION_HANDLER(UploadStateMachineImpl,
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(UploadStateMachineImpl, CreateVault) {
-  assert(CHECK_NOTNULL(glacier_connection_)->is_open());
+  if (!CHECK_NOTNULL(glacier_connection_)->is_open() ||
+      !glacier_connection_->last_operation_succeeded()) {
+    glacier_connection_->Close();
+    PostEvent<ConnectionClosed>();
+    return;
+  }
   assert(!attempted_vault_creation_);
 
   attempted_vault_creation_ = true;
@@ -119,7 +146,11 @@ PE_STATE_MACHINE_ACTION_HANDLER(UploadStateMachineImpl, InspectNextBundle) {
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(UploadStateMachineImpl, StartUpload) {
-  assert(CHECK_NOTNULL(glacier_connection_)->is_open());
+  if (!CHECK_NOTNULL(glacier_connection_)->is_open()) {
+    PostEvent<ConnectionClosed>();
+    return;
+  }
+
   assert(CHECK_NOTNULL(current_bundle_data_)
              ->annotations().server_bundle_id().empty());
 
@@ -134,6 +165,18 @@ PE_STATE_MACHINE_ACTION_HANDLER(UploadStateMachineImpl, StartUpload) {
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(UploadStateMachineImpl, RecordUpload) {
+  if (!CHECK_NOTNULL(glacier_connection_)->is_open() ||
+      !glacier_connection_->last_operation_succeeded() ||
+      CHECK_NOTNULL(current_bundle_data_)
+          ->annotations().server_bundle_id().empty()) {
+    std::cerr << "Failed to upload bundle "
+              << current_bundle_data_->annotations().id()
+              << ". Reopening connection and trying again." << std::endl;
+    glacier_connection_->Close();
+    PostEvent<ConnectionClosed>();
+    return;
+  }
+
   CHECK_NOTNULL(metadata_db_)
       ->RecordUploadedBundle(kTestServerId, current_bundle_data_,
                              CreateExternalEventCallback<UploadRecorded>());

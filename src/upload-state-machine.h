@@ -73,6 +73,7 @@ class UploadStateMachineImpl
 
  protected:
   PE_STATE_MACHINE_DEFINE_EVENT(ConnectionReady);
+  PE_STATE_MACHINE_DEFINE_EVENT(ConnectionClosed);
   PE_STATE_MACHINE_DEFINE_EVENT(VaultDescriptionReady);
   PE_STATE_MACHINE_DEFINE_EVENT(VaultMissing);
   PE_STATE_MACHINE_DEFINE_EVENT(VaultCreated);
@@ -86,6 +87,7 @@ class UploadStateMachineImpl
   PE_STATE_MACHINE_DEFINE_EVENT(UpdatedBundleRetrieved);
   PE_STATE_MACHINE_DEFINE_EVENT(FlushForced);
 
+  PE_STATE_MACHINE_DEFINE_ACTION(ReopenConnection);
   PE_STATE_MACHINE_DEFINE_ACTION(GetVaultDescription);
   PE_STATE_MACHINE_DEFINE_ACTION(InspectVaultDescription);
   PE_STATE_MACHINE_DEFINE_ACTION(CreateVault);
@@ -105,14 +107,29 @@ class UploadStateMachineImpl
           WaitForVaultDescription),
       PE_STATE_MACHINE_TRANSITION(
           WaitForVaultDescription,
+          ConnectionClosed,
+          ReopenConnection,
+          WaitForConnection),
+      PE_STATE_MACHINE_TRANSITION(
+          WaitForVaultDescription,
           VaultDescriptionReady,
           InspectVaultDescription,
           HaveVaultDescription),
       PE_STATE_MACHINE_TRANSITION(
           HaveVaultDescription,
+          ConnectionClosed,
+          ReopenConnection,
+          WaitForConnection),
+      PE_STATE_MACHINE_TRANSITION(
+          HaveVaultDescription,
           VaultMissing,
           CreateVault,
           WaitForVaultCreation),
+      PE_STATE_MACHINE_TRANSITION(
+          WaitForVaultCreation,
+          ConnectionClosed,
+          ReopenConnection,
+          WaitForConnection),
       PE_STATE_MACHINE_TRANSITION(
           WaitForVaultCreation,
           VaultCreated,
@@ -145,9 +162,19 @@ class UploadStateMachineImpl
           ReadyToUpload),
       PE_STATE_MACHINE_TRANSITION(
           WaitForUploadToComplete,
+          ConnectionClosed,
+          ReopenConnection,
+          WaitForConnection),
+      PE_STATE_MACHINE_TRANSITION(
+          WaitForUploadToComplete,
           UploadCompleted,
           RecordUpload,
           WaitForUploadToRecord),
+      PE_STATE_MACHINE_TRANSITION(
+          WaitForUploadToRecord,
+          ConnectionClosed,
+          ReopenConnection,
+          WaitForConnection),
       PE_STATE_MACHINE_TRANSITION(
           WaitForUploadToRecord,
           UploadRecorded,
