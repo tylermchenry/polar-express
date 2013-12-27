@@ -141,15 +141,19 @@ bool GlacierConnection::Open(
   return http_connection_->Open(
       network_usage_type,
       algorithm::join<vector<string> >(
-          { kAwsGlacierServiceName, aws_region_name_, kAwsDomain }, "."),
+        { kAwsGlacierServiceName, aws_region_name_, kAwsDomain }, "."),
       callback);
+}
+
+bool GlacierConnection::Reopen(Callback callback) {
+  if (strand_dispatcher_ == nullptr) {
+    return false;
+  }
+  return http_connection_->Reopen(callback);
 }
 
 void GlacierConnection::Close() {
   http_connection_->Close();
-  aws_region_name_.clear();
-  aws_access_key_.clear();
-  aws_secret_key_.CleanNew(0);
 }
 
 bool GlacierConnection::CreateVault(

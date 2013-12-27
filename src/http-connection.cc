@@ -95,6 +95,13 @@ bool HttpConnection::Open(
       network_usage_type, hostname, kHttpProtocol, callback);
 }
 
+bool HttpConnection::Reopen(Callback callback) {
+  if (strand_dispatcher_ == nullptr) {
+    return false;
+  }
+  return tcp_connection_->Reopen(callback);
+}
+
 bool HttpConnection::Close() {
   return tcp_connection_->Close();
 }

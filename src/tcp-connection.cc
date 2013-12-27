@@ -146,6 +146,13 @@ bool TcpConnection::Open(
   return true;
 }
 
+bool TcpConnection::Reopen(Callback callback) {
+  if (is_opening_ || is_open_) {
+    return false;
+  }
+  return Open(network_usage_type_, hostname_, protocol_, callback);
+}
+
 bool TcpConnection::Close() {
   if (is_opening_) {
     return false;
@@ -277,9 +284,6 @@ void TcpConnection::DestroyNetworkingObjects() {
   io_service_work_.reset();
   strand_dispatcher_.reset();
   read_streambuf_.reset();
-  network_usage_type_ = AsioDispatcher::NetworkUsageType::kInvalid;
-  hostname_.clear();
-  protocol_.clear();
 }
 
 void TcpConnection::TryConnect(

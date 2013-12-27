@@ -31,6 +31,8 @@ class HttpConnection {
       AsioDispatcher::NetworkUsageType network_usage_type,
       const string& hostname, Callback callback);
 
+  virtual bool Reopen(Callback callback);
+
   virtual bool Close();
 
   // Returns false if the connection is not open, or if a request is

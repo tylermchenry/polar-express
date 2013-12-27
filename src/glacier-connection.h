@@ -39,6 +39,8 @@ class GlacierConnection {
       const CryptoPP::SecByteBlock& aws_secret_key,
       Callback callback);
 
+  virtual bool Reopen(Callback callback);
+
   virtual void Close();
 
   virtual bool CreateVault(

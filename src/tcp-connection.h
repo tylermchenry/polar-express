@@ -39,6 +39,10 @@ class TcpConnection {
       AsioDispatcher::NetworkUsageType network_usage_type,
       const string& hostname, const string& protocol, Callback callback);
 
+  // Re-opens with the same parameters as the previous call to Open. Returns
+  // false and does nothing of Open has never been called.
+  virtual bool Reopen(Callback callback);
+
   // Close can return false if the connection is in the process of
   // opening but has not yet opened. If the connection is already closed,
   // this is a no-op.
