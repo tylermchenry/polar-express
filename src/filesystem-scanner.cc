@@ -38,6 +38,11 @@ bool FilesystemScanner::GetPaths(
   return impl_->GetPaths(paths);
 }
 
+bool FilesystemScanner::GetPathsWithFilesize(
+    vector<pair<boost::filesystem::path, size_t> >* paths_with_size) const {
+  return impl_->GetPathsWithFilesize(paths_with_size);
+}
+
 void FilesystemScanner::ClearPaths() {
   impl_->ClearPaths();
 }

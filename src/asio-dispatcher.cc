@@ -8,7 +8,7 @@
 
 namespace polar_express {
 
-int AsioDispatcher::kNumWorkersPerService = 2;
+int AsioDispatcher::kNumWorkersPerService = 5;
 boost::shared_ptr<AsioDispatcher> AsioDispatcher::instance_;
 
 // static

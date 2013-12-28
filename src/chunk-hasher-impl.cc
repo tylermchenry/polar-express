@@ -13,6 +13,7 @@ namespace polar_express {
 namespace {
 
 // TODO: Should be configurable.
+// Until configurable, must match value in backup-executor.cc.
 const size_t kBlockSizeBytes = 1024 * 1024;  // 1 MiB
 
 template <int N>

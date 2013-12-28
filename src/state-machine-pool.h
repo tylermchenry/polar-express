@@ -2,6 +2,7 @@
 #define STATE_MACHINE_POOL_H
 
 #include <queue>
+#include <utility>
 
 #include "boost/bind.hpp"
 #include "boost/shared_ptr.hpp"
@@ -22,8 +23,8 @@ class StateMachinePoolBase {
  public:
   virtual ~StateMachinePoolBase() {}
 
-  virtual bool CanAcceptNewInput() const = 0;
-  virtual size_t InputSlotsRemaining() const = 0;
+  virtual bool CanAcceptNewInput(size_t weight = 1) const = 0;
+  virtual size_t InputWeightRemaining() const = 0;
 
  protected:
   StateMachinePoolBase() {}
@@ -86,19 +87,19 @@ class StateMachinePool : public StateMachinePoolBase {
  public:
   virtual ~StateMachinePool();
 
-  virtual bool CanAcceptNewInput() const;
+  virtual bool CanAcceptNewInput(size_t weight = 1) const;
 
-  virtual size_t InputSlotsRemaining() const;
+  virtual size_t InputWeightRemaining() const;
 
   // Add a new input for this pool of state machines to process. Returns true if
   // the input was added, and false if it could not be added because the pool
   // already has its maximum number of inputs pending.
-  bool AddNewInput(boost::shared_ptr<InputT> input);
+  bool AddNewInput(boost::shared_ptr<InputT> input, size_t weight = 1);
 
  protected:
   StateMachinePool(
       boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher,
-      size_t max_pending_inputs, size_t max_simultaneous_state_machines,
+      size_t max_pending_inputs_weight, size_t max_simultaneous_state_machines,
       boost::shared_ptr<StateMachinePoolBase> preceding_pool =
           boost::shared_ptr<StateMachinePoolBase>());
 
@@ -134,25 +135,26 @@ class StateMachinePool : public StateMachinePoolBase {
 
   void set_next_pool(boost::shared_ptr<StateMachinePoolBase> next_pool);
 
-  size_t max_pending_inputs() const {
-    return max_pending_inputs_;
+  size_t max_pending_inputs_weight() const {
+    return max_pending_inputs_weight_;
   }
 
   size_t max_simultaneous_state_machines() const {
     return max_simultaneous_state_machines_;
   }
 
-  size_t pending_inputs_size() const {
-    return pending_inputs_.size();
+  size_t pending_inputs_weight() const {
+    return pending_inputs_weight_;
   }
 
  private:
-  const size_t max_pending_inputs_;
+  const size_t max_pending_inputs_weight_;
   const size_t max_simultaneous_state_machines_;
   const boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher_;
   const boost::shared_ptr<StateMachinePoolBase> preceding_pool_;
 
-  queue<boost::shared_ptr<InputT> > pending_inputs_;
+  queue<std::pair<boost::shared_ptr<InputT>, size_t> > pending_inputs_;
+  size_t pending_inputs_weight_;
   boost::shared_ptr<StateMachinePoolBase> next_pool_;
 
   DISALLOW_COPY_AND_ASSIGN(StateMachinePool);
@@ -161,12 +163,13 @@ class StateMachinePool : public StateMachinePoolBase {
 template <typename InputT>
 StateMachinePool<InputT>::StateMachinePool(
     boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher,
-    size_t max_pending_inputs, size_t max_simultaneous_state_machines,
+    size_t max_pending_inputs_weight, size_t max_simultaneous_state_machines,
     boost::shared_ptr<StateMachinePoolBase> preceding_pool)
     : strand_dispatcher_(CHECK_NOTNULL(strand_dispatcher)),
-      max_pending_inputs_(max_pending_inputs),
+      max_pending_inputs_weight_(max_pending_inputs_weight),
       max_simultaneous_state_machines_(max_simultaneous_state_machines),
-      preceding_pool_(preceding_pool) {
+      preceding_pool_(preceding_pool),
+      pending_inputs_weight_(0) {
   // The preceding pool must be using the same strand dispatcher, or
   // concurrency problems will result. These classes are not internally
   // synchronized, and that is only OK if their callbacks all run on the same
@@ -180,21 +183,23 @@ StateMachinePool<InputT>::~StateMachinePool() {
 }
 
 template <typename InputT>
-bool StateMachinePool<InputT>::CanAcceptNewInput() const {
-  return (pending_inputs_.size() < max_pending_inputs_);
+bool StateMachinePool<InputT>::CanAcceptNewInput(size_t weight) const {
+  return (pending_inputs_weight_ + weight <= max_pending_inputs_weight_);
 }
 
 template <typename InputT>
-size_t StateMachinePool<InputT>::InputSlotsRemaining() const {
-  return (max_pending_inputs_ - pending_inputs_.size());
+size_t StateMachinePool<InputT>::InputWeightRemaining() const {
+  return (max_pending_inputs_weight_ - pending_inputs_weight_);
 }
 
 template <typename InputT>
-bool StateMachinePool<InputT>::AddNewInput(boost::shared_ptr<InputT> input) {
-  if (!CanAcceptNewInput()) {
+bool StateMachinePool<InputT>::AddNewInput(boost::shared_ptr<InputT> input,
+                                           size_t weight) {
+  if (!CanAcceptNewInput(weight)) {
     return false;
   }
-  pending_inputs_.push(input);
+  pending_inputs_weight_ += weight;
+  pending_inputs_.push(make_pair(input, weight));
 
   // Is possible, activate a new state machine to handle this input immediately.
   TryRunNextStateMachine();
@@ -203,12 +208,17 @@ bool StateMachinePool<InputT>::AddNewInput(boost::shared_ptr<InputT> input) {
 
 template <typename InputT>
 void StateMachinePool<InputT>::TryRunNextStateMachine() {
+  // NOTE: The logic here relies on the assumption that a state machine's output
+  // will always have weight = 1. This is valid for now, as the only time we
+  // expect weight > 1 is for the initial input to the pool chain. If this
+  // assumption changes, the code below must be reworked.
+
   // Don't process new input if the next pool might not be able to accept our
   // output, keeping in mind that other simultaneously-running state machines
   // from this pool may produce output before the remaining input slots of the
   // next pool increase.
   if (next_pool_ != nullptr &&
-      next_pool_->InputSlotsRemaining() < max_simultaneous_state_machines()) {
+      next_pool_->InputWeightRemaining() < max_simultaneous_state_machines()) {
     return;
   }
 
@@ -217,9 +227,9 @@ void StateMachinePool<InputT>::TryRunNextStateMachine() {
   // If we just reduced the wait queue to below maximum, allow the
   // preceding pool to start running again in case it stopped.
   if (preceding_pool_ != nullptr &&
-      pending_inputs_.size() < max_pending_inputs_ &&
-      pending_inputs_.size() >=
-          (max_pending_inputs_ -
+      pending_inputs_weight_ < max_pending_inputs_weight_ &&
+      pending_inputs_weight_ >=
+          (max_pending_inputs_weight_ -
            MaxNumSimultaneousStateMachinesForPool(preceding_pool_))) {
     TryRunNextStateMachineOnPool(preceding_pool_);
   }
@@ -253,8 +263,10 @@ template <typename InputT>
 boost::shared_ptr<InputT> StateMachinePool<InputT>::PopNextInput() {
   boost::shared_ptr<InputT> next_input;
   if (!pending_inputs_.empty()) {
-    next_input = pending_inputs_.front();
+    auto next_input_pair = pending_inputs_.front();
+    next_input = next_input_pair.first;
     pending_inputs_.pop();
+    pending_inputs_weight_ -= next_input_pair.second;
   }
 
   return next_input;

@@ -45,6 +45,11 @@ class FilesystemScanner {
   // Returns all paths obtained since the last call to StartScan or ClearPaths.
   virtual bool GetPaths(vector<boost::filesystem::path>* paths) const;
 
+  // Returns all paths obtained since the last call to StartScan or ClearPaths,
+  // along with their size.
+  virtual bool GetPathsWithFilesize(
+      vector<pair<boost::filesystem::path, size_t> >* paths_with_size) const;
+
   // Clears all existing discovered paths.
   virtual void ClearPaths();
 

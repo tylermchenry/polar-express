@@ -7,8 +7,8 @@ namespace polar_express {
 namespace {
 
 // TODO: Configurable.
-const size_t kMaxPendingSnapshots = 200;
-const size_t kMaxSimultaneousSnapshots = 5;
+const size_t kMaxPendingBlocks = 5000;
+const size_t kMaxSimultaneousSnapshots = 20;
 
 }  // namespace
 
@@ -16,7 +16,7 @@ SnapshotStateMachinePool::SnapshotStateMachinePool(
     boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher,
     const string& root)
     : OneShotStateMachinePool<SnapshotStateMachine, boost::filesystem::path>(
-        strand_dispatcher, kMaxPendingSnapshots, kMaxSimultaneousSnapshots),
+        strand_dispatcher, kMaxPendingBlocks, kMaxSimultaneousSnapshots),
       root_(root),
       input_finished_(false),
       num_snapshots_generated_(0) {}
@@ -52,7 +52,7 @@ void SnapshotStateMachinePool::RunInputOnStateMachine(
   state_machine->Start(root_, *input);
 
   if (IsExpectingMoreInput() &&
-      (pending_inputs_size() < (max_pending_inputs() / 2)) &&
+      (pending_inputs_weight() < (max_pending_inputs_weight() / 2)) &&
       need_more_input_callback_ != nullptr) {
     need_more_input_callback_();
   }

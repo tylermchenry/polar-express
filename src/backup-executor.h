@@ -1,14 +1,10 @@
 #ifndef BACKUP_EXECUTOR_H
 #define BACKUP_EXECUTOR_H
 
-#include <deque>
-#include <memory>
 #include <queue>
-#include <set>
 #include <string>
 
 #include "boost/filesystem.hpp"
-#include "boost/pool/poolfwd.hpp"
 #include "boost/shared_ptr.hpp"
 #include "crypto++/secblock.h"
 
@@ -79,12 +75,23 @@ class BackupExecutor {
   // complete.
   void AddNewPendingSnapshotPaths();
 
+  void AddBufferedSnapshotPaths();
+
+  void TryAddSnapshotPathWithSize(
+      const std::pair<boost::filesystem::path, size_t>& path_with_size);
+
+  void TryAddSnapshotPathWithWeight(
+      const std::pair<boost::filesystem::path, size_t>& path_with_weight);
+
   void TryScanMorePaths();
+
+  size_t WeightFromFilesize(size_t filesize) const;
 
   enum class ScanState {
     kNotStarted,
     kInProgress,
     kWaitingToContinue,
+    kFinishedButPathsBuffered,
     kFinished,
   };
   ScanState scan_state_;
@@ -92,6 +99,12 @@ class BackupExecutor {
   boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher_;
 
   OverrideableUniquePtr<FilesystemScanner> filesystem_scanner_;
+  size_t snapshot_state_machine_pool_max_weight_;
+
+  std::queue<std::pair<boost::filesystem::path, size_t> >
+      buffered_paths_with_weight_;
+  size_t buffered_paths_total_weight_;
+
   int num_files_processed_;
 
   boost::shared_ptr<SnapshotStateMachinePool> snapshot_state_machine_pool_;

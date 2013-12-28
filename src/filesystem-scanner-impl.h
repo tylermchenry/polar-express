@@ -27,13 +27,16 @@ class FilesystemScannerImpl : public FilesystemScanner {
 
   virtual bool GetPaths(vector<boost::filesystem::path>* paths) const;
 
+  virtual bool GetPathsWithFilesize(
+      vector<pair<boost::filesystem::path, size_t> >* paths_with_size) const;
+
   virtual void ClearPaths();
 
  private:
   void AddPath(const boost::filesystem::path& path);
 
   filesystem::recursive_directory_iterator itr_;
-  vector<boost::filesystem::path> paths_;
+  vector<pair<boost::filesystem::path, size_t> > paths_with_size_;
 
   DISALLOW_COPY_AND_ASSIGN(FilesystemScannerImpl);
 };
