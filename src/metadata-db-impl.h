@@ -1,6 +1,7 @@
 #ifndef METADATA_DB_IMPL_H
 #define METADATA_DB_IMPL_H
 
+#include <memory>
 #include <string>
 
 #include "boost/shared_ptr.hpp"
@@ -17,6 +18,7 @@ class AnnotatedBundleData;
 class Attributes;
 class Chunk;
 class File;
+class ScopedStatement;
 class Snapshot;
 
 class MetadataDbImpl : public MetadataDb {
@@ -39,6 +41,8 @@ class MetadataDbImpl : public MetadataDb {
       Callback callback);
 
  private:
+  void PrepareStatements();
+
   // TODO(tylermchenry): Might be useful for this to be public later.
   int64_t GetLatestSnapshotId(const File& file) const;
 
@@ -65,6 +69,26 @@ class MetadataDbImpl : public MetadataDb {
   void WriteNewBundle(boost::shared_ptr<AnnotatedBundleData> bundle) const;
   void WriteNewBlockToBundleMappings(
       boost::shared_ptr<AnnotatedBundleData> bundle) const;
+
+  // Prepared statements
+  std::unique_ptr<ScopedStatement> snapshots_select_latest_stmt_;
+  std::unique_ptr<ScopedStatement> snapshots_select_latest_id_stmt_;
+  std::unique_ptr<ScopedStatement> snapshots_insert_stmt_;
+  std::unique_ptr<ScopedStatement> files_select_id_stmt_;
+  std::unique_ptr<ScopedStatement> files_insert_stmt_;
+  std::unique_ptr<ScopedStatement> attributes_select_id_stmt_;
+  std::unique_ptr<ScopedStatement> attributes_insert_stmt_;
+  std::unique_ptr<ScopedStatement> blocks_select_id_stmt_;
+  std::unique_ptr<ScopedStatement> blocks_insert_stmt_;
+  std::unique_ptr<ScopedStatement> bundles_insert_stmt_;
+  std::unique_ptr<ScopedStatement> files_to_blocks_mapping_select_stmt_;
+  std::unique_ptr<ScopedStatement> files_to_blocks_mapping_insert_stmt_;
+  std::unique_ptr<ScopedStatement>
+      snapshots_to_files_to_blocks_mapping_insert_stmt_;
+  std::unique_ptr<ScopedStatement>
+      snapshots_to_files_to_blocks_mapping_delete_stmt_;
+  std::unique_ptr<ScopedStatement> blocks_to_bundles_mapping_insert_stmt_;
+  std::unique_ptr<ScopedStatement> bundles_to_servers_mapping_insert_stmt_;
 
   static sqlite3* db_;
 

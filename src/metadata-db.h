@@ -5,6 +5,7 @@
 
 #include "boost/shared_ptr.hpp"
 
+#include "asio-dispatcher.h"
 #include "callback.h"
 #include "macros.h"
 
@@ -47,6 +48,7 @@ class MetadataDb {
 
  private:
   unique_ptr<MetadataDbImpl> impl_;
+  boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher_;
 
   DISALLOW_COPY_AND_ASSIGN(MetadataDb);
 };
