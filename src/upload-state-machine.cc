@@ -48,12 +48,12 @@ void UploadStateMachineImpl::UploadBundle(
     boost::shared_ptr<AnnotatedBundleData> bundle) {
   assert(next_bundle_data_ == nullptr);
   next_bundle_data_ = bundle;
-  PostEvent<NewBundleReady>();
+  PostEvent<NewBundlePending>();
 }
 
 void UploadStateMachineImpl::FinishAndExit() {
   exit_requested_ = true;
-  PostEvent<NewBundleReady>();
+  PostEvent<NewBundlePending>();
 }
 
 boost::shared_ptr<AnnotatedBundleData>

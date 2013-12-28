@@ -78,6 +78,7 @@ class UploadStateMachineImpl
   PE_STATE_MACHINE_DEFINE_EVENT(VaultMissing);
   PE_STATE_MACHINE_DEFINE_EVENT(VaultCreated);
   PE_STATE_MACHINE_DEFINE_EVENT(VaultOk);
+  PE_STATE_MACHINE_DEFINE_EVENT(NewBundlePending);
   PE_STATE_MACHINE_DEFINE_EVENT(NewBundleReady);
   PE_STATE_MACHINE_DEFINE_EVENT(NoBundlePending);
   PE_STATE_MACHINE_DEFINE_EVENT(UploadCompleted);
@@ -157,7 +158,7 @@ class UploadStateMachineImpl
           Done),
       PE_STATE_MACHINE_TRANSITION(
           WaitForNewBundle,
-          NewBundleReady,
+          NewBundlePending,
           InspectNextBundle,
           ReadyToUpload),
       PE_STATE_MACHINE_TRANSITION(
