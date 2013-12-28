@@ -141,8 +141,6 @@ void BackupExecutor::TryScanMorePaths() {
     scan_state_ = ScanState::kFinished;
     return;
   }
-  // TODO: What if the buffer now consists only of really huge files that exceed
-  // the max weight of the snapshot pool?
 
   const size_t input_weight_remaining =
       CHECK_NOTNULL(snapshot_state_machine_pool_)->InputWeightRemaining();
