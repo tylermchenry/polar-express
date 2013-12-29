@@ -310,6 +310,26 @@ void MetadataDbImpl::PrepareStatements() {
       "'status_timestamp') "
       "values (:bundle_id, :server_id, :server_bundle_id, :status, "
       ":status_timestamp);");
+
+  // This sets the SQLite Database to use Write-Ahead Logging, but to only
+  // periodically force-flush the journal to disk. This ensures that the
+  // metadata DB will never become corrupted, but in the case of a crash or
+  // power outage it may still lose some of the most recent writes when
+  // recovered. This is fine for the case of this application, since the worst
+  // case is that we redundantly back up the blocks that we forgot that we
+  // backed up on account of the lost writes. The gain is a 15x or better
+  // speedup over full synchronous mode.
+  //
+  // TODO: Should be configurable. Users who are storing their metadata DB on a
+  // solid-state drive can enable full-synchronous mode without a significant
+  // performance penalty.
+  //
+  // TODO: When in non-full-synchronous mode, the system should force a
+  // synchronization when it is otherwise idle (waiting on upstream).
+  sqlite3_exec(db(), "pragma synchronous = NORMAL",
+               nullptr, nullptr, nullptr);
+  sqlite3_exec(db(), "pragma journal_mode = WAL",
+               nullptr, nullptr, nullptr);
 }
 
 int64_t MetadataDbImpl::GetLatestSnapshotId(const File& file) const {
