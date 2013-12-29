@@ -34,6 +34,10 @@ class BundleStateMachinePool
 
   int num_bundles_generated() const;
 
+  virtual const char* name() const {
+    return "Bundle State Machine Pool";
+  }
+
  private:
   virtual void StartNewStateMachine(
       boost::shared_ptr<BundleStateMachine> state_machine);
@@ -44,6 +48,8 @@ class BundleStateMachinePool
 
   virtual bool TryContinue(
       boost::shared_ptr<BundleStateMachine> state_machine);
+
+  virtual void TerminateAllStateMachinesInternal();
 
   void HandleSnapshotDone(boost::shared_ptr<BundleStateMachine> state_machine);
 

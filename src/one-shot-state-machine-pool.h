@@ -28,6 +28,8 @@ class OneShotStateMachinePool : public StateMachinePool<InputT> {
  public:
   virtual ~OneShotStateMachinePool();
 
+  virtual const char* name() const = 0;
+
  protected:
   OneShotStateMachinePool(
       boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher,

@@ -25,6 +25,7 @@ class StateMachinePoolBase {
 
   virtual bool CanAcceptNewInput(size_t weight = 1) const = 0;
   virtual size_t InputWeightRemaining() const = 0;
+  virtual const char* name() const = 0;
 
  protected:
   StateMachinePoolBase() {}
@@ -95,6 +96,8 @@ class StateMachinePool : public StateMachinePoolBase {
   // the input was added, and false if it could not be added because the pool
   // already has its maximum number of inputs pending.
   bool AddNewInput(boost::shared_ptr<InputT> input, size_t weight = 1);
+
+  virtual const char* name() const = 0;
 
  protected:
   StateMachinePool(
@@ -219,6 +222,12 @@ void StateMachinePool<InputT>::TryRunNextStateMachine() {
   // next pool increase.
   if (next_pool_ != nullptr &&
       next_pool_->InputWeightRemaining() < max_simultaneous_state_machines()) {
+    DLOG(std::cerr
+         << name()
+         << " will not run another state machine; next pool is too full. Next "
+            "pool weight remaining = " << next_pool_->InputWeightRemaining()
+         << ", This pool max state machines = "
+         << max_simultaneous_state_machines() << "." << std::endl);
     return;
   }
 
@@ -226,12 +235,33 @@ void StateMachinePool<InputT>::TryRunNextStateMachine() {
 
   // If we just reduced the wait queue to below maximum, allow the
   // preceding pool to start running again in case it stopped.
-  if (preceding_pool_ != nullptr &&
-      pending_inputs_weight_ < max_pending_inputs_weight_ &&
-      pending_inputs_weight_ >=
-          (max_pending_inputs_weight_ -
-           MaxNumSimultaneousStateMachinesForPool(preceding_pool_))) {
-    TryRunNextStateMachineOnPool(preceding_pool_);
+  //
+  // There is no problem with "kicking" the preceding pool like this every
+  // single time, except that it is wasted work. So instead we kick the
+  // preceding pool only when our input is in the range where:
+  //
+  //   a) the preceding pool would be willing to start another state machine,
+  //      and
+  //   b) the preceding pool might still have some idled state machines left to
+  //      kick.
+  //
+  // These can both be expressed in terms of the pending and max weights on this
+  // pool, and the max number of state machines that the previous pool is
+  // willing to run.
+  if (preceding_pool_ != nullptr) {
+    const size_t preceding_pool_max_state_machines =
+        MaxNumSimultaneousStateMachinesForPool(preceding_pool_);
+    if (pending_inputs_weight_ <
+            (max_pending_inputs_weight_ - preceding_pool_max_state_machines) &&
+        pending_inputs_weight_ >= (max_pending_inputs_weight_ -
+                                   (2 * preceding_pool_max_state_machines))) {
+      DLOG(std::cerr
+           << name() << " is kicking preceding pool. Pending inputs weight = "
+           << pending_inputs_weight_ << " (max = " << max_pending_inputs_weight_
+           << "). Preceding pool max state machines "
+              "= " << preceding_pool_max_state_machines << "." << std::endl);
+      TryRunNextStateMachineOnPool(preceding_pool_);
+    }
   }
 }
 
@@ -244,8 +274,9 @@ template <typename InputT>
 bool StateMachinePool<InputT>::IsCompletelyIdleAndNotExpectingMoreInput()
     const {
   return IsCompletelyIdle() &&
-         (preceding_pool_ != nullptr ? PoolIsCompletelyIdle(preceding_pool_)
-                                     : IsExpectingMoreInput());
+         (preceding_pool_ != nullptr
+              ? PoolIsCompletelyIdleAndNotExpectingMoreInput(preceding_pool_)
+              : IsExpectingMoreInput());
 }
 
 template <typename InputT>
@@ -267,6 +298,11 @@ boost::shared_ptr<InputT> StateMachinePool<InputT>::PopNextInput() {
     next_input = next_input_pair.first;
     pending_inputs_.pop();
     pending_inputs_weight_ -= next_input_pair.second;
+    DLOG(std::cerr << name() << " popped input. Remaining inputs = "
+                   << pending_inputs_.size() << " (weight = "
+                   << pending_inputs_weight_ << ")." << std::endl);
+  } else {
+    DLOG(std::cerr << name() << " is out of input." << std::endl);
   }
 
   return next_input;

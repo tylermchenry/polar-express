@@ -55,6 +55,8 @@ void UploadStateMachinePool::StartNewStateMachine(
 void UploadStateMachinePool::RunInputOnStateMachine(
     boost::shared_ptr<AnnotatedBundleData> input,
     boost::shared_ptr<UploadStateMachine> state_machine) {
+  DLOG(std::cerr << "Starting Upload of Bundle " << input->annotations().id()
+                 << std::endl);
   state_machine->UploadBundle(input);
 }
 
@@ -65,6 +67,7 @@ void UploadStateMachinePool::HandleBundleUploaded(
 
   if (uploaded_bundle_data != nullptr) {
     ++num_bundles_uploaded_;
+    // Not a DLOG until we get a UI.
     std::cerr << "Bundle " << uploaded_bundle_data->annotations().id()
               << " uploaded and assigned server-side ID "
               << uploaded_bundle_data->annotations().server_bundle_id()

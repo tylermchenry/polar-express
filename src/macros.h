@@ -29,6 +29,12 @@
 typedef unsigned char byte;
 #endif  // byte
 
+#if defined(DEBUG) && !defined(NDEBUG) && !defined(NDLOG)
+#define DLOG(x) do { (x); } while(0)
+#else
+#define DLOG(x)
+#endif  // DEBUG
+
 using namespace std;
 using namespace boost;
 

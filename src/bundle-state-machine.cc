@@ -78,13 +78,17 @@ void BundleStateMachineImpl::Continue() {
 }
 
 void BundleStateMachineImpl::FlushCurrentBundle() {
+  DLOG(std::cerr << "Bundle State Machine " << this << " asked to flush."
+                 << std::endl);
   flush_requested_ = true;
-  PostEvent<NewSnapshotReady>();
+  PostEvent<FlushForced>();
 }
 
 void BundleStateMachineImpl::FinishAndExit() {
+  DLOG(std::cerr << "Bundle State Machine " << this << " asked to exit."
+                 << std::endl);
   exit_requested_ = true;
-  PostEvent<NewSnapshotReady>();
+  PostEvent<FlushForced>();
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, StartNewSnapshot) {
@@ -102,6 +106,9 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, ResetForNextSnapshot) {
   pending_snapshot_.reset();
   if (snapshot_done_callback_) {
     snapshot_done_callback_();
+  }
+  if (!exit_requested_ && !flush_requested_) {
+    SetIdle();
   }
 }
 
@@ -186,6 +193,8 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, FinalizeBundle) {
 
   // May have been flushed here without adding any data to the bundle.
   if (active_bundle_->manifest().payloads_size() == 0) {
+    DLOG(std::cerr << "Bundle State Machine " << this
+                   << " detected empty flush." << std::endl);
     PostEvent<BundleEmpty>();
     return;
   }
@@ -202,6 +211,9 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, FinalizeBundle) {
     active_bundle_.reset();
     PostEvent<BundleReady>();
   } else {
+    DLOG(std::cerr << "Bundle State Machine " << this
+                   << " detected empty flush with a manifest payload."
+                   << std::endl);
     PostEvent<BundleEmpty>();
   }
 }
@@ -252,7 +264,9 @@ PE_STATE_MACHINE_ACTION_HANDLER(
   if (bundle_ready_callback_) {
     bundle_ready_callback_();
   }
-  SetIdle();
+  if (!exit_requested_ && !flush_requested_) {
+    SetIdle();
+  }
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, ResetForNextBundle) {
@@ -264,7 +278,9 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, ResetForNextBundle) {
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, CleanUp) {
-  // Nothing to do in current implementation.
+  DLOG(std::cerr << "Bundle State Machine " << this << " cleaning up."
+                 << std::endl);
+  SetIdle(false);
 }
 
 void BundleStateMachineImpl::InternalStart(
@@ -299,6 +315,8 @@ void BundleStateMachineImpl::NextChunk() {
     PostEvent<NewChunkReady>();
   } else if (flush_requested_ || exit_requested_) {
     flush_requested_ = false;
+    DLOG(std::cerr << "Bundle State Machine " << this
+                   << " detected flush or exit." << std::endl);
     PostEvent<FlushForced>();
   } else {
     PostEvent<NoChunksRemaining>();

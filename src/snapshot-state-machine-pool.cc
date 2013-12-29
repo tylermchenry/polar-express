@@ -1,5 +1,7 @@
 #include "snapshot-state-machine-pool.h"
 
+#include <iostream>
+
 #include "proto/snapshot.pb.h"
 #include "snapshot-state-machine.h"
 
@@ -50,6 +52,8 @@ void SnapshotStateMachinePool::RunInputOnStateMachine(
     boost::shared_ptr<boost::filesystem::path> input,
     SnapshotStateMachine* state_machine) {
   state_machine->Start(root_, *input);
+
+  DLOG(std::cerr << "Snapshotting " << *input << std::endl);
 
   if (IsExpectingMoreInput() &&
       (pending_inputs_weight() < (max_pending_inputs_weight() / 2)) &&

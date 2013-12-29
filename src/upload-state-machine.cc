@@ -53,6 +53,8 @@ void UploadStateMachineImpl::UploadBundle(
 
 void UploadStateMachineImpl::FinishAndExit() {
   exit_requested_ = true;
+  DLOG(std::cerr << "Upload State Machine " << this
+                 << " set exit_requested = true." << std::endl);
   PostEvent<NewBundlePending>();
 }
 
@@ -64,7 +66,7 @@ UploadStateMachineImpl::RetrieveLastUploadedBundle() {
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(UploadStateMachineImpl, ReopenConnection) {
-  std::cerr << "Reopening Glacier connection..." << std::endl;
+  DLOG(std::cerr << "Reopening Glacier connection..." << std::endl);
   if (current_bundle_data_ != nullptr) {
     assert(next_bundle_data_ == nullptr);
     next_bundle_data_ = current_bundle_data_;
@@ -81,7 +83,7 @@ PE_STATE_MACHINE_ACTION_HANDLER(UploadStateMachineImpl, GetVaultDescription) {
     PostEvent<ConnectionClosed>();
     return;
   }
-  std::cerr << "Glacier connection is open." << std::endl;
+  DLOG(std::cerr << "Glacier connection is open." << std::endl);
 
   // TODO: Error handling for the case where we fail to create a vault.
   assert(!attempted_vault_creation_ || vault_created_);
@@ -128,7 +130,9 @@ PE_STATE_MACHINE_ACTION_HANDLER(UploadStateMachineImpl, CreateVault) {
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(UploadStateMachineImpl, WaitForInput) {
-  SetIdle();
+  if (!exit_requested_) {
+    SetIdle();
+  }
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(UploadStateMachineImpl, InspectNextBundle) {
@@ -139,6 +143,8 @@ PE_STATE_MACHINE_ACTION_HANDLER(UploadStateMachineImpl, InspectNextBundle) {
     next_bundle_data_.reset();
     PostEvent<NewBundleReady>();
   } else if (exit_requested_) {
+    DLOG(std::cerr << "Upload State Machine " << this << " forcing flush."
+                   << std::endl);
     PostEvent<FlushForced>();
   } else {
     PostEvent<NoBundlePending>();
@@ -169,9 +175,9 @@ PE_STATE_MACHINE_ACTION_HANDLER(UploadStateMachineImpl, RecordUpload) {
       !glacier_connection_->last_operation_succeeded() ||
       CHECK_NOTNULL(current_bundle_data_)
           ->annotations().server_bundle_id().empty()) {
-    std::cerr << "Failed to upload bundle "
-              << current_bundle_data_->annotations().id()
-              << ". Reopening connection and trying again." << std::endl;
+    DLOG(std::cerr << "Failed to upload bundle "
+                   << current_bundle_data_->annotations().id()
+                   << ". Reopening connection and trying again." << std::endl);
     glacier_connection_->Close();
     PostEvent<ConnectionClosed>();
     return;
@@ -200,7 +206,10 @@ PE_STATE_MACHINE_ACTION_HANDLER(UploadStateMachineImpl,
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(UploadStateMachineImpl, CleanUp) {
-  // Nothing to do in current implementation.
+  DLOG(std::cerr << "Upload State Machine " << this << " cleaning up."
+                 << std::endl);
+  glacier_connection_->Close();
+  SetIdle(false);
 }
 
 void UploadStateMachineImpl::InternalStart(

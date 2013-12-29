@@ -189,6 +189,11 @@ class BundleStateMachineImpl
           StartNewSnapshot,
           HaveChunks),
       PE_STATE_MACHINE_TRANSITION(
+          WaitForNewSnapshot,
+          FlushForced,
+          StartNewSnapshot,
+          HaveChunks),
+      PE_STATE_MACHINE_TRANSITION(
           HaveChunks,
           FlushForced,
           FinalizeBundle,
@@ -286,6 +291,11 @@ class BundleStateMachineImpl
       PE_STATE_MACHINE_TRANSITION(
           WaitForBundleRetrieval,
           ContinueAfterBundleRetrieved,
+          ResetForNextBundle,
+          HaveChunks),
+      PE_STATE_MACHINE_TRANSITION(
+          WaitForBundleRetrieval,
+          FlushForced,
           ResetForNextBundle,
           HaveChunks));
 

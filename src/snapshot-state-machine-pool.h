@@ -32,6 +32,10 @@ class SnapshotStateMachinePool : public OneShotStateMachinePool<
 
   int num_snapshots_generated() const;
 
+  virtual const char* name() const {
+    return "Snapshot State Machine Pool";
+  }
+
  private:
   virtual bool IsExpectingMoreInput() const;
 

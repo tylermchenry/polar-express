@@ -4,13 +4,14 @@
 
 #include "bundle.h"
 #include "bundle-state-machine.h"
+#include "proto/snapshot.pb.h"
 
 namespace polar_express {
 namespace {
 
 // TODO: Configurable.
 const size_t kMaxSnapshotsWaitingToBundle = 100;
-const size_t kMaxSimultaneousBundles = 2;
+const size_t kMaxSimultaneousBundles = 3;
 const time_t kMaxUpstreamIdleTimeSeconds = 30;
 
 }  // namespace
@@ -57,6 +58,8 @@ void BundleStateMachinePool::StartNewStateMachine(
 void BundleStateMachinePool::RunInputOnStateMachine(
     boost::shared_ptr<Snapshot> input,
     boost::shared_ptr<BundleStateMachine> state_machine) {
+  DLOG(std::cerr << "Adding snapshot of " << input->file().path()
+                 << " to bundle." << std::endl);
   CHECK_NOTNULL(state_machine)->BundleSnapshot(input);
 }
 
@@ -73,16 +76,29 @@ bool BundleStateMachinePool::TryContinue(
   return true;
 }
 
+void BundleStateMachinePool::TerminateAllStateMachinesInternal() {
+  continueable_state_machines_.clear();
+}
+
 void BundleStateMachinePool::HandleSnapshotDone(
     boost::shared_ptr<BundleStateMachine> state_machine) {
   continueable_state_machines_.erase(state_machine.get());
 
+  time_t now = time(nullptr);
   if (next_pool_ != nullptr && last_bundle_generated_time_ > 0 &&
-      time(nullptr) - last_bundle_generated_time_ >
+      now - last_bundle_generated_time_ >
           kMaxUpstreamIdleTimeSeconds &&
       PoolIsCompletelyIdle(next_pool_)) {
+    DLOG(std::cerr << "Flushing bundle due to timeout." << std::endl);
     CHECK_NOTNULL(state_machine)->FlushCurrentBundle();
   } else {
+    if (next_pool_ != nullptr) {
+      DLOG(std::cerr << "Bundle timeout info: now = " << now
+                     << ", last bundle time = " << last_bundle_generated_time_
+                     << " (diff = " << now - last_bundle_generated_time_
+                     << ") Next is idle = " << PoolIsCompletelyIdle(next_pool_)
+                     << std::endl);
+    }
     DeactivateStateMachineAndTryRunNext(state_machine);
   }
 }
@@ -94,6 +110,7 @@ void BundleStateMachinePool::HandleBundleReady(
   if (bundle_data != nullptr) {
     ++num_bundles_generated_;
     last_bundle_generated_time_ = time(nullptr);
+    // Not a DLOG until we provide a UI.
     std::cerr << "Wrote bundle to: "
               << bundle_data->annotations().persistence_file_path()
               << std::endl;

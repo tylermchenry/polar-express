@@ -1,6 +1,7 @@
 #ifndef PERSISTENT_STATE_MACHINE_POOL_H
 #define PERSISTENT_STATE_MACHINE_POOL_H
 
+#include <iostream>
 #include <queue>
 #include <set>
 
@@ -62,6 +63,8 @@ class PersistentStateMachinePool : public StateMachinePool<InputT> {
   void DeactivateStateMachineAndTryRunNext(
       boost::shared_ptr<StateMachineT> state_machine);
 
+  virtual const char* name() const = 0;
+
  protected:
 
   // Pools for state machines that may retain partial input after producing
@@ -72,6 +75,11 @@ class PersistentStateMachinePool : public StateMachinePool<InputT> {
       boost::shared_ptr<StateMachineT> state_machine) {
     return false;
   }
+
+  // Derived pools may optionally override this method to take action once it
+  // has been decided that all state machines should terminate, but before they
+  // have actually be instructed to do so.
+  virtual void TerminateAllStateMachinesInternal() {}
 
  private:
   virtual size_t NumRunningStateMachines() const;
@@ -95,6 +103,7 @@ class PersistentStateMachinePool : public StateMachinePool<InputT> {
   queue<boost::shared_ptr<InputT> > pending_inputs_;
   queue<boost::shared_ptr<StateMachineT> > idle_state_machines_;
   set<boost::shared_ptr<StateMachineT> > active_state_machines_;
+  set<boost::shared_ptr<StateMachineT> > terminated_state_machines_;
 
   DISALLOW_COPY_AND_ASSIGN(PersistentStateMachinePool);
 };
@@ -139,10 +148,23 @@ void PersistentStateMachinePool<StateMachineT,
                                 InputT>::TryRunNextStateMachineInternal() {
   boost::shared_ptr<StateMachineT> activated_state_machine =
       TryActivateStateMachine();
+  DLOG(std::cerr << name() << " trying to activate state machine. Idle = "
+                 << idle_state_machines_.size() << ", Active = "
+                 << active_state_machines_.size() << ", Terminated = "
+                 << terminated_state_machines_.size() << "." << std::endl);
+
   if (activated_state_machine != nullptr) {
+    DLOG(std::cerr << name() << " activated state machine "
+                   << activated_state_machine.get() << "." << std::endl);
     if (!TryContinue(activated_state_machine)) {
       TryRunNextInput(activated_state_machine);
+    } else {
+      DLOG(std::cerr << name() << " continued state machine "
+                     << activated_state_machine.get() << "." << std::endl);
     }
+  } else {
+    DLOG(std::cerr << name() << " could not activate a state machine."
+                   << std::endl);
   }
 }
 
@@ -153,7 +175,7 @@ PersistentStateMachinePool<StateMachineT, InputT>::TryActivateStateMachine() {
   if (!idle_state_machines_.empty()) {
     activated_state_machine = idle_state_machines_.front();
     idle_state_machines_.pop();
-  } else if (active_state_machines_.size() <
+  } else if (active_state_machines_.size() + terminated_state_machines_.size() <
              this->max_simultaneous_state_machines()) {
     activated_state_machine.reset(new StateMachineT);
     activated_state_machine->SetDoneCallback(
@@ -177,7 +199,22 @@ void PersistentStateMachinePool<StateMachineT, InputT>::DeactivateStateMachine(
   if(active_state_machines_.find(state_machine) !=
      active_state_machines_.end()) {
     active_state_machines_.erase(state_machine);
-    idle_state_machines_.push(state_machine);
+
+    if (terminated_state_machines_.find(state_machine) ==
+        terminated_state_machines_.end()) {
+      idle_state_machines_.push(state_machine);
+    } else {
+      DLOG(std::cerr << name() << " is not returning state machine "
+                     << state_machine.get()
+                     << " to the idle pool because it is being terminated."
+                     << std::endl);
+    }
+
+    DLOG(std::cerr
+         << name() << " deactivated state machine " << state_machine.get()
+         << ". Idle = " << idle_state_machines_.size()
+         << ", Active = " << active_state_machines_.size() << ", Terminated = "
+         << terminated_state_machines_.size() << "." << std::endl);
   }
 }
 
@@ -194,6 +231,9 @@ void PersistentStateMachinePool<StateMachineT, InputT>::TryRunNextInput(
   }
 
   if (this->IsCompletelyIdleAndNotExpectingMoreInput()) {
+    DLOG(std::cerr << name()
+                   << " is done and will terminate all state machines. "
+                   << std::endl);
     TerminateAllStateMachines();
   }
 }
@@ -202,6 +242,9 @@ template <typename StateMachineT, typename InputT>
 void
 PersistentStateMachinePool<StateMachineT, InputT>::HandleStateMachineFinished(
     boost::shared_ptr<StateMachineT> state_machine) {
+  DLOG(std::cerr << name()
+                 << " is informed of the termination of state machine "
+                 << state_machine.get() << "." << std::endl);
   HandleStateMachineFinishedInternal(state_machine);
 
   // Presistent state machines by definition are not restartable. They only
@@ -214,11 +257,19 @@ template <typename StateMachineT, typename InputT>
 void
 PersistentStateMachinePool<StateMachineT, InputT>::TerminateAllStateMachines() {
   assert(active_state_machines_.empty());
+
+  TerminateAllStateMachinesInternal();
+
   while (!idle_state_machines_.empty()) {
     boost::shared_ptr<StateMachineT> state_machine =
         idle_state_machines_.front();
     idle_state_machines_.pop();
     active_state_machines_.insert(state_machine);
+    // Prevent the machine from returning to the idle pool.
+    terminated_state_machines_.insert(state_machine);
+
+    DLOG(std::cerr << name() << " is instructing state machine "
+                   << state_machine.get() << " to terminate." << std::endl);
     state_machine->FinishAndExit();
   }
 }

@@ -152,7 +152,7 @@ class StateMachine
   // Sets an idle flag that prevents the done callback from being run when there
   // are no more events left to execute. The idle flag is automatically cleared
   // on the next EXTERNAL event.
-  void SetIdle();
+  void SetIdle(bool is_idle = true);
   bool IsIdle() const;
 
  private:
@@ -244,8 +244,8 @@ template <typename StateMachineImplT, typename StateMachineT>
 template <typename EventT, typename BackEndT>
 void StateMachine<StateMachineImplT, StateMachineT>::no_transition(
     const EventT& event, BackEndT&, int state) {
-  std::cerr << "no transition from state " << state
-            << " on event " << typeid(event).name() << std::endl;
+  DLOG(std::cerr << "no transition from state " << state << " on event "
+                 << typeid(event).name() << std::endl);
 }
 
 template <typename StateMachineImplT, typename StateMachineT>
@@ -265,8 +265,8 @@ StateMachine<StateMachineImplT, StateMachineT>::CreateExternalEventCallback() {
 }
 
 template <typename StateMachineImplT, typename StateMachineT>
-void StateMachine<StateMachineImplT, StateMachineT>::SetIdle() {
-  idle_ = true;
+void StateMachine<StateMachineImplT, StateMachineT>::SetIdle(bool is_idle) {
+  idle_ = is_idle;
 }
 
 template <typename StateMachineImplT, typename StateMachineT>

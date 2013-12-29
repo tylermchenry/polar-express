@@ -34,6 +34,10 @@ class UploadStateMachinePool : public PersistentStateMachinePool<
 
   int num_bundles_uploaded() const;
 
+  virtual const char* name() const {
+    return "Upload State Machine Pool";
+  }
+
  private:
   virtual void StartNewStateMachine(
       boost::shared_ptr<UploadStateMachine> state_machine);
