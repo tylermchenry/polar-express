@@ -39,6 +39,11 @@ class BundleStateMachinePool
   }
 
  private:
+  virtual size_t OutputWeightToBeAddedByInputInternal(
+      boost::shared_ptr<Snapshot> input) const;
+
+  virtual size_t MaxOutputWeightGeneratedByAnyInput() const;
+
   virtual void StartNewStateMachine(
       boost::shared_ptr<BundleStateMachine> state_machine);
 

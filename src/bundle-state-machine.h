@@ -123,6 +123,11 @@ class BundleStateMachineImpl
   // after calling FinishAndExit, or to call this method twice.
   void FinishAndExit();
 
+  // Returns the total size of all chunks that have not yet been incorporated
+  // into a bundle. Only relevant after BundleReadyCallback is invoked, before
+  // calling Continue.
+  size_t chunk_bytes_pending() const;
+
   PE_STATE_MACHINE_DEFINE_INITIAL_STATE(WaitForNewSnapshot);
   PE_STATE_MACHINE_DEFINE_STATE(HaveChunks);
   PE_STATE_MACHINE_DEFINE_STATE(WaitForExistingBundleInfo);
@@ -334,6 +339,7 @@ class BundleStateMachineImpl
 
   // Pending chunk pointers are owned by pending_shapshot_.
   queue<const Chunk*> pending_chunks_;
+  size_t chunk_bytes_pending_;
   const Chunk* active_chunk_;
   boost::shared_ptr<AnnotatedBundleData> existing_bundle_for_active_chunk_;
   vector<byte> block_data_for_active_chunk_;

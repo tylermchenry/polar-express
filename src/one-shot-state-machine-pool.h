@@ -1,6 +1,9 @@
 #ifndef ONE_SHOT_STATE_MACHINE_POOL_H
 #define ONE_SHOT_STATE_MACHINE_POOL_H
 
+#include <map>
+#include <memory>
+
 #include "boost/pool/object_pool.hpp"
 #include "boost/shared_ptr.hpp"
 
@@ -28,6 +31,8 @@ class OneShotStateMachinePool : public StateMachinePool<InputT> {
  public:
   virtual ~OneShotStateMachinePool();
 
+  virtual size_t ActiveOutputWeightOutstanding() const;
+
   virtual const char* name() const = 0;
 
  protected:
@@ -36,6 +41,10 @@ class OneShotStateMachinePool : public StateMachinePool<InputT> {
       size_t max_pending_inputs, size_t max_simultaneous_state_machines,
       boost::shared_ptr<StateMachinePoolBase> preceding_pool =
           boost::shared_ptr<StateMachinePoolBase>());
+
+  // Derived classes must implement.
+  virtual size_t OutputWeightToBeAddedByInput(
+      boost::shared_ptr<InputT> input) const = 0;
 
   virtual void RunInputOnStateMachine(boost::shared_ptr<InputT> input,
                                       StateMachineT* state_machine) = 0;
@@ -64,6 +73,9 @@ class OneShotStateMachinePool : public StateMachinePool<InputT> {
   size_t num_running_state_machines_;
   size_t num_finished_state_machines_;
 
+  std::map<const StateMachineT*, size_t> running_machine_output_weight_;
+  size_t total_running_output_weight_;
+
   DISALLOW_COPY_AND_ASSIGN(OneShotStateMachinePool);
 };
 
@@ -77,11 +89,18 @@ OneShotStateMachinePool<StateMachineT, InputT>::OneShotStateMachinePool(
                                preceding_pool),
       state_machine_object_pool_(new boost::object_pool<StateMachineT>),
       num_running_state_machines_(0),
-      num_finished_state_machines_(0) {
+      num_finished_state_machines_(0),
+      total_running_output_weight_(0) {
 }
 
 template <typename StateMachineT, typename InputT>
 OneShotStateMachinePool<StateMachineT, InputT>::~OneShotStateMachinePool() {
+}
+
+template <typename StateMachineT, typename InputT>
+size_t OneShotStateMachinePool<StateMachineT,
+                               InputT>::ActiveOutputWeightOutstanding() const {
+  return total_running_output_weight_;
 }
 
 template <typename StateMachineT, typename InputT>
@@ -114,6 +133,11 @@ void OneShotStateMachinePool<StateMachineT,
                                     InputT>::HandleStateMachineFinished,
            this, state_machine)));
 
+  const size_t output_weight = OutputWeightToBeAddedByInput(input);
+  running_machine_output_weight_.insert(
+      make_pair(state_machine, output_weight));
+  total_running_output_weight_ += output_weight;
+
   RunInputOnStateMachine(input, state_machine);
   ++num_running_state_machines_;
 }
@@ -128,6 +152,11 @@ void OneShotStateMachinePool<StateMachineT, InputT>::HandleStateMachineFinished(
 template <typename StateMachineT, typename InputT>
 void OneShotStateMachinePool<StateMachineT, InputT>::DeleteStateMachine(
     StateMachineT* state_machine) {
+  assert(total_running_output_weight_ >=
+         running_machine_output_weight_[state_machine]);
+  total_running_output_weight_ -= running_machine_output_weight_[state_machine];
+  running_machine_output_weight_.erase(state_machine);
+
   state_machine_object_pool_->destroy(state_machine);
   --num_running_state_machines_;
   ++num_finished_state_machines_;

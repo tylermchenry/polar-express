@@ -34,6 +34,7 @@ BundleStateMachineImpl::BackEnd* BundleStateMachine::GetBackEnd() {
 BundleStateMachineImpl::BundleStateMachineImpl()
     : flush_requested_(false),
       exit_requested_(false),
+      chunk_bytes_pending_(0),
       active_chunk_(nullptr),
       active_chunk_hash_is_valid_(false),
       active_bundle_(new Bundle),
@@ -89,6 +90,10 @@ void BundleStateMachineImpl::FinishAndExit() {
                  << std::endl);
   exit_requested_ = true;
   PostEvent<FlushForced>();
+}
+
+size_t BundleStateMachineImpl::chunk_bytes_pending() const {
+  return chunk_bytes_pending_;
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, StartNewSnapshot) {
@@ -298,6 +303,7 @@ void BundleStateMachineImpl::PushPendingChunksForSnapshot(
   for (const auto& chunk : snapshot->chunks()) {
     chunk_ptr = &chunk;
     pending_chunks_.push(chunk_ptr);
+    chunk_bytes_pending_ += chunk_ptr->block().length();
   }
 }
 
@@ -307,6 +313,7 @@ bool BundleStateMachineImpl::PopPendingChunk(const Chunk** chunk) {
   }
   *CHECK_NOTNULL(chunk) = pending_chunks_.front();
   pending_chunks_.pop();
+  chunk_bytes_pending_ -= (*chunk)->block().length();
   return true;
 }
 

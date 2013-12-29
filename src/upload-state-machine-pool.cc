@@ -7,7 +7,7 @@
 namespace polar_express {
 namespace {
 
-const size_t kMaxBundlesWaitingToUpload = 10;
+const size_t kMaxBytesWaitingToUpload = 100 * (1 << 20);  // 100 MiB
 const size_t kMaxSimultaneousUploads = 2;
 
 }  // namespace
@@ -20,7 +20,7 @@ UploadStateMachinePool::UploadStateMachinePool(
     const string& vault_name,
     boost::shared_ptr<StateMachinePoolBase> preceding_pool)
     : PersistentStateMachinePool<UploadStateMachine, AnnotatedBundleData>(
-          strand_dispatcher, kMaxBundlesWaitingToUpload,
+          strand_dispatcher, kMaxBytesWaitingToUpload,
           kMaxSimultaneousUploads, preceding_pool),
       aws_region_name_(aws_region_name),
       aws_access_key_(aws_access_key),
@@ -40,6 +40,11 @@ void UploadStateMachinePool::SetNextPool(
 
 int UploadStateMachinePool::num_bundles_uploaded() const {
   return num_bundles_uploaded_;
+}
+
+size_t UploadStateMachinePool::OutputWeightToBeAddedByInputInternal(
+    boost::shared_ptr<AnnotatedBundleData> input) const {
+  return 1;
 }
 
 void UploadStateMachinePool::StartNewStateMachine(
@@ -62,9 +67,10 @@ void UploadStateMachinePool::RunInputOnStateMachine(
 
 void UploadStateMachinePool::HandleBundleUploaded(
     boost::shared_ptr<UploadStateMachine> state_machine) {
+  StateMachineProducedOutput(state_machine, 0);
+
   boost::shared_ptr<AnnotatedBundleData> uploaded_bundle_data =
       CHECK_NOTNULL(state_machine)->RetrieveLastUploadedBundle();
-
   if (uploaded_bundle_data != nullptr) {
     ++num_bundles_uploaded_;
     // Not a DLOG until we get a UI.

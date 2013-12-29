@@ -10,9 +10,12 @@ namespace polar_express {
 namespace {
 
 // TODO: Configurable.
-const size_t kMaxSnapshotsWaitingToBundle = 100;
+const size_t kMaxBytesWaitingToBundle = 40 * (1 << 20);  // 40 MiB
 const size_t kMaxSimultaneousBundles = 3;
 const time_t kMaxUpstreamIdleTimeSeconds = 30;
+
+// Until configurable, must match bundle-state-machine.cc
+const size_t kMaxBundleSize = 20 * (1 << 20);  // 20 MiB
 
 }  // namespace
 
@@ -22,7 +25,7 @@ BundleStateMachinePool::BundleStateMachinePool(
     boost::shared_ptr<const Cryptor::KeyingData> encryption_keying_data,
     boost::shared_ptr<StateMachinePoolBase> preceding_pool)
     : PersistentStateMachinePool<BundleStateMachine, Snapshot>(
-          strand_dispatcher, kMaxSnapshotsWaitingToBundle,
+          strand_dispatcher, kMaxBytesWaitingToBundle,
           kMaxSimultaneousBundles, preceding_pool),
       root_(root),
       encryption_type_(encryption_type),
@@ -41,6 +44,16 @@ void BundleStateMachinePool::SetNextPool(
 
 int BundleStateMachinePool::num_bundles_generated() const {
   return num_bundles_generated_;
+}
+
+size_t BundleStateMachinePool::OutputWeightToBeAddedByInputInternal(
+    boost::shared_ptr<Snapshot> input) const {
+  // TODO: Fix int64 / size_t issue here.
+  return std::min<size_t>(next_pool_max_input_weight(), input->length());
+}
+
+size_t BundleStateMachinePool::MaxOutputWeightGeneratedByAnyInput() const {
+  return kMaxBundleSize;
 }
 
 void BundleStateMachinePool::StartNewStateMachine(
@@ -105,6 +118,12 @@ void BundleStateMachinePool::HandleSnapshotDone(
 
 void BundleStateMachinePool::HandleBundleReady(
     boost::shared_ptr<BundleStateMachine> state_machine) {
+  const size_t output_weight_remaining =
+      CHECK_NOTNULL(state_machine)->chunk_bytes_pending();
+  StateMachineProducedOutput(
+      state_machine,
+      std::min(MaxOutputWeightGeneratedByAnyInput(), output_weight_remaining));
+
   boost::shared_ptr<AnnotatedBundleData> bundle_data =
       state_machine->RetrieveGeneratedBundle();
   if (bundle_data != nullptr) {
@@ -116,7 +135,13 @@ void BundleStateMachinePool::HandleBundleReady(
               << std::endl;
     if (next_pool_ != nullptr) {
       assert(next_pool_->CanAcceptNewInput());
-      next_pool_->AddNewInput(bundle_data);
+      size_t total_blocks = 0;
+      for (const auto& payload : bundle_data->manifest().payloads()) {
+        total_blocks += payload.blocks_size();
+      }
+      next_pool_->AddNewInput(bundle_data,
+                              std::min<size_t>(next_pool_max_input_weight(),
+                                               bundle_data->data().size()));
     }
   }
 

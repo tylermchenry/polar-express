@@ -9,7 +9,7 @@ namespace polar_express {
 namespace {
 
 // TODO: Configurable.
-const size_t kMaxPendingBlocks = 5000;
+const size_t kMaxPendingBlockBytes = 50 * (1 << 20);  // 50 MiB
 const size_t kMaxSimultaneousSnapshots = 20;
 
 }  // namespace
@@ -18,7 +18,7 @@ SnapshotStateMachinePool::SnapshotStateMachinePool(
     boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher,
     const string& root)
     : OneShotStateMachinePool<SnapshotStateMachine, boost::filesystem::path>(
-        strand_dispatcher, kMaxPendingBlocks, kMaxSimultaneousSnapshots),
+        strand_dispatcher, kMaxPendingBlockBytes, kMaxSimultaneousSnapshots),
       root_(root),
       input_finished_(false),
       num_snapshots_generated_(0) {}
@@ -34,6 +34,14 @@ void SnapshotStateMachinePool::SetNextPool(
 
 void SnapshotStateMachinePool::SetNeedMoreInputCallback(Callback callback) {
   need_more_input_callback_ = callback;
+}
+
+size_t SnapshotStateMachinePool::OutputWeightToBeAddedByInput(
+    boost::shared_ptr<boost::filesystem::path> input) const {
+  return std::min<size_t>(
+      next_pool_max_input_weight(),
+      std::max<size_t>(
+          1, is_regular(*CHECK_NOTNULL(input)) ? file_size(*input) : 0));
 }
 
 void SnapshotStateMachinePool::NotifyInputFinished() {
@@ -72,7 +80,10 @@ void SnapshotStateMachinePool::HandleStateMachineFinishedInternal(
       ++num_snapshots_generated_;
       if (next_pool_ != nullptr) {
         assert(next_pool_->CanAcceptNewInput());
-        next_pool_->AddNewInput(generated_snapshot);
+        next_pool_->AddNewInput(
+            generated_snapshot,
+            std::min<size_t>(next_pool_max_input_weight(),
+                             generated_snapshot->chunks_size()));
       }
     }
     // TODO: Handle non-regular files (directories, deletions, etc.)

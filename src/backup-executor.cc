@@ -155,17 +155,14 @@ void BackupExecutor::TryScanMorePaths() {
 }
 
 size_t BackupExecutor::WeightFromFilesize(size_t filesize) const {
-  // Weight is equal to the maximum number of blocks that can be present in the
-  // file, capped between 1 and max_weight / 2. The upper bound is necessary to
-  // support very large files. If we allowed weights larger than max_weight,
-  // these files would never be processed. If we allowed files with max_weight /
-  // 2 < weight < max_weight, these would sit in the buffer until the scanner
-  // was finished scanning everything else under the root. If there were many
-  // such files, the buffer could get very large.
-  return std::min<size_t>(
-      snapshot_state_machine_pool_max_weight_ / 2,
-      // Fast integer divison: ceil(x / y) == (x + y - 1) / y.
-      std::max<size_t>(1, (filesize + kBlockSizeBytes - 1) / kBlockSizeBytes));
+  // Weight is equal to the filesize, capped between 1 and max_weight / 2. The
+  // upper bound is necessary to support very large files. If we allowed weights
+  // larger than max_weight, these files would never be processed. If we allowed
+  // files with max_weight / 2 < weight < max_weight, these would sit in the
+  // buffer until the scanner was finished scanning everything else under the
+  // root. If there were many such files, the buffer could get very large.
+  return std::min<size_t>(snapshot_state_machine_pool_max_weight_ / 2,
+                          std::max<size_t>(1, filesize));
 }
 
 }  // polar_express

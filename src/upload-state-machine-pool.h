@@ -39,6 +39,9 @@ class UploadStateMachinePool : public PersistentStateMachinePool<
   }
 
  private:
+  virtual size_t OutputWeightToBeAddedByInputInternal(
+      boost::shared_ptr<AnnotatedBundleData> input) const;
+
   virtual void StartNewStateMachine(
       boost::shared_ptr<UploadStateMachine> state_machine);
 

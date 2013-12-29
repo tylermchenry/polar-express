@@ -37,6 +37,9 @@ class SnapshotStateMachinePool : public OneShotStateMachinePool<
   }
 
  private:
+  virtual size_t OutputWeightToBeAddedByInput(
+      boost::shared_ptr<boost::filesystem::path> input) const;
+
   virtual bool IsExpectingMoreInput() const;
 
   virtual void RunInputOnStateMachine(

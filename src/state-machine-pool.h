@@ -15,16 +15,24 @@ namespace polar_express {
 // Interface for StateMachinePool (below) without any dependencies
 // on InputT or other template arguments.
 //
-// This is entirely abstract except for helper method that allows any
-// descendent of this class to call TryRunNextStateMachine on any other
+// This is entirely abstract except for helper methods that allow any
+// descendent of this class to call certain protected methods on any other
 // descendent of this class. (Under C++ inheritence rules, siblings cannot
 // directly call each other's protected members.)
 class StateMachinePoolBase {
  public:
   virtual ~StateMachinePoolBase() {}
 
+  // Returns true if the pool can accept new input with the given weight.
   virtual bool CanAcceptNewInput(size_t weight = 1) const = 0;
+
+  // Returns the maximum amount of new input weight that the pool can accept.
   virtual size_t InputWeightRemaining() const = 0;
+
+  // Returns the maximum amount of new output weight that the pool is capable of
+  // producing without accepting any new input, or being flushed.
+  virtual size_t ActiveOutputWeightOutstanding() const = 0;
+
   virtual const char* name() const = 0;
 
  protected:
@@ -92,6 +100,9 @@ class StateMachinePool : public StateMachinePoolBase {
 
   virtual size_t InputWeightRemaining() const;
 
+  // Derived classes must implement.
+  virtual size_t ActiveOutputWeightOutstanding() const = 0;
+
   // Add a new input for this pool of state machines to process. Returns true if
   // the input was added, and false if it could not be added because the pool
   // already has its maximum number of inputs pending.
@@ -122,8 +133,10 @@ class StateMachinePool : public StateMachinePoolBase {
   // the preceding pool object is null.
   virtual bool IsExpectingMoreInput() const { return false; }
 
-  // Derived classes must override.
+  // Derived classes must implement.
   virtual size_t NumRunningStateMachines() const = 0;
+  virtual size_t OutputWeightToBeAddedByInput(
+      boost::shared_ptr<InputT> input) const = 0;
 
   // The top-level versions of these method are not to be overridden below this
   // level so that the StateMachinePool object can guarantee to execute some
@@ -150,15 +163,20 @@ class StateMachinePool : public StateMachinePoolBase {
     return pending_inputs_weight_;
   }
 
+  size_t next_pool_max_input_weight() const {
+    return next_pool_max_input_weight_;
+  }
+
  private:
   const size_t max_pending_inputs_weight_;
   const size_t max_simultaneous_state_machines_;
   const boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher_;
   const boost::shared_ptr<StateMachinePoolBase> preceding_pool_;
 
-  queue<std::pair<boost::shared_ptr<InputT>, size_t> > pending_inputs_;
+  std::queue<std::pair<boost::shared_ptr<InputT>, size_t> > pending_inputs_;
   size_t pending_inputs_weight_;
   boost::shared_ptr<StateMachinePoolBase> next_pool_;
+  size_t next_pool_max_input_weight_;
 
   DISALLOW_COPY_AND_ASSIGN(StateMachinePool);
 };
@@ -172,7 +190,8 @@ StateMachinePool<InputT>::StateMachinePool(
       max_pending_inputs_weight_(max_pending_inputs_weight),
       max_simultaneous_state_machines_(max_simultaneous_state_machines),
       preceding_pool_(preceding_pool),
-      pending_inputs_weight_(0) {
+      pending_inputs_weight_(0),
+      next_pool_max_input_weight_(0) {
   // The preceding pool must be using the same strand dispatcher, or
   // concurrency problems will result. These classes are not internally
   // synchronized, and that is only OK if their callbacks all run on the same
@@ -211,23 +230,22 @@ bool StateMachinePool<InputT>::AddNewInput(boost::shared_ptr<InputT> input,
 
 template <typename InputT>
 void StateMachinePool<InputT>::TryRunNextStateMachine() {
-  // NOTE: The logic here relies on the assumption that a state machine's output
-  // will always have weight = 1. This is valid for now, as the only time we
-  // expect weight > 1 is for the initial input to the pool chain. If this
-  // assumption changes, the code below must be reworked.
-
   // Don't process new input if the next pool might not be able to accept our
   // output, keeping in mind that other simultaneously-running state machines
   // from this pool may produce output before the remaining input slots of the
   // next pool increase.
-  if (next_pool_ != nullptr &&
-      next_pool_->InputWeightRemaining() < max_simultaneous_state_machines()) {
+  if (!pending_inputs_.empty() && next_pool_ != nullptr &&
+      next_pool_->InputWeightRemaining() <
+          ActiveOutputWeightOutstanding() +
+              OutputWeightToBeAddedByInput(pending_inputs_.front().first)) {
     DLOG(std::cerr
          << name()
          << " will not run another state machine; next pool is too full. Next "
             "pool weight remaining = " << next_pool_->InputWeightRemaining()
-         << ", This pool max state machines = "
-         << max_simultaneous_state_machines() << "." << std::endl);
+         << ", This pool weight outstanding = "
+         << ActiveOutputWeightOutstanding() << " (to be added = "
+         << OutputWeightToBeAddedByInput(pending_inputs_.front().first) << ")."
+         << std::endl);
     return;
   }
 
@@ -235,33 +253,15 @@ void StateMachinePool<InputT>::TryRunNextStateMachine() {
 
   // If we just reduced the wait queue to below maximum, allow the
   // preceding pool to start running again in case it stopped.
-  //
-  // There is no problem with "kicking" the preceding pool like this every
-  // single time, except that it is wasted work. So instead we kick the
-  // preceding pool only when our input is in the range where:
-  //
-  //   a) the preceding pool would be willing to start another state machine,
-  //      and
-  //   b) the preceding pool might still have some idled state machines left to
-  //      kick.
-  //
-  // These can both be expressed in terms of the pending and max weights on this
-  // pool, and the max number of state machines that the previous pool is
-  // willing to run.
-  if (preceding_pool_ != nullptr) {
-    const size_t preceding_pool_max_state_machines =
-        MaxNumSimultaneousStateMachinesForPool(preceding_pool_);
-    if (pending_inputs_weight_ <
-            (max_pending_inputs_weight_ - preceding_pool_max_state_machines) &&
-        pending_inputs_weight_ >= (max_pending_inputs_weight_ -
-                                   (2 * preceding_pool_max_state_machines))) {
-      DLOG(std::cerr
-           << name() << " is kicking preceding pool. Pending inputs weight = "
-           << pending_inputs_weight_ << " (max = " << max_pending_inputs_weight_
-           << "). Preceding pool max state machines "
-              "= " << preceding_pool_max_state_machines << "." << std::endl);
-      TryRunNextStateMachineOnPool(preceding_pool_);
-    }
+  if (preceding_pool_ != nullptr &&
+      preceding_pool_->ActiveOutputWeightOutstanding() <
+          InputWeightRemaining()) {
+    DLOG(std::cerr << name() << " is kicking preceding pool. Preceding pool "
+         "active output weight outstanding = "
+         << preceding_pool_->ActiveOutputWeightOutstanding()
+         << ", this pool input weight remaining = "
+         << InputWeightRemaining() << "." << std::endl);
+    TryRunNextStateMachineOnPool(preceding_pool_);
   }
 }
 
@@ -295,12 +295,15 @@ boost::shared_ptr<InputT> StateMachinePool<InputT>::PopNextInput() {
   boost::shared_ptr<InputT> next_input;
   if (!pending_inputs_.empty()) {
     auto next_input_pair = pending_inputs_.front();
+    const size_t next_input_weight = next_input_pair.second;
     next_input = next_input_pair.first;
+
     pending_inputs_.pop();
-    pending_inputs_weight_ -= next_input_pair.second;
-    DLOG(std::cerr << name() << " popped input. Remaining inputs = "
+    pending_inputs_weight_ -= next_input_weight;
+
+    DLOG(std::cerr << name() << " popped input. Pending inputs = "
                    << pending_inputs_.size() << " (weight = "
-                   << pending_inputs_weight_ << ")." << std::endl);
+                   << pending_inputs_weight_ << "), " << std::endl);
   } else {
     DLOG(std::cerr << name() << " is out of input." << std::endl);
   }
@@ -317,6 +320,8 @@ template <typename InputT>
 void StateMachinePool<InputT>::set_next_pool(
     boost::shared_ptr<StateMachinePoolBase> next_pool) {
   next_pool_ = next_pool;
+  next_pool_max_input_weight_ =
+      (next_pool == nullptr ? 0 : next_pool->InputWeightRemaining());
 
   // The next pool must be using the same strand dispatcher, or
   // concurrency problems will result. These classes are not internally
