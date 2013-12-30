@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <queue>
+#include <set>
 #include <unordered_map>
 #include <vector>
 
@@ -19,6 +20,7 @@ namespace polar_express {
 
 class AnnotatedBundleData;
 class Bundle;
+class BundleAnnotations;
 class BundleHasher;
 class BundleStateMachine;
 class Chunk;
@@ -341,11 +343,13 @@ class BundleStateMachineImpl
   queue<const Chunk*> pending_chunks_;
   size_t chunk_bytes_pending_;
   const Chunk* active_chunk_;
-  boost::shared_ptr<AnnotatedBundleData> existing_bundle_for_active_chunk_;
+  boost::shared_ptr<BundleAnnotations>
+      existing_bundle_annotations_for_active_chunk_;
   vector<byte> block_data_for_active_chunk_;
   bool active_chunk_hash_is_valid_;
   vector<byte> compressed_block_data_for_active_chunk_;
 
+  std::set<int64_t> block_ids_in_active_bundle_;
   boost::shared_ptr<Bundle> active_bundle_;
   boost::shared_ptr<AnnotatedBundleData> generated_bundle_;
 

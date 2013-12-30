@@ -35,6 +35,15 @@ void MetadataDb::RecordNewSnapshot(
            impl_.get(), snapshot, callback));
 }
 
+void MetadataDb::GetLatestBundleForBlock(
+    const Block& block,
+    boost::shared_ptr<BundleAnnotations>* bundle_annotations,
+    Callback callback) {
+  strand_dispatcher_->Post(
+      bind(&MetadataDb::GetLatestBundleForBlock, impl_.get(),
+           boost::cref(block), bundle_annotations, callback));
+}
+
 void MetadataDb::RecordNewBundle(
     boost::shared_ptr<AnnotatedBundleData> bundle, Callback callback) {
   strand_dispatcher_->Post(

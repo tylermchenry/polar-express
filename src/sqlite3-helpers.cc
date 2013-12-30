@@ -63,6 +63,10 @@ string ScopedStatement::GetColumnText(const string& col_name) {
   return (value_cstr != nullptr) ? string(value_cstr) : "";
 }
 
+int ScopedStatement::GetColumnInt(const string& col_name) {
+  return sqlite3_column_int(stmt_, GetColumnIdx(col_name));
+}
+
 int64_t ScopedStatement::GetColumnInt64(const string& col_name) {
   return sqlite3_column_int64(stmt_, GetColumnIdx(col_name));
 }

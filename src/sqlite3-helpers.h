@@ -23,6 +23,8 @@ class ScopedStatement {
   int BindInt(const string& param_name, int value);
   int BindInt64(const string& param_name, int64_t value);
   int BindBool(const string& param_name, bool value);
+  template <typename EnumT>
+  int BindEnum(const string& param_name, const EnumT value);
 
   int Step();
   int StepUntilNotBusy();
@@ -30,8 +32,10 @@ class ScopedStatement {
   bool IsColumnNull(const string& col_name);
 
   string GetColumnText(const string& col_name);
+  int GetColumnInt(const string& col_name);
   int64_t GetColumnInt64(const string& col_name);
   bool GetColumnBool(const string& col_name);
+  template <typename EnumT> EnumT GetColumnEnum(const string& col_name);
 
   int Reset();
 
@@ -46,6 +50,16 @@ class ScopedStatement {
 
   DISALLOW_COPY_AND_ASSIGN(ScopedStatement);
 };
+
+template <typename EnumT>
+int ScopedStatement::BindEnum(const string& param_name, const EnumT value) {
+  return BindInt(param_name, static_cast<int>(value));
+}
+
+template <typename EnumT>
+EnumT ScopedStatement::GetColumnEnum(const string& col_name) {
+  return static_cast<EnumT>(GetColumnInt(col_name));
+}
 
 }  // namespace polar_express
 

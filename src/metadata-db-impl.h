@@ -33,6 +33,11 @@ class MetadataDbImpl : public MetadataDb {
   virtual void RecordNewSnapshot(
       boost::shared_ptr<Snapshot> snapshot, Callback callback);
 
+  virtual void GetLatestBundleForBlock(
+      const Block& block,
+      boost::shared_ptr<BundleAnnotations>* bundle_annotations,
+      Callback callback);
+
   virtual void RecordNewBundle(
       boost::shared_ptr<AnnotatedBundleData> bundle, Callback callback);
 
@@ -80,6 +85,7 @@ class MetadataDbImpl : public MetadataDb {
   std::unique_ptr<ScopedStatement> attributes_insert_stmt_;
   std::unique_ptr<ScopedStatement> blocks_select_id_stmt_;
   std::unique_ptr<ScopedStatement> blocks_insert_stmt_;
+  std::unique_ptr<ScopedStatement> bundles_select_latest_by_block_id_stmt_;
   std::unique_ptr<ScopedStatement> bundles_insert_stmt_;
   std::unique_ptr<ScopedStatement> files_to_blocks_mapping_select_stmt_;
   std::unique_ptr<ScopedStatement> files_to_blocks_mapping_insert_stmt_;

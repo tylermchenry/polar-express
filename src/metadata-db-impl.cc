@@ -57,6 +57,7 @@ MetadataDbImpl::MetadataDbImpl()
       attributes_insert_stmt_(new ScopedStatement(db())),
       blocks_select_id_stmt_(new ScopedStatement(db())),
       blocks_insert_stmt_(new ScopedStatement(db())),
+      bundles_select_latest_by_block_id_stmt_(new ScopedStatement(db())),
       bundles_insert_stmt_(new ScopedStatement(db())),
       files_to_blocks_mapping_select_stmt_(new ScopedStatement(db())),
       files_to_blocks_mapping_insert_stmt_(new ScopedStatement(db())),
@@ -162,6 +163,40 @@ void MetadataDbImpl::RecordNewSnapshot(
   callback();
 }
 
+void MetadataDbImpl::GetLatestBundleForBlock(
+    const Block& block,
+    boost::shared_ptr<BundleAnnotations>* bundle_annotations,
+    Callback callback) {
+  CHECK_NOTNULL(bundle_annotations)->reset();
+
+  bundles_select_latest_by_block_id_stmt_->Reset();
+  bundles_select_latest_by_block_id_stmt_->BindInt64(":block_id", block.id());
+
+  if (bundles_select_latest_by_block_id_stmt_->StepUntilNotBusy() ==
+      SQLITE_ROW) {
+    bundle_annotations->reset(new BundleAnnotations);
+
+    SET_IF_PRESENT(*bundles_select_latest_by_block_id_stmt_, Int64,
+                   *bundle_annotations, local_bundles, id);
+    SET_IF_PRESENT(*bundles_select_latest_by_block_id_stmt_, Text,
+                   *bundle_annotations, local_bundles, sha256_linear_digest);
+    SET_IF_PRESENT(*bundles_select_latest_by_block_id_stmt_, Text,
+                   *bundle_annotations, local_bundles, sha256_tree_digest);
+    SET_IF_PRESENT(*bundles_select_latest_by_block_id_stmt_, Text,
+                   *bundle_annotations, local_bundles_to_servers,
+                   server_bundle_id);
+    SET_IF_PRESENT(*bundles_select_latest_by_block_id_stmt_,
+                   Enum<BundleAnnotations::ServerBundleStatus>,
+                   *bundle_annotations, local_bundles_to_servers,
+                   server_bundle_status);
+    SET_IF_PRESENT(*bundles_select_latest_by_block_id_stmt_, Int64,
+                   *bundle_annotations, local_bundles_to_servers,
+                   server_bundle_status_timestamp);
+  }
+
+  callback();
+}
+
 void MetadataDbImpl::RecordNewBundle(
     boost::shared_ptr<AnnotatedBundleData> bundle, Callback callback) {
   assert(!bundle->annotations().has_id());
@@ -193,9 +228,8 @@ void MetadataDbImpl::RecordUploadedBundle(
       ":server_id", server_id);
   bundles_to_servers_mapping_insert_stmt_->BindText(
       ":server_bundle_id", bundle->annotations().server_bundle_id());
-  bundles_to_servers_mapping_insert_stmt_->BindInt(
-      ":status",
-      static_cast<int>(bundle->annotations().server_bundle_status()));
+  bundles_to_servers_mapping_insert_stmt_->BindEnum(
+      ":status", bundle->annotations().server_bundle_status());
   bundles_to_servers_mapping_insert_stmt_->BindInt64(
       ":status_timestamp",
       bundle->annotations().server_bundle_status_timestamp());
@@ -267,6 +301,29 @@ void MetadataDbImpl::PrepareStatements() {
   blocks_insert_stmt_->Prepare(
       "insert into blocks ('sha1_digest', 'length') "
       "values (:sha1_digest, :length);");
+
+  bundles_select_latest_by_block_id_stmt_->Prepare(
+      "select local_bundles.id as local_bundles_id, "
+      "       local_bundles.sha256_linear_digest "
+      "         as local_bundles_sha256_linear_digest, "
+      "       local_bundles.sha256_tree_digest "
+      "         as local_bundles_sha256_tree_digest, "
+      "       local_bundles_to_servers.server_bundle_id "
+      "         as local_bundles_to_servers_server_bundle_id, "
+      "       local_bundles_to_servers.status "
+      "         as local_bundles_to_servers_server_bundle_status, "
+      "       local_bundles_to_servers.status_timestamp "
+      "         as local_bundles_to_servers_server_bundle_status_timestamp "
+      "from "
+      "  (local_blocks_to_bundles join local_bundles "
+      "   on local_blocks_to_bundles.bundle_id = local_bundles.id) "
+      "join "
+      "   local_bundles_to_servers "
+      "   on local_bundles.id = local_bundles_to_servers.bundle_id "
+      "where block_id = :block_id "
+      "order by local_bundles_to_servers.status_timestamp desc, "
+      "         local_bundles.id desc "
+      "limit 1;");
 
   bundles_insert_stmt_->Prepare(
       "insert into local_bundles "

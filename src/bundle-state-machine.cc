@@ -118,16 +118,37 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, ResetForNextSnapshot) {
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, GetExistingBundleInfo) {
-  // TODO: Retrieve existing bundle info for this block from metadata DB.
-  PostEvent<ExistingBundleInfoReady>();
+  const Block& active_chunk_block = CHECK_NOTNULL(active_chunk_)->block();
+  existing_bundle_annotations_for_active_chunk_.reset();
+  if (block_ids_in_active_bundle_.find(active_chunk_block.id()) !=
+      block_ids_in_active_bundle_.end()) {
+    PostEvent<ExistingBundleInfoReady>();
+  } else {
+    metadata_db_->GetLatestBundleForBlock(
+        active_chunk_block, &existing_bundle_annotations_for_active_chunk_,
+        CreateExternalEventCallback<ExistingBundleInfoReady>());
+  }
 }
 
 PE_STATE_MACHINE_ACTION_HANDLER(
     BundleStateMachineImpl, InspectExistingBundleInfo) {
-  if (existing_bundle_for_active_chunk_ != nullptr &&
-      existing_bundle_for_active_chunk_->annotations().id() >= 0) {
+  const Block& active_chunk_block = CHECK_NOTNULL(active_chunk_)->block();
+  if (existing_bundle_annotations_for_active_chunk_ != nullptr &&
+      existing_bundle_annotations_for_active_chunk_->id() >= 0) {
+    DLOG(std::cerr << "Discarding chunk for block " << active_chunk_block.id()
+                   << " since it is already in bundle "
+                   << existing_bundle_annotations_for_active_chunk_->id()
+                   << std::endl);
+    PostEvent<ChunkAlreadyInBundle>();
+  } else if (block_ids_in_active_bundle_.find(active_chunk_block.id()) !=
+             block_ids_in_active_bundle_.end()) {
+    DLOG(std::cerr << "Discarding chunk for block " << active_chunk_block.id()
+                   << " since it is already in the active bundle."
+                   << std::endl);
     PostEvent<ChunkAlreadyInBundle>();
   } else {
+    // Note that the block may be in another active bundle being concurrently
+    // processed, but that's not something we choose to optimize for.
     PostEvent<ChunkNotYetInBundle>();
   }
 }
@@ -179,6 +200,7 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, FinishChunk) {
     active_bundle_->StartNewPayload(compressor_->compression_type());
   }
 
+  block_ids_in_active_bundle_.insert(active_chunk_->block().id());
   active_bundle_->AddBlockMetadata(active_chunk_->block());
   active_bundle_->AppendBlockContents(compressed_block_data_for_active_chunk_);
 
@@ -214,6 +236,7 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, FinalizeBundle) {
     active_bundle_->Finalize();
     generated_bundle_.reset(new AnnotatedBundleData(active_bundle_));
     active_bundle_.reset();
+    block_ids_in_active_bundle_.clear();
     PostEvent<BundleReady>();
   } else {
     DLOG(std::cerr << "Bundle State Machine " << this
@@ -278,6 +301,7 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, ResetForNextBundle) {
   assert(active_bundle_ == nullptr);
   generated_bundle_.reset();
   active_bundle_.reset(new Bundle);
+  block_ids_in_active_bundle_.clear();
   compressor_->InitializeCompression(kMaxCompressionBufferSize);
   NextChunk();
 }

@@ -12,6 +12,8 @@
 namespace polar_express {
 
 class AnnotatedBundleData;
+class Block;
+class BundleAnnotations;
 class File;
 class MetadataDbImpl;
 class Snapshot;
@@ -30,6 +32,13 @@ class MetadataDb {
   virtual void RecordNewSnapshot(
       boost::shared_ptr<Snapshot> snapshot, Callback callback);
 
+  // Retrieves the annotations for the bundle that this block is included in (if
+  // any). If the block is in more than one bundle, this returns the
+  // most-recently created bundle.
+  virtual void GetLatestBundleForBlock(
+      const Block& block,
+      boost::shared_ptr<BundleAnnotations>* bundle_annotations,
+      Callback callback);
   // This also modifies the bundle to add an ID for the bundle itself.
   virtual void RecordNewBundle(
       boost::shared_ptr<AnnotatedBundleData> bundle, Callback callback);
