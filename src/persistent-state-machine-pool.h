@@ -97,11 +97,6 @@ class PersistentStateMachinePool : public StateMachinePool<InputT> {
     return false;
   }
 
-  // Derived pools may optionally override this method to take action once it
-  // has been decided that all state machines should terminate, but before they
-  // have actually be instructed to do so.
-  virtual void TerminateAllStateMachinesInternal() {}
-
  private:
   virtual size_t OutputWeightToBeAddedByInput(
       boost::shared_ptr<InputT> input) const;
@@ -122,7 +117,9 @@ class PersistentStateMachinePool : public StateMachinePool<InputT> {
   void HandleStateMachineFinished(
       boost::shared_ptr<StateMachineT> state_machine);
 
-  void TerminateAllStateMachines();
+  void TerminateStateMachine(boost::shared_ptr<StateMachineT> state_machine);
+
+  void TerminateAllStateMachinesWithNoPendingOutput();
 
   std::queue<boost::shared_ptr<InputT> > pending_inputs_;
   std::queue<boost::shared_ptr<StateMachineT> > idle_state_machines_;
@@ -221,12 +218,12 @@ bool PersistentStateMachinePool<StateMachineT,
 template <typename StateMachineT, typename InputT>
 void PersistentStateMachinePool<StateMachineT,
                                 InputT>::TryRunNextStateMachineInternal() {
+  DLOG(std::cerr << name() << " trying to activate state machine. Idle = "
+       << idle_state_machines_.size() << ", Active = "
+       << active_state_machines_.size() << ", Terminated = "
+       << terminated_state_machines_.size() << "." << std::endl);
   boost::shared_ptr<StateMachineT> activated_state_machine =
       TryActivateStateMachine();
-  DLOG(std::cerr << name() << " trying to activate state machine. Idle = "
-                 << idle_state_machines_.size() << ", Active = "
-                 << active_state_machines_.size() << ", Terminated = "
-                 << terminated_state_machines_.size() << "." << std::endl);
 
   if (activated_state_machine != nullptr) {
     DLOG(std::cerr << name() << " activated state machine "
@@ -241,6 +238,12 @@ void PersistentStateMachinePool<StateMachineT,
     DLOG(std::cerr << name() << " could not activate a state machine."
                    << std::endl);
   }
+
+  DLOG(std::cerr
+       << name() << " finished TryRunNextStateMachineInternal. Idle = "
+       << idle_state_machines_.size()
+       << ", Active = " << active_state_machines_.size() << ", Terminated = "
+       << terminated_state_machines_.size() << "." << std::endl);
 }
 
 template <typename StateMachineT, typename InputT>
@@ -285,7 +288,11 @@ void PersistentStateMachinePool<StateMachineT, InputT>::DeactivateStateMachine(
 
     if (terminated_state_machines_.find(state_machine) ==
         terminated_state_machines_.end()) {
-      idle_state_machines_.push(state_machine);
+      if (this->IsCompletelyIdleAndNotExpectingMoreInput()) {
+        TerminateStateMachine(state_machine);
+      } else {
+        idle_state_machines_.push(state_machine);
+      }
     } else {
       DLOG(std::cerr << name() << " is not returning state machine "
                      << state_machine.get()
@@ -317,10 +324,10 @@ void PersistentStateMachinePool<StateMachineT, InputT>::TryRunNextInput(
   }
 
   if (this->IsCompletelyIdleAndNotExpectingMoreInput()) {
-    DLOG(std::cerr << name()
-                   << " is done and will terminate all state machines. "
+    DLOG(std::cerr << name() << " is done and will terminate all state "
+                                "machines with no pending output. "
                    << std::endl);
-    TerminateAllStateMachines();
+    TerminateAllStateMachinesWithNoPendingOutput();
   }
 }
 
@@ -337,27 +344,44 @@ PersistentStateMachinePool<StateMachineT, InputT>::HandleStateMachineFinished(
   // finish when explicitly terminated, So the state machine should not return
   // to the idle pool.
   active_state_machines_.erase(state_machine);
+
+  if (this->IsCompletelyIdleAndNotExpectingMoreInput()) {
+    DLOG(std::cerr << name() << " is done and will terminate all state "
+                                "machines with no pending output. "
+                   << std::endl);
+    TerminateAllStateMachinesWithNoPendingOutput();
+  }
 }
 
 template <typename StateMachineT, typename InputT>
-void
-PersistentStateMachinePool<StateMachineT, InputT>::TerminateAllStateMachines() {
-  assert(active_state_machines_.empty());
+void PersistentStateMachinePool<StateMachineT, InputT>::TerminateStateMachine(
+    boost::shared_ptr<StateMachineT> state_machine) {
+  // Prevent the machine from returning to the idle pool.
+  active_state_machines_.insert(state_machine);
+  terminated_state_machines_.insert(state_machine);
 
-  TerminateAllStateMachinesInternal();
+  DLOG(std::cerr << name() << " is instructing state machine "
+                 << state_machine.get() << " to terminate." << std::endl);
+  state_machine->FinishAndExit();
+}
 
+template <typename StateMachineT, typename InputT>
+void PersistentStateMachinePool<
+    StateMachineT, InputT>::TerminateAllStateMachinesWithNoPendingOutput() {
+  std::queue<boost::shared_ptr<StateMachineT> >
+      state_machines_with_pending_output;
   while (!idle_state_machines_.empty()) {
     boost::shared_ptr<StateMachineT> state_machine =
         idle_state_machines_.front();
     idle_state_machines_.pop();
-    active_state_machines_.insert(state_machine);
-    // Prevent the machine from returning to the idle pool.
-    terminated_state_machines_.insert(state_machine);
 
-    DLOG(std::cerr << name() << " is instructing state machine "
-                   << state_machine.get() << " to terminate." << std::endl);
-    state_machine->FinishAndExit();
+    if (output_weight_outstanding_[state_machine.get()] == 0) {
+      TerminateStateMachine(state_machine);
+    } else {
+      state_machines_with_pending_output.push(state_machine);
+    }
   }
+  idle_state_machines_.swap(state_machines_with_pending_output);
 }
 
 }  // namespace polar_express

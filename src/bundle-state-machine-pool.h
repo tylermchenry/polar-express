@@ -54,8 +54,6 @@ class BundleStateMachinePool
   virtual bool TryContinue(
       boost::shared_ptr<BundleStateMachine> state_machine);
 
-  virtual void TerminateAllStateMachinesInternal();
-
   void HandleSnapshotDone(boost::shared_ptr<BundleStateMachine> state_machine);
 
   void HandleBundleReady(boost::shared_ptr<BundleStateMachine> state_machine);

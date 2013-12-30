@@ -89,10 +89,6 @@ bool BundleStateMachinePool::TryContinue(
   return true;
 }
 
-void BundleStateMachinePool::TerminateAllStateMachinesInternal() {
-  continueable_state_machines_.clear();
-}
-
 void BundleStateMachinePool::HandleSnapshotDone(
     boost::shared_ptr<BundleStateMachine> state_machine) {
   continueable_state_machines_.erase(state_machine.get());
