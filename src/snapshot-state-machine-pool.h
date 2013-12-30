@@ -31,6 +31,7 @@ class SnapshotStateMachinePool : public OneShotStateMachinePool<
   void NotifyInputFinished();
 
   int num_snapshots_generated() const;
+  size_t size_of_snapshots_generated() const;
 
   virtual const char* name() const {
     return "Snapshot State Machine Pool";
@@ -54,6 +55,7 @@ class SnapshotStateMachinePool : public OneShotStateMachinePool<
   Callback need_more_input_callback_;
   bool input_finished_;
   int num_snapshots_generated_;
+  size_t size_of_snapshots_generated_;
   boost::shared_ptr<StateMachinePool<Snapshot> > next_pool_;
 
   DISALLOW_COPY_AND_ASSIGN(SnapshotStateMachinePool);

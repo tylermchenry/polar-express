@@ -33,6 +33,7 @@ class BundleStateMachinePool
       boost::shared_ptr<StateMachinePool<AnnotatedBundleData> > next_pool);
 
   int num_bundles_generated() const;
+  size_t size_of_bundles_generated() const;
 
   virtual const char* name() const {
     return "Bundle State Machine Pool";
@@ -63,6 +64,7 @@ class BundleStateMachinePool
   const boost::shared_ptr<const Cryptor::KeyingData> encryption_keying_data_;
 
   int num_bundles_generated_;
+  size_t size_of_bundles_generated_;
   time_t last_bundle_generated_time_;
   std::set<const BundleStateMachine*> continueable_state_machines_;
   boost::shared_ptr<StateMachinePool<AnnotatedBundleData> > next_pool_;

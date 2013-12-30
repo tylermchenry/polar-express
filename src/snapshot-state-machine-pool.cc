@@ -21,7 +21,9 @@ SnapshotStateMachinePool::SnapshotStateMachinePool(
         strand_dispatcher, kMaxPendingBlockBytes, kMaxSimultaneousSnapshots),
       root_(root),
       input_finished_(false),
-      num_snapshots_generated_(0) {}
+      num_snapshots_generated_(0),
+      size_of_snapshots_generated_(0) {
+}
 
 SnapshotStateMachinePool::~SnapshotStateMachinePool() {
 }
@@ -52,6 +54,10 @@ int SnapshotStateMachinePool::num_snapshots_generated() const {
   return num_snapshots_generated_;
 }
 
+size_t SnapshotStateMachinePool::size_of_snapshots_generated() const {
+  return size_of_snapshots_generated_;
+}
+
 bool SnapshotStateMachinePool::IsExpectingMoreInput() const {
   return !input_finished_;
 }
@@ -77,13 +83,14 @@ void SnapshotStateMachinePool::HandleStateMachineFinishedInternal(
   if (generated_snapshot != nullptr) {
     if (generated_snapshot->is_regular() &&
         generated_snapshot->length() > 0) {
+      const size_t snapshot_size = generated_snapshot->length();
       ++num_snapshots_generated_;
+      size_of_snapshots_generated_ += snapshot_size;
       if (next_pool_ != nullptr) {
         assert(next_pool_->CanAcceptNewInput());
         next_pool_->AddNewInput(
             generated_snapshot,
-            std::min<size_t>(next_pool_max_input_weight(),
-                             generated_snapshot->chunks_size()));
+            std::min(next_pool_max_input_weight(), snapshot_size));
       }
     }
     // TODO: Handle non-regular files (directories, deletions, etc.)

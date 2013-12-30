@@ -26,7 +26,8 @@ UploadStateMachinePool::UploadStateMachinePool(
       aws_access_key_(aws_access_key),
       aws_secret_key_(aws_secret_key),
       vault_name_(vault_name),
-      num_bundles_uploaded_(0) {
+      num_bundles_uploaded_(0),
+      size_of_bundles_uploaded_(0) {
 }
 
 UploadStateMachinePool::~UploadStateMachinePool() {
@@ -40,6 +41,10 @@ void UploadStateMachinePool::SetNextPool(
 
 int UploadStateMachinePool::num_bundles_uploaded() const {
   return num_bundles_uploaded_;
+}
+
+size_t UploadStateMachinePool::size_of_bundles_uploaded() const {
+  return size_of_bundles_uploaded_;
 }
 
 size_t UploadStateMachinePool::OutputWeightToBeAddedByInputInternal(
@@ -72,7 +77,9 @@ void UploadStateMachinePool::HandleBundleUploaded(
   boost::shared_ptr<AnnotatedBundleData> uploaded_bundle_data =
       CHECK_NOTNULL(state_machine)->RetrieveLastUploadedBundle();
   if (uploaded_bundle_data != nullptr) {
+    const size_t bundle_size = uploaded_bundle_data->file_contents_size();
     ++num_bundles_uploaded_;
+    size_of_bundles_uploaded_ += bundle_size;
     // Not a DLOG until we get a UI.
     std::cerr << "Bundle " << uploaded_bundle_data->annotations().id()
               << " uploaded and assigned server-side ID "

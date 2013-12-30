@@ -50,21 +50,25 @@ class BackupExecutor {
       const CryptoPP::SecByteBlock& aws_secret_key,
       const string& glacier_vault_name);
 
-  // Returns the number of files processed during the backup. Should be called
-  // only after the backup has completed.
+  // Returns the number and total size (in bytes) of files processed during the
+  // backup. Should be called only after the backup has completed.
   virtual int GetNumFilesProcessed() const;
+  virtual size_t GetSizeOfFilesProcessed() const;
 
-  // Returns the number of new snapshots generated during the backup. Should be
-  // called only after the backup has completed.
+  // Returns the number and total size (in bytes) of new snapshots generated
+  // during the backup. Should be called only after the backup has completed.
   virtual int GetNumSnapshotsGenerated() const;
+  virtual size_t GetSizeOfSnapshotsGenerated() const;
 
-  // Returns the number of bundles generated during the backup. Should
-  // be called only after the backup has completed.
+  // Returns the number and total size (in bytes) of bundles generated during
+  // the backup. Should be called only after the backup has completed.
   virtual int GetNumBundlesGenerated() const;
+  virtual size_t GetSizeOfBundlesGenerated() const;
 
-  // Returns the number of bundles uploaded during the backup. Should
-  // be called only after the backup has completed.
+  // Returns the number and total size (in bytes) of bundles uploaded during the
+  // backup. Should be called only after the backup has completed.
   virtual int GetNumBundlesUploaded() const;
+  virtual size_t GetSizeOfBundlesUploaded() const;
 
  private:
   // Snapshot-Generation methods:
@@ -106,6 +110,7 @@ class BackupExecutor {
   size_t buffered_paths_total_weight_;
 
   int num_files_processed_;
+  size_t size_of_files_processed_;
 
   boost::shared_ptr<SnapshotStateMachinePool> snapshot_state_machine_pool_;
   boost::shared_ptr<BundleStateMachinePool> bundle_state_machine_pool_;

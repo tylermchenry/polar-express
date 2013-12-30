@@ -31,6 +31,7 @@ BundleStateMachinePool::BundleStateMachinePool(
       encryption_type_(encryption_type),
       encryption_keying_data_(CHECK_NOTNULL(encryption_keying_data)),
       num_bundles_generated_(0),
+      size_of_bundles_generated_(0),
       last_bundle_generated_time_(0) {}
 
 BundleStateMachinePool::~BundleStateMachinePool() {
@@ -44,6 +45,10 @@ void BundleStateMachinePool::SetNextPool(
 
 int BundleStateMachinePool::num_bundles_generated() const {
   return num_bundles_generated_;
+}
+
+size_t BundleStateMachinePool::size_of_bundles_generated() const {
+  return size_of_bundles_generated_;
 }
 
 size_t BundleStateMachinePool::OutputWeightToBeAddedByInputInternal(
@@ -123,7 +128,9 @@ void BundleStateMachinePool::HandleBundleReady(
   boost::shared_ptr<AnnotatedBundleData> bundle_data =
       state_machine->RetrieveGeneratedBundle();
   if (bundle_data != nullptr) {
+    const size_t bundle_size = bundle_data->file_contents_size();
     ++num_bundles_generated_;
+    size_of_bundles_generated_ += bundle_size;
     last_bundle_generated_time_ = time(nullptr);
     // Not a DLOG until we provide a UI.
     std::cerr << "Wrote bundle to: "
@@ -131,13 +138,8 @@ void BundleStateMachinePool::HandleBundleReady(
               << std::endl;
     if (next_pool_ != nullptr) {
       assert(next_pool_->CanAcceptNewInput());
-      size_t total_blocks = 0;
-      for (const auto& payload : bundle_data->manifest().payloads()) {
-        total_blocks += payload.blocks_size();
-      }
-      next_pool_->AddNewInput(bundle_data,
-                              std::min<size_t>(next_pool_max_input_weight(),
-                                               bundle_data->data().size()));
+      next_pool_->AddNewInput(
+          bundle_data, std::min(next_pool_max_input_weight(), bundle_size));
     }
   }
 

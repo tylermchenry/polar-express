@@ -1,3 +1,4 @@
+#include <ctime>
 #include <iostream>
 #include <string>
 
@@ -6,6 +7,7 @@
 #include "asio-dispatcher.h"
 #include "backup-executor.h"
 #include "cryptor.h"
+#include "io-util.h"
 
 using namespace polar_express;
 
@@ -19,6 +21,7 @@ const char kAwsGlacierVaultName[] = "";
 int main(int argc, char** argv) {
   if (argc > 1) {
     string root = argv[1];
+    const time_t start_time = time(nullptr);
     AsioDispatcher::GetInstance()->Start();
 
     Cryptor::EncryptionType encryption_type = Cryptor::EncryptionType::kAES;
@@ -46,14 +49,31 @@ int main(int argc, char** argv) {
                           kAwsGlacierVaultName);
 
     AsioDispatcher::GetInstance()->WaitForFinish();
+    const time_t end_time = time(nullptr);
+
     std::cout << "Processed " << backup_executor.GetNumFilesProcessed()
-              << " files." << std::endl;
+              << " files ("
+              << io_util::HumanReadableSize(
+                  backup_executor.GetSizeOfFilesProcessed())
+              << ")." << std::endl;
     std::cout << "Generated " << backup_executor.GetNumSnapshotsGenerated()
-              << " new snapshots." << std::endl;
+              << " new snapshots ("
+              << io_util::HumanReadableSize(
+                     backup_executor.GetSizeOfSnapshotsGenerated()) << ")."
+              << std::endl;
     std::cout << "Generated " << backup_executor.GetNumBundlesGenerated()
-              << " new bundles." << std::endl;
+              << " new bundles ("
+              << io_util::HumanReadableSize(
+                     backup_executor.GetSizeOfBundlesGenerated()) << ")."
+              << std::endl;
     std::cout << "Uploaded " << backup_executor.GetNumBundlesUploaded()
-              << " new bundles." << std::endl;
+              << " new bundles ("
+              << io_util::HumanReadableSize(
+                     backup_executor.GetSizeOfBundlesUploaded()) << ")."
+              << std::endl;
+    std::cout << "Took "
+              << io_util::HumanReadableDuration(end_time - start_time) << "."
+              << std::endl;
   }
   return 0;
 }

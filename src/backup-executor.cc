@@ -21,7 +21,8 @@ BackupExecutor::BackupExecutor()
       filesystem_scanner_(new FilesystemScanner),
       snapshot_state_machine_pool_max_weight_(0),
       buffered_paths_total_weight_(0),
-      num_files_processed_(0) {
+      num_files_processed_(0),
+      size_of_files_processed_(0) {
 }
 
 BackupExecutor::~BackupExecutor() {
@@ -73,16 +74,33 @@ int BackupExecutor::GetNumFilesProcessed() const {
   return num_files_processed_;
 }
 
+size_t BackupExecutor::GetSizeOfFilesProcessed() const {
+  return size_of_files_processed_;
+}
+
 int BackupExecutor::GetNumSnapshotsGenerated() const {
   return CHECK_NOTNULL(snapshot_state_machine_pool_)->num_snapshots_generated();
+}
+
+size_t BackupExecutor::GetSizeOfSnapshotsGenerated() const {
+  return CHECK_NOTNULL(snapshot_state_machine_pool_)
+      ->size_of_snapshots_generated();
 }
 
 int BackupExecutor::GetNumBundlesGenerated() const {
   return CHECK_NOTNULL(bundle_state_machine_pool_)->num_bundles_generated();
 }
 
+size_t BackupExecutor::GetSizeOfBundlesGenerated() const {
+  return CHECK_NOTNULL(bundle_state_machine_pool_)->size_of_bundles_generated();
+}
+
 int BackupExecutor::GetNumBundlesUploaded() const {
   return CHECK_NOTNULL(upload_state_machine_pool_)->num_bundles_uploaded();
+}
+
+size_t BackupExecutor::GetSizeOfBundlesUploaded() const {
+  return CHECK_NOTNULL(upload_state_machine_pool_)->size_of_bundles_uploaded();
 }
 
 void BackupExecutor::AddNewPendingSnapshotPaths() {
@@ -114,6 +132,8 @@ void BackupExecutor::TryAddSnapshotPathWithSize(
     const std::pair<boost::filesystem::path, size_t>& path_with_size) {
   const auto path = path_with_size.first;
   const size_t weight = WeightFromFilesize(path_with_size.second);
+  ++num_files_processed_;
+  size_of_files_processed_ += path_with_size.second;
   TryAddSnapshotPathWithWeight(make_pair(path, weight));
 }
 
@@ -121,7 +141,6 @@ void BackupExecutor::TryAddSnapshotPathWithWeight(
     const std::pair<boost::filesystem::path, size_t>& path_with_weight) {
   const auto path = path_with_weight.first;
   const size_t weight = path_with_weight.second;
-  ++num_files_processed_;
   if (CHECK_NOTNULL(snapshot_state_machine_pool_)->CanAcceptNewInput(weight)) {
     // TODO: It might be nice if the StateMachinePool did not require inputs
     // to be shared pointers.

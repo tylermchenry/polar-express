@@ -19,6 +19,13 @@ env.Append(LIBPATH='./src/proto')
 
 ### Libraries
 
+io_util = env.Library(
+    target='io-util',
+    source=[
+        'io-util.cc',
+        ],
+    )
+
 tar_header_block = env.Library(
     target='tar-header-block',
     source=[
@@ -422,6 +429,7 @@ polar_express = env.Program(
         cryptors,
         backup_executor,
         asio_dispatcher,
+        io_util,
         asio_dispatcher_deplibs,
         backup_executor_deplibs,
         cryptors_deplibs,

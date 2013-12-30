@@ -33,6 +33,7 @@ class UploadStateMachinePool : public PersistentStateMachinePool<
       boost::shared_ptr<StateMachinePool<AnnotatedBundleData> > next_pool);
 
   int num_bundles_uploaded() const;
+  size_t size_of_bundles_uploaded() const;
 
   virtual const char* name() const {
     return "Upload State Machine Pool";
@@ -58,6 +59,7 @@ class UploadStateMachinePool : public PersistentStateMachinePool<
   const string vault_name_;
 
   int num_bundles_uploaded_;
+  size_t size_of_bundles_uploaded_;
   boost::shared_ptr<StateMachinePool<AnnotatedBundleData> > next_pool_;
 
   DISALLOW_COPY_AND_ASSIGN(UploadStateMachinePool);
