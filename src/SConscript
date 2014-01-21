@@ -58,9 +58,25 @@ asio_dispatcher = env.Library(
     LIBS=asio_dispatcher_deplibs,
     )
 
+stream_connection_deplibs = [
+    asio_dispatcher,
+    asio_dispatcher_deplibs,
+    'boost_system-mt',
+    'boost_thread',
+    ];
+stream_connection = env.Library(
+    target='stream-connection',
+    source=[
+        'stream-connection.cc',
+        ],
+    LIBS=stream_connection_deplibs,
+    )
+
 tcp_connection_deplibs = [
     asio_dispatcher,
     asio_dispatcher_deplibs,
+    stream_connection,
+    stream_connection_deplibs,
     'boost_system-mt',
     'boost_thread',
     ];

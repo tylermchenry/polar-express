@@ -43,7 +43,7 @@ class TcpConnectionTest : public testing::Test {
     ASSERT_TRUE(tcp_connection_.get() != nullptr);
     ASSERT_TRUE(data != nullptr);
 
-    bool success = tcp_connection_->Write(*data, next_action);
+    bool success = tcp_connection_->Write(data, next_action);
     EXPECT_EQ(expect_success, success);
 
     if (!success) {
