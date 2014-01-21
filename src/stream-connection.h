@@ -105,21 +105,25 @@ class StreamConnectionBase {
 
   virtual void StreamAsyncConnect(
       asio::ip::tcp::resolver::iterator endpoint_iterator,
-      boost::function<void(const system::error_code&,
-                           asio::ip::tcp::resolver::iterator)>& handler) = 0;
+      const boost::function<
+          void(const system::error_code&, asio::ip::tcp::resolver::iterator)>&
+          handler) = 0;
 
   virtual void StreamAsyncWrite(
       const vector<asio::const_buffer>& write_buffers,
-      boost::function<void(const system::error_code&, size_t)>& handler) = 0;
+      const boost::function<void(const system::error_code&, size_t)>&
+          handler) = 0;
 
   virtual void StreamAsyncRead(
       vector<byte>* read_buffer,
-      boost::function<void(const system::error_code&, size_t)>& handler) = 0;
+      const boost::function<void(const system::error_code&, size_t)>&
+          handler) = 0;
 
   virtual void StreamAsyncReadUntil(
       asio::streambuf* read_streambuf,
       const MatchByteSequenceCondition& termination_condition,
-      boost::function<void(const system::error_code&, size_t)>& handler) = 0;
+      const boost::function<void(const system::error_code&, size_t)>&
+          handler) = 0;
 
   // Subclasses may override this for extra behavior after a connection is
   // successfully established. By default, just invokes open_callback.
@@ -222,21 +226,21 @@ class StreamConnection : public StreamConnectionBase {
 
   virtual void StreamAsyncConnect(
       asio::ip::tcp::resolver::iterator endpoint_iterator,
-      boost::function<void(const system::error_code&,
+      const boost::function<void(const system::error_code&,
                            asio::ip::tcp::resolver::iterator)>& handler);
 
   virtual void StreamAsyncWrite(
       const vector<asio::const_buffer>& write_buffers,
-      boost::function<void(const system::error_code&, size_t)>& handler);
+      const boost::function<void(const system::error_code&, size_t)>& handler);
 
   virtual void StreamAsyncRead(
       vector<byte>* read_buffer,
-      boost::function<void(const system::error_code&, size_t)>& handler);
+      const boost::function<void(const system::error_code&, size_t)>& handler);
 
   virtual void StreamAsyncReadUntil(
       asio::streambuf* read_streambuf,
       const MatchByteSequenceCondition& termination_condition,
-      boost::function<void(const system::error_code&, size_t)>& handler);
+      const boost::function<void(const system::error_code&, size_t)>& handler);
 
   unique_ptr<AsyncStreamT> stream_;
 
@@ -276,7 +280,7 @@ void StreamConnection<AsyncStreamT>::StreamClose() {
 template <typename AsyncStreamT>
 void StreamConnection<AsyncStreamT>::StreamAsyncConnect(
     asio::ip::tcp::resolver::iterator endpoint_iterator,
-    boost::function<void(const system::error_code&,
+    const boost::function<void(const system::error_code&,
                          asio::ip::tcp::resolver::iterator)>& handler) {
   asio::async_connect(*CHECK_NOTNULL(stream_), endpoint_iterator, handler);
 }
@@ -284,14 +288,14 @@ void StreamConnection<AsyncStreamT>::StreamAsyncConnect(
 template <typename AsyncStreamT>
 void StreamConnection<AsyncStreamT>::StreamAsyncWrite(
     const vector<asio::const_buffer>& write_buffers,
-    boost::function<void(const system::error_code&, size_t)>& handler) {
+    const boost::function<void(const system::error_code&, size_t)>& handler) {
   asio::async_write(*CHECK_NOTNULL(stream_), write_buffers, handler);
 }
 
 template <typename AsyncStreamT>
 void StreamConnection<AsyncStreamT>::StreamAsyncRead(
     vector<byte>* read_buffer,
-    boost::function<void(const system::error_code&, size_t)>& handler) {
+    const boost::function<void(const system::error_code&, size_t)>& handler) {
   asio::async_read(*CHECK_NOTNULL(stream_),
                    asio::buffer(*CHECK_NOTNULL(read_buffer)), handler);
 }
@@ -300,7 +304,7 @@ template <typename AsyncStreamT>
 void StreamConnection<AsyncStreamT>::StreamAsyncReadUntil(
     asio::streambuf* read_streambuf,
     const MatchByteSequenceCondition& termination_condition,
-    boost::function<void(const system::error_code&, size_t)>& handler) {
+    const boost::function<void(const system::error_code&, size_t)>& handler) {
   asio::async_read_until(*CHECK_NOTNULL(stream_),
                          *CHECK_NOTNULL(read_streambuf), termination_condition,
                          handler);
