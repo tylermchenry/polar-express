@@ -110,8 +110,8 @@ bool HttpConnection::SendRequest(
     const HttpRequest& request, const vector<byte>* request_payload,
     HttpResponse* response, vector<byte>* response_payload,
     Callback callback) {
-  return SendRequest(request, {request_payload}, response, response_payload,
-                     callback);
+  return SendRequest(request, vector<const vector<byte>*>({request_payload}),
+                     response, response_payload, callback);
 }
 
 bool HttpConnection::SendRequest(
