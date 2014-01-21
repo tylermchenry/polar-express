@@ -31,7 +31,8 @@ UploadStateMachineImpl::BackEnd* UploadStateMachine::GetBackEnd() {
 UploadStateMachineImpl::UploadStateMachineImpl()
     : exit_requested_(false),
       metadata_db_(new MetadataDb),
-      glacier_connection_(new GlacierConnection),
+      // TODO: Secure-or-not should be configurable (but secure as default).
+      glacier_connection_(new SecureGlacierConnection),
       attempted_vault_creation_(false),
       vault_created_(false),
       vault_description_(new GlacierVaultDescription) {

@@ -10,6 +10,7 @@
 #include "boost/regex.hpp"
 #include "curl/curl.h"
 
+#include "ssl-connection.h"
 #include "tcp-connection.h"
 #include "proto/http.pb.h"
 
@@ -17,6 +18,7 @@ namespace polar_express {
 namespace {
 
 const char kHttpProtocol[] = "http";
+const char kHttpsProtocol[] = "https";
 
 const char* GetMethodString(HttpRequest::Method method) {
   switch (method) {
@@ -51,9 +53,15 @@ bool MethodRequiresContentLength(HttpRequest::Method method) {
 }  // namespace
 
 HttpConnection::HttpConnection()
+    : HttpConnection(false  /* not secure */) {
+}
+
+HttpConnection::HttpConnection(bool secure)
     : request_pending_(false),
       last_request_succeeded_(false),
-      tcp_connection_(new TcpConnection),
+      stream_connection_(
+          secure ? static_cast<StreamConnection*>(new SslConnection)
+                 : static_cast<StreamConnection*>(new TcpConnection)),
       curl_(curl_easy_init()) {
 }
 
@@ -61,24 +69,28 @@ HttpConnection::~HttpConnection() {
   curl_easy_cleanup(curl_);
 }
 
+bool HttpConnection::is_secure() const {
+  return stream_connection_->is_secure();
+}
+
 bool HttpConnection::is_opening() const {
-  return tcp_connection_->is_opening();
+  return stream_connection_->is_opening();
 }
 
 bool HttpConnection::is_open() const {
-  return tcp_connection_->is_open();
+  return stream_connection_->is_open();
 }
 
 AsioDispatcher::NetworkUsageType HttpConnection::network_usage_type() const {
-  return tcp_connection_->network_usage_type();
+  return stream_connection_->network_usage_type();
 }
 
 const string& HttpConnection::hostname() const {
-  return tcp_connection_->hostname();
+  return stream_connection_->hostname();
 }
 
 const string& HttpConnection::protocol() const {
-  return tcp_connection_->protocol();
+  return stream_connection_->protocol();
 }
 
 bool HttpConnection::last_request_succeeded() const {
@@ -91,19 +103,20 @@ bool HttpConnection::Open(
   strand_dispatcher_ =
       AsioDispatcher::GetInstance()->NewStrandDispatcherNetworkBound(
           network_usage_type);
-  return tcp_connection_->Open(
-      network_usage_type, hostname, kHttpProtocol, callback);
+  return stream_connection_->Open(network_usage_type, hostname,
+                                  is_secure() ? kHttpsProtocol : kHttpProtocol,
+                                  callback);
 }
 
 bool HttpConnection::Reopen(Callback callback) {
   if (strand_dispatcher_ == nullptr) {
     return false;
   }
-  return tcp_connection_->Reopen(callback);
+  return stream_connection_->Reopen(callback);
 }
 
 bool HttpConnection::Close() {
-  return tcp_connection_->Close();
+  return stream_connection_->Close();
 }
 
 bool HttpConnection::SendRequest(
@@ -119,6 +132,12 @@ bool HttpConnection::SendRequest(
     const vector<const vector<byte>*>& request_sequential_payload,
     HttpResponse* response, vector<byte>* response_payload, Callback callback) {
   if (!is_open() || request_pending_) {
+    return false;
+  }
+
+  // Refuse to send requests specifying a secure connection over an insecure
+  // connection (but the reverse is fine).
+  if (request.is_secure() && !is_secure()) {
     return false;
   }
 
@@ -153,7 +172,7 @@ bool HttpConnection::SendRequest(
       strand_dispatcher_->CreateStrandCallback(
           boost::bind(&HttpConnection::RequestSent, this,
                       response, response_payload, callback));
-  if (tcp_connection_->WriteAll(sequential_data, request_sent_callback)) {
+  if (stream_connection_->WriteAll(sequential_data, request_sent_callback)) {
     return true;
   }
 
@@ -232,9 +251,8 @@ bool HttpConnection::DeserializeResponse(HttpResponse* response) {
   vector<byte>::const_iterator serialized_response_itr =
       serialized_response_->begin();
 
-  // TODO: Support HTTPS
   response->set_transport_succeeded(true);
-  response->set_is_secure(false);
+  response->set_is_secure(is_secure());
 
   string status_line;
   serialized_response_itr = GetTextLineFromData(
@@ -362,13 +380,13 @@ void HttpConnection::RequestSent(
     HttpResponse* response, vector<byte>* response_payload,
     Callback send_request_callback) {
   bool still_ok = false;
-  if (tcp_connection_->last_write_succeeded()) {
+  if (stream_connection_->last_write_succeeded()) {
     Callback response_received_callback =
         strand_dispatcher_->CreateStrandCallback(
             boost::bind(&HttpConnection::ResponseReceived, this,
                         response, response_payload, send_request_callback));
     serialized_response_.reset(new vector<byte>);
-    still_ok = tcp_connection_->ReadUntil(
+    still_ok = stream_connection_->ReadUntil(
         { '\r', '\n', '\r', '\n' }, serialized_response_.get(),
         response_received_callback);
   }
@@ -382,7 +400,7 @@ void HttpConnection::ResponseReceived(
     HttpResponse* response, vector<byte>* response_payload,
     Callback send_request_callback) {
   bool still_ok = false;
-  if (tcp_connection_->last_read_succeeded() &&
+  if (stream_connection_->last_read_succeeded() &&
       DeserializeResponse(response)) {
     if (IsChunkedPayload(*response)) {
       Callback response_payload_chunk_header_received_callback =
@@ -391,7 +409,7 @@ void HttpConnection::ResponseReceived(
                           this, response, response_payload,
                           send_request_callback));
       response_payload_chunk_buffer_.reset(new vector<byte>);
-      still_ok = tcp_connection_->ReadUntil(
+      still_ok = stream_connection_->ReadUntil(
           { '\r', '\n' }, response_payload_chunk_buffer_.get(),
           response_payload_chunk_header_received_callback);
     } else {
@@ -403,7 +421,7 @@ void HttpConnection::ResponseReceived(
       // Ask to read, even if the payload size is zero, to simplify
       // callback handling (so that ResponsePayloadRecieved is always
       // the last callback in a successful response.)
-      still_ok = tcp_connection_->ReadSize(
+      still_ok = stream_connection_->ReadSize(
           GetResponsePayloadSize(*response),
           response_payload, response_payload_received_callback);
     }
@@ -418,7 +436,7 @@ void HttpConnection::ResponsePayloadChunkHeaderReceived(
     HttpResponse* response, vector<byte>* response_payload,
     Callback send_request_callback) {
   bool still_ok = false;
-  if (tcp_connection_->last_read_succeeded()) {
+  if (stream_connection_->last_read_succeeded()) {
     size_t chunk_size = GetPayloadChunkSize(*response_payload_chunk_buffer_);
 
     // A chunk size of 0 indicates that the payload has finished, but
@@ -431,7 +449,7 @@ void HttpConnection::ResponsePayloadChunkHeaderReceived(
               boost::bind(&HttpConnection::ResponsePayloadChunkReceived,
                           this, response, response_payload,
                           send_request_callback));
-      still_ok = tcp_connection_->ReadSize(
+      still_ok = stream_connection_->ReadSize(
           chunk_size, response_payload_chunk_buffer_.get(),
           response_payload_chunk_received_callback);
     } else if (chunk_size == 0) {
@@ -440,7 +458,7 @@ void HttpConnection::ResponsePayloadChunkHeaderReceived(
               boost::bind(
                   &HttpConnection::ResponsePayloadPostChunkHeaderReceived,
                   this, response, response_payload, send_request_callback));
-      still_ok = tcp_connection_->ReadUntil(
+      still_ok = stream_connection_->ReadUntil(
           { '\r', '\n', }, response_payload_chunk_buffer_.get(),
           response_payload_post_chunk_header_received_callback);
     }
@@ -455,13 +473,13 @@ void HttpConnection::ResponsePayloadChunkSeparatorReceived(
     HttpResponse* response, vector<byte>* response_payload,
     Callback send_request_callback) {
   bool still_ok = false;
-  if (tcp_connection_->last_read_succeeded()) {
+  if (stream_connection_->last_read_succeeded()) {
     Callback response_payload_chunk_header_received_callback =
         strand_dispatcher_->CreateStrandCallback(
             boost::bind(&HttpConnection::ResponsePayloadChunkHeaderReceived,
                         this, response, response_payload,
                         send_request_callback));
-    still_ok = tcp_connection_->ReadUntil(
+    still_ok = stream_connection_->ReadUntil(
         { '\r', '\n' }, response_payload_chunk_buffer_.get(),
         response_payload_chunk_header_received_callback);
   }
@@ -481,7 +499,7 @@ void HttpConnection::ResponsePayloadChunkReceived(
                            response_payload_chunk_buffer_->begin(),
                            response_payload_chunk_buffer_->end());
 
-  if (tcp_connection_->last_read_succeeded()) {
+  if (stream_connection_->last_read_succeeded()) {
     // There is a line terminator ("\r\n") at the end of each chunk
     // which is not part of the chunk and not counted in the chunk
     // size. Consume this "separator" before attempting to consume the
@@ -491,7 +509,7 @@ void HttpConnection::ResponsePayloadChunkReceived(
             boost::bind(&HttpConnection::ResponsePayloadChunkSeparatorReceived,
                         this, response, response_payload,
                         send_request_callback));
-    still_ok = tcp_connection_->ReadUntil(
+    still_ok = stream_connection_->ReadUntil(
         { '\r', '\n' }, serialized_response_.get(),
         response_payload_chunk_separator_received_callback);
   }
@@ -519,7 +537,7 @@ void HttpConnection::ResponsePayloadPostChunkHeaderReceived(
             boost::bind(
                 &HttpConnection::ResponsePayloadPostChunkHeaderReceived,
                 this, response, response_payload, send_request_callback));
-    if (!tcp_connection_->ReadUntil(
+    if (!stream_connection_->ReadUntil(
             { '\r', '\n', }, response_payload_chunk_buffer_.get(),
             response_payload_post_chunk_header_received_callback)) {
       HandleRequestError(response, send_request_callback);
@@ -530,7 +548,7 @@ void HttpConnection::ResponsePayloadPostChunkHeaderReceived(
 void HttpConnection::ResponsePayloadReceived(
     HttpResponse* response, vector<byte>* response_payload,
     Callback send_request_callback) {
-  last_request_succeeded_ = tcp_connection_->last_read_succeeded();
+  last_request_succeeded_ = stream_connection_->last_read_succeeded();
   CleanUpRequestState();
   if (!last_request_succeeded_) {
     CHECK_NOTNULL(response)->set_transport_succeeded(false);
@@ -554,6 +572,13 @@ void HttpConnection::CleanUpRequestState() {
   tmp_response_payload_.reset();
   response_payload_chunk_buffer_.reset();
   request_pending_ = false;
+}
+
+HttpsConnection::HttpsConnection()
+    : HttpConnection(true  /* secure */) {
+}
+
+HttpsConnection::~HttpsConnection() {
 }
 
 }  // namespace polar_express

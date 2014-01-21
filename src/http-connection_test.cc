@@ -26,15 +26,16 @@ namespace {
 //   return expected_serialized == actual_serialized;
 // }
 
-class HttpConnectionTest : public testing::Test {
+class HttpConnectionTest : public testing::TestWithParam<bool> {
  public:
   HttpConnectionTest()
       : open_callback_invoked_(false),
         expect_open_(false),
         request_callback_invoked_(false),
         expect_request_success_(false),
-        http_connection_(new HttpConnection) {
-  }
+        http_connection_(
+            GetParam() ? static_cast<HttpConnection*>(new HttpsConnection)
+                       : static_cast<HttpConnection*>(new HttpConnection)) {}
 
   virtual void SetUp() {
     AsioDispatcher::GetInstance()->Start();
@@ -119,7 +120,7 @@ class HttpConnectionTest : public testing::Test {
   }
 };
 
-TEST_F(HttpConnectionTest, Open) {
+TEST_P(HttpConnectionTest, Open) {
   expect_open_ = true;
 
   EXPECT_TRUE(http_connection_->Open(
@@ -130,7 +131,7 @@ TEST_F(HttpConnectionTest, Open) {
   EXPECT_TRUE(open_callback_invoked_);
 }
 
-TEST_F(HttpConnectionTest, OpenAndSendRequest) {
+TEST_P(HttpConnectionTest, OpenAndSendRequest) {
   expect_open_ = true;
   expect_request_success_ = true;
 
@@ -181,6 +182,9 @@ TEST_F(HttpConnectionTest, OpenAndSendRequest) {
   //     EqualsProto(expected_response_without_headers));
   EXPECT_FALSE(response_payload_.empty());
 }
+
+INSTANTIATE_TEST_CASE_P(SecureAndInsecureTest, HttpConnectionTest,
+                        testing::Bool());
 
 }  // namespace
 }  // namespace polar_express

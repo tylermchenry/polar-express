@@ -38,16 +38,7 @@ const byte kTestArchivePayloadData[] =
     "occaecat cupidatat non proident, sunt in culpa qui officia deserunt "
     "mollit anim id est laborum.";
 
-// No friendly proto matcher in GoogleMock? Lame.
-MATCHER_P(EqualsProto, message, "") {
-  string expected_serialized;
-  string actual_serialized;
-  message.SerializeToString(&expected_serialized);
-  arg.SerializeToString(&actual_serialized);
-  return expected_serialized == actual_serialized;
-}
-
-class GlacierConnectionTest : public testing::Test {
+class GlacierConnectionTest : public testing::TestWithParam<bool> {
  public:
   GlacierConnectionTest()
       : open_callback_invoked_(false),
@@ -65,8 +56,11 @@ class GlacierConnectionTest : public testing::Test {
         delete_archive_callback_invoked_(false),
         expect_delete_archive_success_(false),
         // Be sure not to include the trailing NUL in the key block.
-        aws_secret_key_(kAwsSecretKey,  sizeof(kAwsSecretKey) - 1),
-        glacier_connection_(new GlacierConnection) {
+        aws_secret_key_(kAwsSecretKey, sizeof(kAwsSecretKey) - 1),
+        glacier_connection_(
+            GetParam()
+                ? static_cast<GlacierConnection*>(new SecureGlacierConnection)
+                : static_cast<GlacierConnection*>(new GlacierConnection)) {
   }
 
   virtual void SetUp() {
@@ -403,7 +397,7 @@ class GlacierConnectionTest : public testing::Test {
   BundleHasher bundle_hasher_;
 };
 
-TEST_F(GlacierConnectionTest, Open) {
+TEST_P(GlacierConnectionTest, Open) {
   expect_open_ = true;
 
   EXPECT_TRUE(glacier_connection_->Open(
@@ -415,7 +409,7 @@ TEST_F(GlacierConnectionTest, Open) {
   EXPECT_TRUE(open_callback_invoked_);
 }
 
-TEST_F(GlacierConnectionTest, OpenAndDescribeVault) {
+TEST_P(GlacierConnectionTest, OpenAndDescribeVault) {
   expect_open_ = true;
   expect_describe_success_ = true;
 
@@ -444,7 +438,7 @@ TEST_F(GlacierConnectionTest, OpenAndDescribeVault) {
   EXPECT_EQ(kAwsGlacierVaultName, vault_description.vault_name());
 }
 
-TEST_F(GlacierConnectionTest, OpenAndListVaults) {
+TEST_P(GlacierConnectionTest, OpenAndListVaults) {
   expect_open_ = true;
   expect_list_success_ = true;
 
@@ -466,7 +460,7 @@ TEST_F(GlacierConnectionTest, OpenAndListVaults) {
   EXPECT_LT(0, vault_list.vault_descriptions_size());
 }
 
-TEST_F(GlacierConnectionTest, CreateAndDeleteVault) {
+TEST_P(GlacierConnectionTest, CreateAndDeleteVault) {
   ostringstream test_vault_name;
   test_vault_name << "glacier_connection_test_vault_" << time(nullptr);
 
@@ -522,7 +516,7 @@ TEST_F(GlacierConnectionTest, CreateAndDeleteVault) {
 // have already deleted the archive that you wrote.
 #if 0
 
-TEST_F(GlacierConnectionTest, UploadAndDeleteArchive) {
+TEST_P(GlacierConnectionTest, UploadAndDeleteArchive) {
   ostringstream test_vault_name;
   test_vault_name << "glacier_connection_test_vault_" << time(nullptr);
 
@@ -577,6 +571,9 @@ TEST_F(GlacierConnectionTest, UploadAndDeleteArchive) {
 }
 
 #endif
+
+INSTANTIATE_TEST_CASE_P(SecureAndInsecureTest, GlacierConnectionTest,
+                        testing::Bool());
 
 }  // namespace
 }  // namespace polar_express

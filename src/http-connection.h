@@ -12,7 +12,7 @@ namespace polar_express {
 
 class HttpRequest;
 class HttpResponse;
-class TcpConnection;
+class StreamConnection;
 
 class HttpConnection {
  public:
@@ -20,6 +20,7 @@ class HttpConnection {
   virtual ~HttpConnection();
 
   // These methods are synchronous but not internally synchronized.
+  virtual bool is_secure() const;
   virtual bool is_opening() const;
   virtual bool is_open() const;
   virtual AsioDispatcher::NetworkUsageType network_usage_type() const;
@@ -48,7 +49,7 @@ class HttpConnection {
   // this.
   //
   // If any part of the request fails, the connection will be closed,
-  // so as not to leave stray data behind in the TCP stream.
+  // so as not to leave stray data behind in the stream.
   virtual bool SendRequest(
       const HttpRequest& request, const vector<byte>* request_payload,
       HttpResponse* response, vector<byte>* response_payload,
@@ -61,6 +62,9 @@ class HttpConnection {
       const vector<const vector<byte>*>& request_sequential_payload,
       HttpResponse* response, vector<byte>* response_payload,
       Callback callback);
+
+ protected:
+  explicit HttpConnection(bool secure);
 
  private:
   void SerializeRequest(const HttpRequest& request, size_t payload_size);
@@ -146,11 +150,20 @@ class HttpConnection {
   unique_ptr<vector<byte> > response_payload_chunk_buffer_;
 
   boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher_;
-  const unique_ptr<TcpConnection> tcp_connection_;
+  const unique_ptr<StreamConnection> stream_connection_;
 
   void* curl_;  // Owned, but destructed specially.
 
   DISALLOW_COPY_AND_ASSIGN(HttpConnection);
+};
+
+class HttpsConnection : public HttpConnection {
+ public:
+  HttpsConnection();
+  virtual ~HttpsConnection();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HttpsConnection);
 };
 
 }  // namespace polar_express

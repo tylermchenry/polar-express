@@ -25,6 +25,7 @@ class GlacierConnection {
   GlacierConnection();
   virtual ~GlacierConnection();
 
+  virtual bool is_secure() const;
   virtual bool is_opening() const;
   virtual bool is_open() const;
   virtual AsioDispatcher::NetworkUsageType network_usage_type() const;
@@ -94,6 +95,9 @@ class GlacierConnection {
       const string& vault_name, const string& archive_id,
       bool* archive_deleted, Callback callback);
 
+ protected:
+  explicit GlacierConnection(bool secure);
+
  private:
   bool SendRequest(
       const HttpRequest& request,
@@ -140,8 +144,18 @@ class GlacierConnection {
   boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher_;
   const unique_ptr<HttpConnection> http_connection_;
   const unique_ptr<AmazonHttpRequestUtil> amazon_http_request_util_;
+  const bool send_secure_requests_;
 
   DISALLOW_COPY_AND_ASSIGN(GlacierConnection);
+};
+
+class SecureGlacierConnection : public GlacierConnection {
+ public:
+  SecureGlacierConnection();
+  virtual ~SecureGlacierConnection();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SecureGlacierConnection);
 };
 
 }  // namespace polar_express

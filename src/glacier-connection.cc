@@ -89,13 +89,24 @@ bool ParseJsonVaultDescription(
 }  // namespace
 
 GlacierConnection::GlacierConnection()
-    : http_connection_(new HttpConnection),
+    : GlacierConnection(false  /* not secure */) {
+}
+
+GlacierConnection::GlacierConnection(bool secure)
+    : http_connection_(secure
+                           ? static_cast<HttpConnection*>(new HttpsConnection)
+                           : static_cast<HttpConnection*>(new HttpConnection)),
       amazon_http_request_util_(new AmazonHttpRequestUtil),
+      send_secure_requests_(secure),
       operation_pending_(false),
       last_operation_succeeded_(false) {
 }
 
 GlacierConnection::~GlacierConnection() {
+}
+
+bool GlacierConnection::is_secure() const {
+  return http_connection_->is_secure();
 }
 
 bool GlacierConnection::is_opening() const {
@@ -166,6 +177,7 @@ bool GlacierConnection::CreateVault(
   operation_pending_ = true;
 
   HttpRequest request;
+  request.set_is_secure(send_secure_requests_);
   request.set_method(HttpRequest::PUT);
   request.set_hostname(http_connection_->hostname());
   request.set_path(kAwsGlacierVaultPathPrefix + vault_name);
@@ -189,6 +201,7 @@ bool GlacierConnection::DescribeVault(
   operation_pending_ = true;
 
   HttpRequest request;
+  request.set_is_secure(send_secure_requests_);
   request.set_method(HttpRequest::GET);
   request.set_hostname(http_connection_->hostname());
   request.set_path(kAwsGlacierVaultPathPrefix + vault_name);
@@ -212,6 +225,7 @@ bool GlacierConnection::ListVaults(
   operation_pending_ = true;
 
   HttpRequest request;
+  request.set_is_secure(send_secure_requests_);
   request.set_method(HttpRequest::GET);
   request.set_hostname(http_connection_->hostname());
   request.set_path(kAwsGlacierVaultPathPrefix);
@@ -245,6 +259,7 @@ bool GlacierConnection::DeleteVault(
   operation_pending_ = true;
 
   HttpRequest request;
+  request.set_is_secure(send_secure_requests_);
   request.set_method(HttpRequest::DELETE);
   request.set_hostname(http_connection_->hostname());
   request.set_path(kAwsGlacierVaultPathPrefix + vault_name);
@@ -292,6 +307,7 @@ bool GlacierConnection::UploadArchive(
   operation_pending_ = true;
 
   HttpRequest request;
+  request.set_is_secure(send_secure_requests_);
   request.set_method(HttpRequest::POST);
   request.set_hostname(http_connection_->hostname());
   request.set_path(kAwsGlacierVaultPathPrefix + vault_name + '/' +
@@ -331,6 +347,7 @@ bool GlacierConnection::DeleteArchive(const string& vault_name,
   operation_pending_ = true;
 
   HttpRequest request;
+  request.set_is_secure(send_secure_requests_);
   request.set_method(HttpRequest::DELETE);
   request.set_hostname(http_connection_->hostname());
   request.set_path(kAwsGlacierVaultPathPrefix + vault_name + '/' +
@@ -397,6 +414,8 @@ void GlacierConnection::HandleDescribeVault(
     GlacierVaultDescription* vault_description,
     Callback describe_vault_callback) {
   assert(vault_description != nullptr);
+
+  std::cerr << "In HandleDescribeVault" << std::endl;
 
   if (!http_connection_->last_request_succeeded() &&
       response_->status_code() != 200) {
@@ -534,6 +553,13 @@ void GlacierConnection::CleanUpRequestState() {
   response_.reset();
   response_payload_.reset();
   operation_pending_ = false;
+}
+
+SecureGlacierConnection::SecureGlacierConnection()
+    : GlacierConnection(true  /* secure */) {
+}
+
+SecureGlacierConnection::~SecureGlacierConnection() {
 }
 
 }  // namespace polar_express

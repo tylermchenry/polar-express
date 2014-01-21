@@ -1,5 +1,7 @@
 #include "ssl-connection.h"
 
+#include "openssl/ssl.h"
+
 namespace polar_express {
 
 SslConnection::SslConnection()
