@@ -5,47 +5,10 @@
 
 #include "boost/asio/buffer.hpp"
 #include "boost/asio/ip/tcp.hpp"
-#include "boost/bind.hpp"
 
 namespace polar_express {
-namespace {
 
-// The following is some template magic that allows us to create
-// callbacks for the boost TCP object methods which will be run in the
-// appropriate strand. This requires some work, because unlike all of
-// the internal callbacks in polar express, whcih are zero-argument
-// and fully bound, the callbacks invoked by the boost TCP objects
-// need to take arguments.
-//
-// So the following templates allow us to create a callback that takes
-// the arguments that boost wants to pass. When it is invoked, it
-// creates a new, fully-bound callback using those arguments and posts
-// it to the appropriate strand.
-//
-// TODO: If this turns out to be more generally useful, move these
-// templates to asio-dispatcher.h.
-
-template <typename T1, typename T2>
-void StrandCallbackWithArgs(
-    boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher,
-    boost::function<void(T1, T2)> callback_with_args,
-    T1 arg1, T2 arg2) {
-  strand_dispatcher->Post(boost::bind(callback_with_args, arg1, arg2));
-}
-
-template <typename T1, typename T2, typename PT1, typename PT2>
-boost::function<void(T1, T2)> MakeStrandCallbackWithArgs(
-    boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher,
-    boost::function<void(T1, T2)> callback_with_args,
-    PT1 arg1_placeholder, PT2 arg2_placeholder) {
-  return boost::bind(
-      &StrandCallbackWithArgs<T1, T2>, strand_dispatcher, callback_with_args,
-      arg1_placeholder, arg2_placeholder);
-}
-
-}  // namespace
-
-StreamConnectionBase::StreamConnectionBase(bool is_secure)
+StreamConnection::StreamConnection(bool is_secure)
     : is_secure_(is_secure),
       is_opening_(false),
       is_open_(false),
@@ -56,43 +19,43 @@ StreamConnectionBase::StreamConnectionBase(bool is_secure)
       last_read_succeeded_(false) {
 }
 
-StreamConnectionBase::~StreamConnectionBase() {
+StreamConnection::~StreamConnection() {
 }
 
-bool StreamConnectionBase::is_secure() const {
+bool StreamConnection::is_secure() const {
   return is_secure_;
 }
 
-bool StreamConnectionBase::is_opening() const {
+bool StreamConnection::is_opening() const {
   return is_opening_;
 }
 
-bool StreamConnectionBase::is_open() const {
+bool StreamConnection::is_open() const {
   return is_open_;
 }
 
-AsioDispatcher::NetworkUsageType StreamConnectionBase::network_usage_type()
+AsioDispatcher::NetworkUsageType StreamConnection::network_usage_type()
     const {
   return network_usage_type_;
 }
 
-const string& StreamConnectionBase::hostname() const {
+const string& StreamConnection::hostname() const {
   return hostname_;
 }
 
-const string& StreamConnectionBase::protocol() const {
+const string& StreamConnection::protocol() const {
   return protocol_;
 }
 
-bool StreamConnectionBase::last_write_succeeded() const {
+bool StreamConnection::last_write_succeeded() const {
   return last_write_succeeded_;
 }
 
-bool StreamConnectionBase::last_read_succeeded() const {
+bool StreamConnection::last_read_succeeded() const {
   return last_read_succeeded_;
 }
 
-bool StreamConnectionBase::Open(
+bool StreamConnection::Open(
     AsioDispatcher::NetworkUsageType network_usage_type,
     const string& hostname, const string& protocol, Callback callback) {
   if (is_opening_ || is_open_ || !CreateNetworkingObjects(network_usage_type)) {
@@ -105,9 +68,8 @@ bool StreamConnectionBase::Open(
   asio::ip::tcp::resolver::query query(hostname, protocol);
   auto handler = MakeStrandCallbackWithArgs<
       const system::error_code&, asio::ip::tcp::resolver::iterator>(
-          strand_dispatcher_,
           boost::bind(
-              &StreamConnectionBase::HandleResolve, this, _1, _2, callback),
+              &StreamConnection::HandleResolve, this, _1, _2, callback),
           asio::placeholders::error,
           asio::placeholders::iterator);
   resolver_->async_resolve(query, handler);
@@ -115,14 +77,14 @@ bool StreamConnectionBase::Open(
   return true;
 }
 
-bool StreamConnectionBase::Reopen(Callback callback) {
+bool StreamConnection::Reopen(Callback callback) {
   if (is_opening_ || is_open_) {
     return false;
   }
   return Open(network_usage_type_, hostname_, protocol_, callback);
 }
 
-bool StreamConnectionBase::Close() {
+bool StreamConnection::Close() {
   if (is_opening_) {
     return false;
   }
@@ -133,12 +95,12 @@ bool StreamConnectionBase::Close() {
   return true;
 }
 
-bool StreamConnectionBase::Write(
+bool StreamConnection::Write(
     const vector<byte>* data, Callback callback) {
   return WriteAll({ data }, callback);
 }
 
-bool StreamConnectionBase::WriteAll(
+bool StreamConnection::WriteAll(
     const vector<const vector<byte>*>& sequential_data,
     Callback callback) {
   if (!is_open_ || is_writing_) {
@@ -153,8 +115,7 @@ bool StreamConnectionBase::WriteAll(
   }
 
   auto handler = MakeStrandCallbackWithArgs<const system::error_code&, size_t>(
-      strand_dispatcher_,
-      boost::bind(&StreamConnectionBase::HandleWrite, this, _1, _2, callback),
+      boost::bind(&StreamConnection::HandleWrite, this, _1, _2, callback),
       asio::placeholders::error,
       asio::placeholders::bytes_transferred);
 
@@ -162,7 +123,7 @@ bool StreamConnectionBase::WriteAll(
   return true;
 }
 
-bool StreamConnectionBase::ReadUntil(
+bool StreamConnection::ReadUntil(
     const vector<byte>& terminator_bytes, vector<byte>* data,
     Callback callback) {
   if (!is_open_ || is_reading_) {
@@ -173,8 +134,7 @@ bool StreamConnectionBase::ReadUntil(
 
   auto termination_condition = MatchByteSequenceCondition(terminator_bytes);
   auto handler = MakeStrandCallbackWithArgs<const system::error_code&, size_t>(
-      strand_dispatcher_,
-      boost::bind(&StreamConnectionBase::HandleReadUntil, this, _1, _2,
+      boost::bind(&StreamConnection::HandleReadUntil, this, _1, _2,
                   termination_condition, data, callback),
       asio::placeholders::error,
       asio::placeholders::bytes_transferred);
@@ -183,7 +143,7 @@ bool StreamConnectionBase::ReadUntil(
   return true;
 }
 
-bool StreamConnectionBase::ReadSize(
+bool StreamConnection::ReadSize(
     size_t max_data_size, vector<byte>* data, Callback callback) {
   if (!is_open_ || is_reading_) {
     return false;
@@ -202,9 +162,8 @@ bool StreamConnectionBase::ReadSize(
   read_streambuf_->consume(existing_output_size);
 
   auto handler = MakeStrandCallbackWithArgs<const system::error_code&, size_t>(
-      strand_dispatcher_,
       boost::bind(
-          &StreamConnectionBase::HandleReadSize, this, _1, _2, data, callback),
+          &StreamConnection::HandleReadSize, this, _1, _2, data, callback),
       asio::placeholders::error,
       asio::placeholders::bytes_transferred);
 
@@ -217,11 +176,11 @@ bool StreamConnectionBase::ReadSize(
   return true;
 }
 
-void StreamConnectionBase::AfterConnect(Callback open_callback) {
+void StreamConnection::AfterConnect(Callback open_callback) {
   open_callback();
 }
 
-bool StreamConnectionBase::CreateNetworkingObjects(
+bool StreamConnection::CreateNetworkingObjects(
     AsioDispatcher::NetworkUsageType network_usage_type) {
   strand_dispatcher_ =
       AsioDispatcher::GetInstance()->NewStrandDispatcherNetworkBound(
@@ -244,7 +203,7 @@ bool StreamConnectionBase::CreateNetworkingObjects(
   return true;
 }
 
-void StreamConnectionBase::DestroyNetworkingObjects() {
+void StreamConnection::DestroyNetworkingObjects() {
   StreamDestroy();
 
   resolver_.reset();
@@ -253,21 +212,20 @@ void StreamConnectionBase::DestroyNetworkingObjects() {
   read_streambuf_.reset();
 }
 
-void StreamConnectionBase::TryConnect(
+void StreamConnection::TryConnect(
     asio::ip::tcp::resolver::iterator endpoint_iterator,
     Callback open_callback) {
   auto handler = MakeStrandCallbackWithArgs<
     const system::error_code&, asio::ip::tcp::resolver::iterator>(
-      strand_dispatcher_,
       boost::bind(
-          &StreamConnectionBase::HandleConnect, this, _1, _2, open_callback),
+          &StreamConnection::HandleConnect, this, _1, _2, open_callback),
       asio::placeholders::error,
       asio::placeholders::iterator);
 
   StreamAsyncConnect(endpoint_iterator, handler);
 }
 
-void StreamConnectionBase::HandleResolve(
+void StreamConnection::HandleResolve(
     const boost::system::error_code& err,
     asio::ip::tcp::resolver::iterator endpoint_iterator,
     Callback open_callback) {
@@ -283,7 +241,7 @@ void StreamConnectionBase::HandleResolve(
   TryConnect(endpoint_iterator, open_callback);
 }
 
-void StreamConnectionBase::HandleConnect(
+void StreamConnection::HandleConnect(
     const boost::system::error_code& err,
     asio::ip::tcp::resolver::iterator endpoint_iterator,
     Callback open_callback) {
@@ -301,10 +259,10 @@ void StreamConnectionBase::HandleConnect(
     is_open_ = true;
   }
 
-  open_callback();
+  AfterConnect(open_callback);
 }
 
-void StreamConnectionBase::HandleWrite(
+void StreamConnection::HandleWrite(
     const system::error_code& err,
     size_t bytes_transferred,
     Callback write_callback) {
@@ -316,7 +274,7 @@ void StreamConnectionBase::HandleWrite(
   write_callback();
 }
 
-void StreamConnectionBase::HandleReadSize(
+void StreamConnection::HandleReadSize(
     const system::error_code& err,
     size_t bytes_transferred,
     vector<byte>* read_data,
@@ -340,7 +298,7 @@ void StreamConnectionBase::HandleReadSize(
   read_callback();
 }
 
-void StreamConnectionBase::HandleReadUntil(
+void StreamConnection::HandleReadUntil(
     const system::error_code& err,
     size_t bytes_transferred,
     const MatchByteSequenceCondition& termination_condition,
@@ -379,20 +337,20 @@ void StreamConnectionBase::HandleReadUntil(
   read_callback();
 }
 
-StreamConnectionBase::MatchByteSequenceCondition::MatchByteSequenceCondition(
+StreamConnection::MatchByteSequenceCondition::MatchByteSequenceCondition(
     const vector<byte>& byte_sequence)
     : byte_sequence_(byte_sequence) {
 }
 
-pair<StreamConnectionBase::boost_streambuf_iterator, bool>
-StreamConnectionBase::MatchByteSequenceCondition::operator()(
+pair<StreamConnection::boost_streambuf_iterator, bool>
+StreamConnection::MatchByteSequenceCondition::operator()(
     boost_streambuf_iterator begin, boost_streambuf_iterator end) const {
   boost_streambuf_iterator pos =
       search(begin, end, byte_sequence_.begin(), byte_sequence_.end());
   return make_pair(pos, pos != end);
 }
 
-size_t StreamConnectionBase::MatchByteSequenceCondition::sequence_length()
+size_t StreamConnection::MatchByteSequenceCondition::sequence_length()
     const {
   return byte_sequence_.size();
 }

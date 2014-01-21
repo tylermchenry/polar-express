@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "boost/asio.hpp"
+#include "boost/bind.hpp"
 #include "boost/shared_ptr.hpp"
 
 #include "asio-dispatcher.h"
@@ -15,15 +16,15 @@
 
 namespace polar_express {
 
-// Non-template parts of StreamConnection (below).
+// Non-template parts of StreamConnectionTmpl (below).
 //
 // These classes wrap an ASIO-based stream connection in a way that will
 // integrate well with the ASIO dispatcher mechanism and run the IO on
 // the appropriate threads. As long as a connection is held open, the
 // ASIO dispatcher master thread will not terminate.
-class StreamConnectionBase {
+class StreamConnection {
  public:
-  virtual ~StreamConnectionBase();
+  virtual ~StreamConnection();
 
   // These methods are synchronous but not internally synchronized.
   virtual bool is_secure() const;
@@ -78,7 +79,7 @@ class StreamConnectionBase {
       size_t max_data_size, vector<byte>* data, Callback callback);
 
  protected:
-  explicit StreamConnectionBase(bool is_secure);
+  explicit StreamConnection(bool is_secure);
 
   typedef asio::buffers_iterator<asio::streambuf::const_buffers_type>
     boost_streambuf_iterator;
@@ -129,7 +130,38 @@ class StreamConnectionBase {
   // successfully established. By default, just invokes open_callback.
   virtual void AfterConnect(Callback open_callback);
 
+  // The following is some template magic that allows us to create
+  // callbacks for the boost TCP object methods which will be run in the
+  // appropriate strand. This requires some work, because unlike all of
+  // the internal callbacks in polar express, whcih are zero-argument
+  // and fully bound, the callbacks invoked by the boost TCP objects
+  // need to take arguments.
+  //
+  // So the following templates allow us to create a callback that takes
+  // the arguments that boost wants to pass. When it is invoked, it
+  // creates a new, fully-bound callback using those arguments and posts
+  // it to the appropriate strand.
+  //
+  // TODO: If this turns out to be more generally useful, move these
+  // templates to asio-dispatcher.h.
+  template <typename T1, typename PT1>
+  boost::function<void(T1)> MakeStrandCallbackWithArgs(
+      boost::function<void(T1)> callback_with_args, PT1 arg1_placeholder);
+
+  template <typename T1, typename T2, typename PT1, typename PT2>
+  boost::function<void(T1, T2)> MakeStrandCallbackWithArgs(
+      boost::function<void(T1, T2)> callback_with_args, PT1 arg1_placeholder,
+      PT2 arg2_placeholder);
+
  private:
+  template <typename T1, typename T2>
+  void StrandCallbackWithArgs(boost::function<void(T1, T2)> callback_with_args,
+                              T1 arg1, T2 arg2);
+
+  template <typename T1>
+  void StrandCallbackWithArgs(boost::function<void(T1)> callback_with_args,
+                              T1 arg1);
+
   bool CreateNetworkingObjects(
       AsioDispatcher::NetworkUsageType network_usage_type);
   void DestroyNetworkingObjects();
@@ -180,8 +212,35 @@ class StreamConnectionBase {
   unique_ptr<vector<byte> > read_buffer_;  // For ReadSize
   unique_ptr<asio::streambuf> read_streambuf_;  // For ReadUntil
 
-  DISALLOW_COPY_AND_ASSIGN(StreamConnectionBase);
+  DISALLOW_COPY_AND_ASSIGN(StreamConnection);
 };
+
+template <typename T1, typename PT1>
+boost::function<void(T1)> StreamConnection::MakeStrandCallbackWithArgs(
+    boost::function<void(T1)> callback_with_args, PT1 arg1_placeholder) {
+  return boost::bind(&StreamConnection::StrandCallbackWithArgs<T1>, this,
+                     callback_with_args, arg1_placeholder);
+}
+
+template <typename T1, typename T2, typename PT1, typename PT2>
+boost::function<void(T1, T2)> StreamConnection::MakeStrandCallbackWithArgs(
+    boost::function<void(T1, T2)> callback_with_args, PT1 arg1_placeholder,
+    PT2 arg2_placeholder) {
+  return boost::bind(&StreamConnection::StrandCallbackWithArgs<T1, T2>, this,
+                     callback_with_args, arg1_placeholder, arg2_placeholder);
+}
+
+template <typename T1>
+void StreamConnection::StrandCallbackWithArgs(
+    boost::function<void(T1)> callback_with_args, T1 arg1) {
+  strand_dispatcher_->Post(boost::bind(callback_with_args, arg1));
+}
+
+template <typename T1, typename T2>
+void StreamConnection::StrandCallbackWithArgs(
+    boost::function<void(T1, T2)> callback_with_args, T1 arg1, T2 arg2) {
+  strand_dispatcher_->Post(boost::bind(callback_with_args, arg1, arg2));
+}
 
 }  // namespace polar_express
 
@@ -189,7 +248,7 @@ namespace boost {
 namespace asio {
 template <>
 struct is_match_condition<
-  polar_express::StreamConnectionBase::MatchByteSequenceCondition>
+  polar_express::StreamConnection::MatchByteSequenceCondition>
     : public boost::true_type {};
 }  // namespace asio
 }  // namespace boost
@@ -203,19 +262,18 @@ namespace polar_express {
 // protocol to an ip and port. But the stream type is left templated since it
 // may be a raw TCP socket or an SSL stream on top of a TCP socket.
 template <typename AsyncStreamT>
-class StreamConnection : public StreamConnectionBase {
+class StreamConnectionTmpl : public StreamConnection {
  public:
-  virtual ~StreamConnection();
+  virtual ~StreamConnectionTmpl();
 
  protected:
-  explicit StreamConnection(bool is_secure);
+  explicit StreamConnectionTmpl(bool is_secure);
 
   // Subclasses must provide for creation of the underlying stream object.
   virtual unique_ptr<AsyncStreamT> StreamConstruct(
-      asio::io_service& io_service) const = 0;
+      asio::io_service& io_service) = 0;
 
-  virtual void StreamShutdown(
-      AsyncStreamT* stream, system::error_code& error_code) const = 0;
+  AsyncStreamT& stream();
 
  private:
   virtual void StreamCreate(asio::io_service& io_service);
@@ -244,70 +302,75 @@ class StreamConnection : public StreamConnectionBase {
 
   unique_ptr<AsyncStreamT> stream_;
 
-  DISALLOW_COPY_AND_ASSIGN(StreamConnection);
+  DISALLOW_COPY_AND_ASSIGN(StreamConnectionTmpl);
 };
 
 template <typename AsyncStreamT>
-StreamConnection<AsyncStreamT>::StreamConnection(bool is_secure)
-  : StreamConnectionBase(is_secure) {
+StreamConnectionTmpl<AsyncStreamT>::StreamConnectionTmpl(bool is_secure)
+  : StreamConnection(is_secure) {
 }
 
 template <typename AsyncStreamT>
-StreamConnection<AsyncStreamT>::~StreamConnection() {
+StreamConnectionTmpl<AsyncStreamT>::~StreamConnectionTmpl() {
 }
 
 template <typename AsyncStreamT>
-void StreamConnection<AsyncStreamT>::StreamCreate(
+AsyncStreamT& StreamConnectionTmpl<AsyncStreamT>::stream() {
+  return *CHECK_NOTNULL(stream_);
+}
+
+template <typename AsyncStreamT>
+void StreamConnectionTmpl<AsyncStreamT>::StreamCreate(
     asio::io_service& io_service) {
   stream_ = StreamConstruct(io_service);
 }
 
 template <typename AsyncStreamT>
-void StreamConnection<AsyncStreamT>::StreamDestroy() {
+void StreamConnectionTmpl<AsyncStreamT>::StreamDestroy() {
   stream_.reset();
 }
 
 template <typename AsyncStreamT>
-void StreamConnection<AsyncStreamT>::StreamClose() {
+void StreamConnectionTmpl<AsyncStreamT>::StreamClose() {
   if (stream_) {
     auto error_code =
         asio::error::make_error_code(asio::error::connection_aborted);
-    StreamShutdown(stream_.get(), error_code);
-    stream_->close(error_code);
+    stream_->lowest_layer().shutdown(
+        asio::ip::tcp::socket::shutdown_both, error_code);
+    stream_->lowest_layer().close(error_code);
   }
 }
 
 template <typename AsyncStreamT>
-void StreamConnection<AsyncStreamT>::StreamAsyncConnect(
+void StreamConnectionTmpl<AsyncStreamT>::StreamAsyncConnect(
     asio::ip::tcp::resolver::iterator endpoint_iterator,
     const boost::function<void(const system::error_code&,
                          asio::ip::tcp::resolver::iterator)>& handler) {
-  asio::async_connect(*CHECK_NOTNULL(stream_), endpoint_iterator, handler);
+  asio::async_connect(stream().lowest_layer(), endpoint_iterator, handler);
 }
 
 template <typename AsyncStreamT>
-void StreamConnection<AsyncStreamT>::StreamAsyncWrite(
+void StreamConnectionTmpl<AsyncStreamT>::StreamAsyncWrite(
     const vector<asio::const_buffer>& write_buffers,
     const boost::function<void(const system::error_code&, size_t)>& handler) {
-  asio::async_write(*CHECK_NOTNULL(stream_), write_buffers, handler);
+  asio::async_write(stream(), write_buffers, handler);
 }
 
 template <typename AsyncStreamT>
-void StreamConnection<AsyncStreamT>::StreamAsyncRead(
+void StreamConnectionTmpl<AsyncStreamT>::StreamAsyncRead(
     vector<byte>* read_buffer,
     const boost::function<void(const system::error_code&, size_t)>& handler) {
-  asio::async_read(*CHECK_NOTNULL(stream_),
-                   asio::buffer(*CHECK_NOTNULL(read_buffer)), handler);
+  asio::async_read(stream(), asio::buffer(*CHECK_NOTNULL(read_buffer)),
+                   handler);
 }
 
 template <typename AsyncStreamT>
-void StreamConnection<AsyncStreamT>::StreamAsyncReadUntil(
+void StreamConnectionTmpl<AsyncStreamT>::StreamAsyncReadUntil(
     asio::streambuf* read_streambuf,
     const MatchByteSequenceCondition& termination_condition,
     const boost::function<void(const system::error_code&, size_t)>& handler) {
-  asio::async_read_until(*CHECK_NOTNULL(stream_),
-                         *CHECK_NOTNULL(read_streambuf), termination_condition,
-                         handler);
+  asio::async_read_until(stream(), *CHECK_NOTNULL(read_streambuf),
+                         termination_condition, handler);
 }
 
 }  // namespace polar_express

@@ -13,17 +13,14 @@
 namespace polar_express {
 
 // Stream connection using a basic, unaugmented TCP socket.
-class TcpConnection : public StreamConnection<asio::ip::tcp::socket> {
+class TcpConnection : public StreamConnectionTmpl<asio::ip::tcp::socket> {
  public:
   TcpConnection();
   virtual ~TcpConnection();
 
  private:
   virtual unique_ptr<asio::ip::tcp::socket> StreamConstruct(
-      asio::io_service& io_service) const;
-
-  virtual void StreamShutdown(
-      asio::ip::tcp::socket* stream, system::error_code& error_code) const;
+      asio::io_service& io_service);
 
   DISALLOW_COPY_AND_ASSIGN(TcpConnection);
 };

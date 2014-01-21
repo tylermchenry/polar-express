@@ -88,9 +88,29 @@ tcp_connection = env.Library(
     LIBS=tcp_connection_deplibs,
     )
 
+ssl_connection_deplibs = [
+    asio_dispatcher,
+    asio_dispatcher_deplibs,
+    stream_connection,
+    stream_connection_deplibs,
+    'crypto',
+    'boost_system-mt',
+    'boost_thread',
+    'ssl',
+    ];
+ssl_connection = env.Library(
+    target='ssl-connection',
+    source=[
+        'ssl-connection.cc',
+        ],
+    LIBS=ssl_connection_deplibs,
+    )
+
 http_connection_deplibs = [
     asio_dispatcher,
     tcp_connection,
+    ssl_connection,
+    ssl_connection_deplibs,
     tcp_connection_deplibs,
     asio_dispatcher_deplibs,
     'curl',
