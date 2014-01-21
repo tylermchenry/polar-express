@@ -18,14 +18,13 @@ class TcpConnection : public StreamConnection<asio::ip::tcp::socket> {
   TcpConnection();
   virtual ~TcpConnection();
 
- protected:
+ private:
   virtual unique_ptr<asio::ip::tcp::socket> StreamConstruct(
       asio::io_service& io_service) const;
 
   virtual void StreamShutdown(
       asio::ip::tcp::socket* stream, system::error_code& error_code) const;
 
- private:
   DISALLOW_COPY_AND_ASSIGN(TcpConnection);
 };
 
