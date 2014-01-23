@@ -1,9 +1,9 @@
 #include "backup-executor.h"
 
-#include "bundle-state-machine-pool.h"
-#include "filesystem-scanner.h"
-#include "snapshot-state-machine-pool.h"
-#include "upload-state-machine-pool.h"
+#include "services/filesystem-scanner.h"
+#include "state_machines/bundle-state-machine-pool.h"
+#include "state_machines/snapshot-state-machine-pool.h"
+#include "state_machines/upload-state-machine-pool.h"
 
 namespace polar_express {
 namespace {

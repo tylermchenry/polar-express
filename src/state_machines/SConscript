@@ -1,0 +1,87 @@
+#  -*- mode: python -*-
+
+import os
+from my_utils import mkdeps
+
+Import(['env', 'testlibs', 'exports'])
+
+bundle_state_machine_deplibs = mkdeps([
+    exports['proto']['block_proto'],
+    exports['proto']['bundle_manifest_proto'],
+    exports['proto']['file_proto'],
+    exports['proto']['snapshot_proto'],
+    exports['base']['asio_dispatcher'],
+    exports['file']['bundle'],
+    exports['services']['cryptors'],
+    exports['services']['compressors'],
+    exports['services']['bundle_hasher'],
+    exports['services']['chunk_hasher'],
+    exports['services']['chunk_reader'],
+    exports['services']['file_writer'],
+    exports['services']['metadata_db'],
+    ])
+bundle_state_machine = env.StaticLibrary(
+    target='bundle-state-machine',
+    source=[
+        'bundle-state-machine.cc',
+        'bundle-state-machine-pool.cc',
+        ],
+    LIBS=bundle_state_machine_deplibs,
+    )
+bundle_state_machine_pkg = [
+    bundle_state_machine,
+    bundle_state_machine_deplibs,
+    ]
+
+snapshot_state_machine_deplibs = mkdeps([
+    exports['proto']['block_proto'],
+    exports['proto']['file_proto'],
+    exports['proto']['snapshot_proto'],
+    exports['base']['asio_dispatcher'],
+    exports['util']['snapshot_util'],
+    exports['services']['candidate_snapshot_generator'],
+    exports['services']['chunk_hasher'],
+    exports['services']['metadata_db'],
+    ])
+snapshot_state_machine = env.StaticLibrary(
+    target='snapshot-state-machine',
+    source=[
+        'snapshot-state-machine.cc',
+        'snapshot-state-machine-pool.cc',
+        ],
+    LIBS=snapshot_state_machine_deplibs,
+    )
+snapshot_state_machine_pkg = [
+    snapshot_state_machine,
+    snapshot_state_machine_deplibs,
+    ]
+
+upload_state_machine_deplibs = mkdeps([
+    exports['proto']['bundle_manifest_proto'],
+    exports['proto']['glacier_proto'],
+    exports['base']['asio_dispatcher'],
+    exports['file']['bundle'],
+    exports['network']['glacier_connection'],
+    exports['services']['metadata_db'],
+    'boost_filesystem-mt',
+    'crypto++',
+    ])
+upload_state_machine = env.StaticLibrary(
+    target='upload-state-machine',
+    source=[
+        'upload-state-machine.cc',
+        'upload-state-machine-pool.cc',
+        ],
+    LIBS=upload_state_machine_deplibs,
+    )
+upload_state_machine_pkg = [
+    upload_state_machine,
+    upload_state_machine_deplibs,
+    ]
+
+state_machines_exports = {
+    'bundle_state_machine': bundle_state_machine_pkg,
+    'snapshot_state_machine': snapshot_state_machine_pkg,
+    'upload_state_machine': upload_state_machine_pkg,
+}
+Return('state_machines_exports')

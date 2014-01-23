@@ -1,0 +1,234 @@
+#  -*- mode: python -*-
+
+import os
+from my_utils import mkdeps
+
+Import(['env', 'testlibs', 'exports'])
+
+candidate_snapshot_generator_deplibs = mkdeps([
+    exports['proto']['snapshot_proto'],
+    exports['proto']['file_proto'],
+    exports['base']['asio_dispatcher'],
+    'boost_filesystem-mt',
+    'boost_system-mt',
+    'boost_thread',
+    ])
+candidate_snapshot_generator = env.StaticLibrary(
+    target='candidate-snapshot-generator',
+    source=[
+        'candidate-snapshot-generator.cc',
+        'candidate-snapshot-generator-impl.cc',
+        ],
+    LIBS=candidate_snapshot_generator_deplibs,
+    )
+candidate_snapshot_generator_pkg = [
+    candidate_snapshot_generator,
+    candidate_snapshot_generator_deplibs,
+    ]
+
+chunk_reader_deplibs = mkdeps([
+    exports['proto']['block_proto'],
+    exports['base']['asio_dispatcher'],
+    'boost_filesystem-mt',
+    'boost_system-mt',
+    'boost_iostreams-mt',
+    ])
+chunk_reader = env.StaticLibrary(
+    target='chunk-reader',
+    source=[
+        'chunk-reader.cc',
+        'chunk-reader-impl.cc',
+        ],
+    LIBS=chunk_reader_deplibs,
+    )
+chunk_reader_pkg = [
+    chunk_reader,
+    chunk_reader_deplibs,
+    ]
+
+bundle_hasher_deplibs = mkdeps([
+    exports['base']['asio_dispatcher'],
+    'boost_system',
+    'crypto++',
+    ])
+bundle_hasher = env.StaticLibrary(
+    target='bundle_hasher',
+    source=[
+        'bundle-hasher.cc',
+        'bundle-hasher-impl.cc',
+        ],
+    LIBS=bundle_hasher_deplibs,
+    )
+bundle_hasher_pkg = [
+    bundle_hasher,
+    bundle_hasher_deplibs,
+    ]
+
+chunk_hasher_deplibs = mkdeps([
+    exports['proto']['block_proto'],
+    exports['base']['asio_dispatcher'],
+    chunk_reader_pkg,
+    'crypto++',
+    ])
+chunk_hasher = env.StaticLibrary(
+    target='chunk-hasher',
+    source=[
+        'chunk-hasher.cc',
+        'chunk-hasher-impl.cc',
+        ],
+    LIBS=chunk_hasher_deplibs,
+    )
+chunk_hasher_pkg = [
+    chunk_hasher,
+    chunk_hasher_deplibs,
+    ]
+
+file_writer_deplibs = mkdeps([
+    exports['proto']['block_proto'],
+    exports['base']['asio_dispatcher'],
+    'boost_filesystem-mt',
+    'boost_system-mt',
+    'boost_iostreams-mt',
+    ])
+file_writer = env.StaticLibrary(
+    target='file-writer',
+    source=[
+        'file-writer.cc',
+        'file-writer-impl.cc',
+        ],
+    LIBS=file_writer_deplibs,
+    )
+file_writer_pkg = [
+    file_writer,
+    file_writer_deplibs,
+    ]
+
+filesystem_scanner_deplibs = mkdeps([
+    exports['base']['asio_dispatcher'],
+    'boost_filesystem-mt',
+    'boost_system-mt',
+    'boost_thread',
+    ])
+filesystem_scanner = env.StaticLibrary(
+    target='filesystem-scanner',
+    source=[
+        'filesystem-scanner.cc',
+        'filesystem-scanner-impl.cc',
+        ],
+    LIBS=filesystem_scanner_deplibs,
+    )
+filesystem_scanner_pkg = [
+    filesystem_scanner,
+    filesystem_scanner_deplibs,
+    ]
+
+compressors_deplibs = mkdeps([
+    exports['proto']['bundle_manifest_proto'],
+    exports['base']['asio_dispatcher'],
+    'z',
+    ])
+compressors = env.StaticLibrary(
+    target='compressors',
+    source=[
+        'compressor.cc',
+        'null-compressor-impl.cc',
+        'zlib-compressor-impl.cc',
+        ],
+    libs=compressors_deplibs,
+    )
+compressors_pkg = [
+    compressors,
+    compressors_deplibs,
+    ]
+
+cryptors_deplibs = mkdeps([
+    exports['proto']['bundle_manifest_proto'],
+    exports['base']['asio_dispatcher'],
+    exports['file']['encrypted_file_headers'],
+    'crypto++',
+    ])
+cryptors = env.StaticLibrary(
+    target='cryptors',
+    source=[
+        'aes-cryptor-impl.cc',
+        'cryptor.cc',
+        'null-cryptor-impl.cc',
+        ],
+    libs=cryptors_deplibs,
+    )
+cryptors_pkg = [
+    cryptors,
+    cryptors_deplibs,
+    ]
+
+metadata_db_deplibs = mkdeps([
+    exports['proto']['block_proto'],
+    exports['proto']['file_proto'],
+    exports['proto']['snapshot_proto'],
+    exports['file']['bundle'],
+    exports['base']['asio_dispatcher'],
+    'boost_thread',
+    'sqlite3',
+    ])
+metadata_db = env.StaticLibrary(
+    target='metadata-db',
+    source=[
+        'metadata-db.cc',
+        'metadata-db-impl.cc',
+        'sqlite3-helpers.cc',
+        ],
+    LIBS=metadata_db_deplibs,
+    )
+metadata_db_pkg = [
+    metadata_db,
+    metadata_db_deplibs,
+    ]
+
+services_exports = {
+    'candidate_snapshot_generator': candidate_snapshot_generator_pkg,
+    'chunk_reader': chunk_reader_pkg,
+    'bundle_hasher': bundle_hasher_pkg,
+    'chunk_hasher': chunk_hasher_pkg,
+    'filesystem_scanner': filesystem_scanner_pkg,
+    'file_writer': file_writer_pkg,
+    'compressors': compressors_pkg,
+    'cryptors': cryptors_pkg,
+    'metadata_db': metadata_db_pkg,
+}
+Return('services_exports')
+
+### Unit Tests
+
+aes_cryptor_impl_test = env.Program(
+    target='aes-cryptor-impl_test',
+    source=[
+        'aes-cryptor-impl_test.cc',
+        ],
+    LIBS=mkdeps([
+        exports['base']['asio_dispatcher'],
+        cryptors_pkg,
+        testlibs,
+        'boost_system',
+        ]),
+    )
+run_aes_cryptor_impl_test = Alias(
+    'run_aes_cryptor_impl_test',
+    [aes_cryptor_impl_test],
+    aes_cryptor_impl_test[0].path)
+AlwaysBuild(run_aes_cryptor_impl_test)
+
+bundle_hasher_impl_test = env.Program(
+    target='bundle-hasher-impl_test',
+    source=[
+        'bundle-hasher-impl_test.cc',
+        ],
+    LIBS=mkdeps([
+        bundle_hasher_pkg,
+        testlibs,
+        ]),
+    )
+run_bundle_hasher_impl_test = Alias(
+    'run_bundle_hasher_impl_test',
+    [bundle_hasher_impl_test],
+    bundle_hasher_impl_test[0].path)
+AlwaysBuild(run_bundle_hasher_impl_test)

@@ -1,458 +1,58 @@
 #  -*- mode: python -*-
 
-SConscript('proto/SConscript')
-
 import os
+from my_utils import mkdeps
 
-env = Environment()
+testlibs = ['gtest', 'gtest_main', 'pthread']
+
+env = Environment(tools=['default'])
 env['ENV']['TERM'] = os.environ['TERM']
 env['CXX'] = 'clang++'
 env.Append(CCFLAGS='-std=c++11 -O2')
-env.Append(CPPFLAGS=('-I. -DSQLITE_THREADSAFE -DZLIB_CONST '
+env.Append(CPPFLAGS=('-I. -Isrc -DSQLITE_THREADSAFE -DZLIB_CONST '
                      '-DBOOST_MPL_CFG_NO_PREPROCESSED_HEADERS '
                      '-DFUSION_MAX_VECTOR_SIZE=30 -DFUSION_MAX_SET_SIZE=30 '
                      '-DBOOST_MPL_LIMIT_VECTOR_SIZE=30 '
                      '-D"GTEST_EXCLUSIVE_LOCK_REQUIRED_(x)=" '
                      '-D"GTEST_LOCK_EXCLUDED_(x)= " '))
-env.Append(LIBPATH='.')
-env.Append(LIBPATH='./src/proto')
+
+# Order is important. Targets in each subdir may only depend on
+# targets in preceding subdirs.
+ordered_subdirs = [
+    'proto', 'base', 'util', 'file', 'network', 'services', 'state_machines']
+#env.Append(LIBPATH=ordered_subdirs)
+
+exports = {}
+for d in ordered_subdirs:
+    exports[d] = SConscript('%s/SConscript' % d, ['env', 'testlibs', 'exports'])
 
 ### Libraries
 
-io_util = env.Library(
-    target='io-util',
-    source=[
-        'io-util.cc',
-        ],
-    )
-
-tar_header_block = env.Library(
-    target='tar-header-block',
-    source=[
-        'tar-header-block.cc',
-        ],
-    )
-
-bundle_deplibs = [
-    tar_header_block,
-    'block_proto',
-    'bundle_manifest_proto',
-    'crypto++',
-    ];
-bundle = env.Library(
-    target='bundle',
-    source=[
-        'bundle.cc',
-        ],
-    LIBS=bundle_deplibs,
-    )
-
-asio_dispatcher_deplibs = [
-    'boost_thread',
-    ];
-asio_dispatcher = env.Library(
-    target='asio-dispatcher',
-    source=[
-        'asio-dispatcher.cc',
-        ],
-    LIBS=asio_dispatcher_deplibs,
-    )
-
-stream_connection_deplibs = [
-    asio_dispatcher,
-    asio_dispatcher_deplibs,
-    'boost_system-mt',
-    'boost_thread',
-    ];
-stream_connection = env.Library(
-    target='stream-connection',
-    source=[
-        'stream-connection.cc',
-        ],
-    LIBS=stream_connection_deplibs,
-    )
-
-tcp_connection_deplibs = [
-    asio_dispatcher,
-    asio_dispatcher_deplibs,
-    stream_connection,
-    stream_connection_deplibs,
-    'boost_system-mt',
-    'boost_thread',
-    ];
-tcp_connection = env.Library(
-    target='tcp-connection',
-    source=[
-        'tcp-connection.cc',
-        ],
-    LIBS=tcp_connection_deplibs,
-    )
-
-ssl_connection_deplibs = [
-    asio_dispatcher,
-    asio_dispatcher_deplibs,
-    stream_connection,
-    stream_connection_deplibs,
-    'crypto',
-    'boost_system-mt',
-    'boost_thread',
-    'ssl',
-    ];
-ssl_connection = env.Library(
-    target='ssl-connection',
-    source=[
-        'ssl-connection.cc',
-        ],
-    LIBS=ssl_connection_deplibs,
-    )
-
-http_connection_deplibs = [
-    asio_dispatcher,
-    tcp_connection,
-    ssl_connection,
-    ssl_connection_deplibs,
-    tcp_connection_deplibs,
-    asio_dispatcher_deplibs,
-    'curl',
-    'boost_date_time',
-    'boost_regex',
-    'http_proto',
-    ];
-http_connection = env.Library(
-    target='http-connection',
-    source=[
-        'http-connection.cc',
-        ],
-    LIBS=http_connection_deplibs,
-    )
-
-amazon_http_request_util_deplibs = [
-    'crypto++',
-    'curl',
-    'http_proto',
-    ];
-amazon_http_request_util = env.Library(
-    target='amazon-http-request-util',
-    source=[
-        'amazon-http-request-util.cc',
-        ],
-    LIBS=amazon_http_request_util_deplibs,
-    )
-
-glacier_connection_deplibs = [
-    asio_dispatcher,
-    http_connection,
-    amazon_http_request_util,
-    amazon_http_request_util_deplibs,
-    http_connection_deplibs,
-    asio_dispatcher_deplibs,
-    'crypto++',
-    'glacier_proto',
-    'http_proto',
-    'json_spirit',
-    ];
-glacier_connection = env.Library(
-    target='glacier-connection',
-    source=[
-        'glacier-connection.cc',
-        ],
-    LIBS=glacier_connection_deplibs,
-    )
-
-snapshot_util_deplibs = [
-    'snapshot_proto',
-    'file_proto',
-    'protobuf',
-    ];
-snapshot_util = env.Library(
-    target='snapshot-util',
-    source=[
-        'snapshot-util.cc',
-        ],
-    LIBS=snapshot_util_deplibs
-    )
-
-candidate_snapshot_generator_deplibs = [
-    asio_dispatcher,
-    asio_dispatcher_deplibs,
-    'snapshot_proto',
-    'file_proto',
-    'protobuf',
-    'boost_filesystem-mt',
-    'boost_system-mt',
-    'boost_thread',
-    ];
-candidate_snapshot_generator = env.Library(
-    target='candidate-snapshot-generator',
-    source=[
-        'candidate-snapshot-generator.cc',
-        'candidate-snapshot-generator-impl.cc',
-        ],
-    LIBS=candidate_snapshot_generator_deplibs,
-    )
-
-chunk_reader_deplibs = [
-    asio_dispatcher,
-    asio_dispatcher_deplibs,
-    'block_proto',
-    'boost_filesystem-mt',
-    'boost_system-mt',
-    'boost_iostreams-mt',
-    ];
-chunk_reader = env.Library(
-    target='chunk-reader',
-    source=[
-        'chunk-reader.cc',
-        'chunk-reader-impl.cc',
-        ],
-    LIBS=chunk_reader_deplibs,
-    )
-
-bundle_hasher_deplibs = [
-    asio_dispatcher,
-    asio_dispatcher_deplibs,
-    'boost_system',
-    'crypto++',
-    ];
-bundle_hasher = env.Library(
-    target='bundle_hasher',
-    source=[
-        'bundle-hasher.cc',
-        'bundle-hasher-impl.cc',
-        ],
-    LIBS=bundle_hasher_deplibs,
-    )
-
-chunk_hasher_deplibs = [
-    chunk_reader,
-    asio_dispatcher,
-    asio_dispatcher_deplibs,
-    chunk_reader_deplibs,
-    'block_proto',
-    'crypto++',
-    ];
-chunk_hasher = env.Library(
-    target='chunk-hasher',
-    source=[
-        'chunk-hasher.cc',
-        'chunk-hasher-impl.cc',
-        ],
-    LIBS=chunk_hasher_deplibs,
-    )
-
-file_writer_deplibs = [
-    asio_dispatcher,
-    asio_dispatcher_deplibs,
-    'block_proto',
-    'boost_filesystem-mt',
-    'boost_system-mt',
-    'boost_iostreams-mt',
-    ];
-file_writer = env.Library(
-    target='file-writer',
-    source=[
-        'file-writer.cc',
-        'file-writer-impl.cc',
-        ],
-    LIBS=file_writer_deplibs,
-    )
-
-filesystem_scanner_deplibs = [
-    asio_dispatcher,
-    asio_dispatcher_deplibs,
-    'boost_filesystem-mt',
-    'boost_system-mt',
-    'boost_thread',
-    ];
-filesystem_scanner = env.Library(
-    target='filesystem-scanner',
-    source=[
-        'filesystem-scanner.cc',
-        'filesystem-scanner-impl.cc',
-        ],
-    LIBS=filesystem_scanner_deplibs,
-    )
-
-encrypted_file_headers_deplibs = [
-    ];
-encrypted_file_headers = env.Library(
-    target='encrypted-file-headers',
-    source=[
-        'encrypted-file-headers.cc',
-    ],
-    libs=encrypted_file_headers_deplibs,
-)
-
-compressors_deplibs = [
-    asio_dispatcher,
-    asio_dispatcher_deplibs,
-    'bundle_manifest_proto',
-    'protobuf',
-    'z',
-    ];
-compressors = env.Library(
-    target='compressors',
-    source=[
-        'compressor.cc',
-        'null-compressor-impl.cc',
-        'zlib-compressor-impl.cc',
-        ],
-    libs=compressors_deplibs,
-    )
-
-cryptors_deplibs = [
-    asio_dispatcher,
-    encrypted_file_headers,
-    encrypted_file_headers_deplibs,
-    asio_dispatcher_deplibs,
-    'bundle_manifest_proto',
-    'crypto++',
-    'protobuf',
-    ];
-cryptors = env.Library(
-    target='cryptors',
-    source=[
-        'aes-cryptor-impl.cc',
-        'cryptor.cc',
-        'null-cryptor-impl.cc',
-        ],
-    libs=cryptors_deplibs,
-    )
-
-metadata_db_deplibs = [
-    bundle,
-    asio_dispatcher,
-    asio_dispatcher_deplibs,
-    bundle_deplibs,
-    'block_proto',
-    'snapshot_proto',
-    'file_proto',
-    'boost_thread',
-    'protobuf',
-    'sqlite3',
-    ];
-metadata_db = env.Library(
-    target='metadata-db',
-    source=[
-        'metadata-db.cc',
-        'metadata-db-impl.cc',
-        'sqlite3-helpers.cc',
-        ],
-    LIBS=metadata_db_deplibs,
-    )
-
-snapshot_state_machine_deplibs = [
-    candidate_snapshot_generator,
-    chunk_hasher,
-    metadata_db,
-    snapshot_util,
-    asio_dispatcher,
-    asio_dispatcher_deplibs,
-    snapshot_util_deplibs,
-    metadata_db_deplibs,
-    chunk_hasher_deplibs,
-    candidate_snapshot_generator_deplibs,
-    'block_proto',
-    'snapshot_proto',
-    'file_proto',
-    'protobuf',
-    ];
-snapshot_state_machine = env.Library(
-    target='snapshot-state-machine',
-    source=[
-        'snapshot-state-machine.cc',
-        'snapshot-state-machine-pool.cc',
-        ],
-    LIBS=snapshot_state_machine_deplibs,
-    )
-
-bundle_state_machine_deplibs = [
-    cryptors,
-    compressors,
-    bundle_hasher,
-    chunk_hasher,
-    chunk_reader,
-    file_writer,
-    metadata_db,
-    asio_dispatcher,
-    bundle,
-    bundle_deplibs,
-    asio_dispatcher_deplibs,
-    metadata_db_deplibs,
-    file_writer_deplibs,
-    chunk_reader_deplibs,
-    chunk_hasher_deplibs,
-    bundle_hasher_deplibs,
-    compressors_deplibs,
-    cryptors_deplibs,
-    'block_proto',
-    'bundle_manifest_proto',
-    'file_proto',
-    'snapshot_proto',
-    'protobuf',
-    ];
-bundle_state_machine = env.Library(
-    target='bundle-state-machine',
-    source=[
-        'bundle-state-machine.cc',
-        'bundle-state-machine-pool.cc',
-        ],
-    LIBS=bundle_state_machine_deplibs,
-    )
-
-upload_state_machine_deplibs = [
-    asio_dispatcher,
-    bundle,
-    glacier_connection,
-    metadata_db,
-    metadata_db_deplibs,
-    glacier_connection_deplibs,
-    bundle_deplibs,
-    asio_dispatcher_deplibs,
-    'bundle_manifest_proto',
-    'glacier_proto',
-    'boost_filesystem-mt',
-    'crypto++',
-    'protobuf',
-    ];
-upload_state_machine = env.Library(
-    target='upload-state-machine',
-    source=[
-        'upload-state-machine.cc',
-        'upload-state-machine-pool.cc',
-        ],
-    LIBS=upload_state_machine_deplibs,
-    )
-
-backup_executor_deplibs = [
-    glacier_connection,
-    cryptors,
-    bundle,
-    upload_state_machine,
-    bundle_state_machine,
-    snapshot_state_machine,
-    filesystem_scanner,
-    asio_dispatcher,
-    asio_dispatcher_deplibs,
-    filesystem_scanner_deplibs,
-    snapshot_state_machine_deplibs,
-    bundle_state_machine_deplibs,
-    upload_state_machine_deplibs,
-    bundle_deplibs,
-    cryptors_deplibs,
-    glacier_connection_deplibs,
+backup_executor_deplibs = mkdeps([
+    exports['base']['asio_dispatcher'],
+    exports['file']['bundle'],
+    exports['network']['glacier_connection'],
+    exports['services']['cryptors'],
+    exports['services']['filesystem_scanner'],
+    exports['state_machines']['bundle_state_machine'],
+    exports['state_machines']['snapshot_state_machine'],
+    exports['state_machines']['upload_state_machine'],
     'boost_filesystem-mt',
     'boost_system-mt',
     'boost_thread',
     'crypto++',
-    ];
-backup_executor = env.Library(
+    ])
+backup_executor = env.StaticLibrary(
     target='backup-executor',
     source=[
         'backup-executor.cc',
         ],
     LIBS=backup_executor_deplibs,
     )
+backup_executor_pkg = [
+    backup_executor,
+    backup_executor_deplibs,
+    ]
 
 ### Binaries
 
@@ -461,159 +61,37 @@ polar_express = env.Program(
     source=[
         'polar-express.cc',
         ],
-    LIBS=[
-        cryptors,
-        backup_executor,
-        asio_dispatcher,
-        io_util,
-        asio_dispatcher_deplibs,
-        backup_executor_deplibs,
-        cryptors_deplibs,
-        'pthread',
+    LIBS=mkdeps([
+        exports['base']['asio_dispatcher'],
+        exports['util']['io_util'],
+        exports['services']['cryptors'],
+        backup_executor_pkg,
         'crypto++',
-        ],
+        'pthread',
+        ]),
     )
 
 Default(polar_express)
 
 ### Unit Tests
 
-testlibs = ['gtest', 'gtest_main', 'pthread']
-
 # Template for a unit test:
 
-# filesystem_scanner_test = env.Program(
+# exports['services']['filesystem_scanner']_test = env.Program(
 #     target='filesystem-scanner_test',
 #     source=[
 #         'filesystem-scanner_test.cc',
 #         ],
 #     LIBS=[
-#         filesystem_scanner,
-#         filesystem_scanner_deplibs,
+#         exports['services']['filesystem_scanner'],
+#         exports['services']['filesystem_scanner_deplibs'],
 #         testlibs,
 #         ],
 #     )
-# run_filesystem_scanner_test = Alias(
-#     'run_filesystem_scanner_test',
-#     [filesystem_scanner_test],
-#     filesystem_scanner_test[0].path)
-# AlwaysBuild(run_filesystem_scanner_test)
+# run_exports['services']['filesystem_scanner']_test = Alias(
+#     'run_exports['services']['filesystem_scanner']_test',
+#     [exports['services']['filesystem_scanner']_test],
+#     exports['services']['filesystem_scanner']_test[0].path)
+# AlwaysBuild(run_exports['services']['filesystem_scanner']_test)
 
-aes_cryptor_impl_test = env.Program(
-    target='aes-cryptor-impl_test',
-    source=[
-        'aes-cryptor-impl_test.cc',
-        ],
-    LIBS=[
-        asio_dispatcher,
-        cryptors,
-        cryptors_deplibs,
-        asio_dispatcher_deplibs,
-        testlibs,
-        'boost_system',
-        ],
-    )
-run_aes_cryptor_impl_test = Alias(
-    'run_aes_cryptor_impl_test',
-    [aes_cryptor_impl_test],
-    aes_cryptor_impl_test[0].path)
-AlwaysBuild(run_aes_cryptor_impl_test)
 
-amazon_http_request_util_test = env.Program(
-    target='amazon-http-request-util_test',
-    source=[
-        'amazon-http-request-util_test.cc',
-        ],
-    LIBS=[
-        amazon_http_request_util,
-        amazon_http_request_util_deplibs,
-        testlibs,
-        'crypto++',
-        'protobuf',
-        ],
-    )
-run_amazon_http_request_util_test = Alias(
-    'run_amazon_http_request_util_test',
-    [amazon_http_request_util_test],
-    amazon_http_request_util_test[0].path)
-AlwaysBuild(run_amazon_http_request_util_test)
-
-bundle_hasher_impl_test = env.Program(
-    target='bundle-hasher-impl_test',
-    source=[
-        'bundle-hasher-impl_test.cc',
-        ],
-    LIBS=[
-        bundle_hasher,
-        bundle_hasher_deplibs,
-        testlibs,
-        ],
-    )
-run_bundle_hasher_impl_test = Alias(
-    'run_bundle_hasher_impl_test',
-    [bundle_hasher_impl_test],
-    bundle_hasher_impl_test[0].path)
-AlwaysBuild(run_bundle_hasher_impl_test)
-
-tcp_connection_test = env.Program(
-    target='tcp-connection_test',
-    source=[
-        'tcp-connection_test.cc',
-        ],
-    LIBS=[
-        asio_dispatcher,
-        tcp_connection,
-        tcp_connection_deplibs,
-        asio_dispatcher_deplibs,
-        testlibs,
-        ],
-    )
-run_tcp_connection_test = Alias(
-    'run_tcp_connection_test',
-    [tcp_connection_test],
-    tcp_connection_test[0].path)
-AlwaysBuild(run_tcp_connection_test)
-
-http_connection_test = env.Program(
-    target='http-connection_test',
-    source=[
-        'http-connection_test.cc',
-        ],
-    LIBS=[
-        asio_dispatcher,
-        http_connection,
-        http_connection_deplibs,
-        asio_dispatcher_deplibs,
-        testlibs,
-        'http_proto',
-        'protobuf',
-        ],
-    )
-run_http_connection_test = Alias(
-    'run_http_connection_test',
-    [http_connection_test],
-    http_connection_test[0].path)
-AlwaysBuild(run_http_connection_test)
-
-glacier_connection_test = env.Program(
-    target='glacier-connection_test',
-    source=[
-        'glacier-connection_test.cc',
-        ],
-    LIBS=[
-        asio_dispatcher,
-        bundle_hasher,
-        glacier_connection,
-        glacier_connection_deplibs,
-        bundle_hasher_deplibs,
-        asio_dispatcher_deplibs,
-        testlibs,
-        'glacier_proto',
-        'protobuf',
-        ],
-    )
-run_glacier_connection_test = Alias(
-    'run_glacier_connection_test',
-    [glacier_connection_test],
-    glacier_connection_test[0].path)
-AlwaysBuild(run_glacier_connection_test)

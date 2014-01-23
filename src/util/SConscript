@@ -1,0 +1,78 @@
+#  -*- mode: python -*-
+
+import os
+from my_utils import mkdeps
+
+Import(['env', 'testlibs', 'exports'])
+
+io_util_deplibs = mkdeps([
+    ])
+io_util = env.StaticLibrary(
+    target='io-util',
+    source=[
+        'io-util.cc',
+        ],
+    )
+io_util_pkg = [
+    io_util,
+    io_util_deplibs,
+    ]
+
+amazon_http_request_util_deplibs = mkdeps([
+    exports['proto']['http_proto'],
+    'crypto++',
+    'curl',
+    ])
+amazon_http_request_util = env.StaticLibrary(
+    target='amazon-http-request-util',
+    source=[
+        'amazon-http-request-util.cc',
+        ],
+    LIBS=amazon_http_request_util_deplibs,
+    )
+amazon_http_request_util_pkg = [
+    amazon_http_request_util,
+    amazon_http_request_util_deplibs,
+    ]
+
+snapshot_util_deplibs = mkdeps([
+    exports['proto']['file_proto'],
+    exports['proto']['snapshot_proto'],
+    ])
+snapshot_util = env.StaticLibrary(
+    target='snapshot-util',
+    source=[
+        'snapshot-util.cc',
+        ],
+    LIBS=snapshot_util_deplibs
+    )
+snapshot_util_pkg = [
+    snapshot_util,
+    snapshot_util_deplibs,
+    ]
+
+util_exports = {
+  'io_util': io_util_pkg,
+  'amazon_http_request_util': amazon_http_request_util_pkg,
+  'snapshot_util': snapshot_util_pkg
+}
+Return('util_exports')
+
+### Unit Tests
+
+amazon_http_request_util_test = env.Program(
+    target='amazon-http-request-util_test',
+    source=[
+        'amazon-http-request-util_test.cc',
+        ],
+    LIBS=mkdeps([
+        amazon_http_request_util_pkg,
+        testlibs,
+        'crypto++',
+        ]),
+    )
+run_amazon_http_request_util_test = Alias(
+    'run_amazon_http_request_util_test',
+    [amazon_http_request_util_test],
+    amazon_http_request_util_test[0].path)
+AlwaysBuild(run_amazon_http_request_util_test)

@@ -1,0 +1,168 @@
+#  -*- mode: python -*-
+
+import os
+from my_utils import mkdeps
+
+Import(['env', 'testlibs', 'exports'])
+
+stream_connection_deplibs = mkdeps([
+    exports['base']['asio_dispatcher'],
+    'boost_system-mt',
+    'boost_thread',
+    ])
+stream_connection = env.StaticLibrary(
+    target='stream-connection',
+    source=[
+        'stream-connection.cc',
+        ],
+    LIBS=stream_connection_deplibs,
+    )
+stream_connection_pkg = [
+    stream_connection,
+    stream_connection_deplibs
+    ]
+
+tcp_connection_deplibs = mkdeps([
+    exports['base']['asio_dispatcher'],
+    stream_connection_pkg,
+    'boost_system-mt',
+    'boost_thread',
+    ])
+tcp_connection = env.StaticLibrary(
+    target='tcp-connection',
+    source=[
+        'tcp-connection.cc',
+        ],
+    LIBS=tcp_connection_deplibs,
+    )
+tcp_connection_pkg = [
+    tcp_connection,
+    tcp_connection_deplibs
+    ]
+
+ssl_connection_deplibs = mkdeps([
+    exports['base']['asio_dispatcher'],
+    stream_connection_pkg,
+    'boost_system-mt',
+    'boost_thread',
+    'crypto',
+    'ssl',
+    ])
+ssl_connection = env.StaticLibrary(
+    target='ssl-connection',
+    source=[
+        'ssl-connection.cc',
+        ],
+    LIBS=ssl_connection_deplibs,
+    )
+ssl_connection_pkg = [
+    ssl_connection,
+    ssl_connection_deplibs
+    ]
+
+http_connection_deplibs = mkdeps([
+    exports['proto']['http_proto'],
+    exports['base']['asio_dispatcher'],
+    ssl_connection_pkg,
+    tcp_connection_pkg,
+    'boost_date_time',
+    'boost_regex',
+    'curl',
+    ])
+http_connection = env.StaticLibrary(
+    target='http-connection',
+    source=[
+        'http-connection.cc',
+        ],
+    LIBS=http_connection_deplibs,
+    )
+http_connection_pkg = [
+    http_connection,
+    http_connection_deplibs
+    ]
+
+glacier_connection_deplibs = mkdeps([
+    exports['proto']['http_proto'],
+    exports['proto']['glacier_proto'],
+    exports['base']['asio_dispatcher'],
+    exports['util']['amazon_http_request_util'],
+    http_connection_pkg,
+    'crypto++',
+    'json_spirit',
+    ])
+glacier_connection = env.StaticLibrary(
+    target='glacier-connection',
+    source=[
+        'glacier-connection.cc',
+        ],
+    LIBS=glacier_connection_deplibs,
+    )
+glacier_connection_pkg = [
+    glacier_connection,
+    glacier_connection_deplibs
+    ]
+
+# Not all targets are exported; some are private.
+network_exports = {
+    'http_connection': http_connection_pkg,
+    'glacier_connection': glacier_connection_pkg,
+}
+Return('network_exports')
+
+### Unit Tests
+
+tcp_connection_test = env.Program(
+    target='tcp-connection_test',
+    source=[
+        'tcp-connection_test.cc',
+        ],
+    LIBS=mkdeps([
+        exports['base']['asio_dispatcher'],
+        tcp_connection_pkg,
+        testlibs,
+        ]),
+    )
+run_tcp_connection_test = Alias(
+    'run_tcp_connection_test',
+    [tcp_connection_test],
+    tcp_connection_test[0].path)
+AlwaysBuild(run_tcp_connection_test)
+
+http_connection_test = env.Program(
+    target='http-connection_test',
+    source=[
+        'http-connection_test.cc',
+        ],
+    LIBS=mkdeps([
+        exports['proto']['http_proto'],
+        exports['base']['asio_dispatcher'],
+        http_connection_pkg,
+        testlibs,
+        ]),
+    )
+run_http_connection_test = Alias(
+    'run_http_connection_test',
+    [http_connection_test],
+    http_connection_test[0].path)
+AlwaysBuild(run_http_connection_test)
+
+glacier_connection_test = env.Program(
+    target='glacier-connection_test',
+    source=[
+        'glacier-connection_test.cc',
+        ],
+    LIBS=mkdeps([
+        exports['proto']['glacier_proto'],
+        exports['base']['asio_dispatcher'],
+        exports['services']['bundle_hasher'],
+        glacier_connection_pkg,
+        testlibs,
+        'glacier_proto',
+        ]),
+    )
+run_glacier_connection_test = Alias(
+    'run_glacier_connection_test',
+    [glacier_connection_test],
+    glacier_connection_test[0].path)
+AlwaysBuild(run_glacier_connection_test)
+

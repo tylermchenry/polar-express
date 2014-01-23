@@ -1,0 +1,26 @@
+#  -*- mode: python -*-
+
+import os
+from my_utils import mkdeps
+
+Import(['env', 'testlibs', 'exports'])
+
+asio_dispatcher_deplibs = mkdeps([
+    'boost_thread',
+    ])
+asio_dispatcher = env.StaticLibrary(
+    target='asio-dispatcher',
+    source=[
+        'asio-dispatcher.cc',
+        ],
+    LIBS=asio_dispatcher_deplibs,
+    )
+asio_dispatcher_pkg = [
+    asio_dispatcher,
+    asio_dispatcher_deplibs
+    ]
+
+base_exports = {
+    'asio_dispatcher': asio_dispatcher_pkg,
+}
+Return('base_exports')

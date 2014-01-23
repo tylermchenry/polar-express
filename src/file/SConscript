@@ -1,0 +1,58 @@
+#  -*- mode: python -*-
+
+import os
+from my_utils import mkdeps
+
+Import(['env', 'testlibs', 'exports'])
+
+tar_header_block_deplibs = mkdeps([
+    ])
+tar_header_block = env.StaticLibrary(
+    target='tar-header-block',
+    source=[
+        'tar-header-block.cc',
+        ],
+    )
+tar_header_block_pkg = [
+    tar_header_block,
+    tar_header_block_deplibs,
+    ]
+
+bundle_deplibs = mkdeps([
+    exports['proto']['block_proto'],
+    exports['proto']['bundle_manifest_proto'],
+    tar_header_block_pkg,
+    'crypto++',
+    ])
+bundle = env.StaticLibrary(
+    target='bundle',
+    source=[
+        'bundle.cc',
+        ],
+    LIBS=bundle_deplibs,
+    )
+bundle_pkg = [
+    bundle,
+    bundle_deplibs,
+    ]
+
+encrypted_file_headers_deplibs = mkdeps([
+    ])
+encrypted_file_headers = env.StaticLibrary(
+    target='encrypted-file-headers',
+    source=[
+        'encrypted-file-headers.cc',
+    ],
+    libs=encrypted_file_headers_deplibs,
+)
+encrypted_file_headers_pkg = [
+    encrypted_file_headers,
+    encrypted_file_headers_deplibs,
+    ]
+
+file_exports = {
+    'bundle': bundle_pkg,
+    'encrypted_file_headers': encrypted_file_headers_pkg,
+    'tar_header_block': tar_header_block_pkg,
+}
+Return('file_exports')

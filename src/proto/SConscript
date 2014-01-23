@@ -1,6 +1,7 @@
 #  -*- mode: python -*-
 
 import os
+from my_utils import mkdeps
 
 env = Environment(
     ENV = {'PATH' : os.environ['PATH']},
@@ -8,93 +9,149 @@ env = Environment(
     tools=['default', 'protoc']
     )
 
-proto_files = env.Protoc(
-    [],
-    [
-      "block.proto",
-      "bundle-manifest.proto",
-      "snapshot.proto",
-      "file.proto",
-      "glacier.proto",
-      "http.proto",
-    ],
-    PROTOCPROTOPATH=['.'],
-    PROTOCPYTHONOUTDIR=None, # set to None to not generate python
-    PROTOCOUTDIR = '.', # defaults to same directory as .proto
-)
-Default(proto_files)
-
 ### Libraries
 
-block_proto = env.Library(
+block_proto_pb = env.Protoc(
+    [], ["block.proto"],
+    PROTOCPROTOPATH=['.'],
+    PROTOCPYTHONOUTDIR=None,
+    PROTOCOUTDIR = '.',
+    )
+block_proto_deplibs = mkdeps([
+    'protobuf',
+    ])
+block_proto = env.StaticLibrary(
     target='block_proto',
     source=[
         'block.pb.cc',
         ],
-    LIBS=[
-        'protobuf'
-        ],
+    LIBS=block_proto_deplibs
     )
-Depends(block_proto, proto_files)
+Depends(block_proto, block_proto_pb)
+block_proto_pkg = [
+    block_proto,
+    block_proto_deplibs,
+    ]
 
-block_proto = env.Library(
+bundle_manifest_proto_pb = env.Protoc(
+    [], ["bundle-manifest.proto"],
+    PROTOCPROTOPATH=['.'],
+    PROTOCPYTHONOUTDIR=None,
+    PROTOCOUTDIR = '.',
+    )
+bundle_manifest_proto_deplibs = mkdeps([
+    block_proto_pkg,
+    'protobuf',
+    ])
+bundle_manifest_proto = env.StaticLibrary(
     target='bundle_manifest_proto',
     source=[
         'bundle-manifest.pb.cc',
         ],
-    LIBS=[
-         block_proto,
-        'protobuf'
-        ],
+    LIBS=bundle_manifest_proto_deplibs,
     )
-Depends(block_proto, proto_files)
+Depends(bundle_manifest_proto, bundle_manifest_proto_pb)
+bundle_manifest_proto_pkg = [
+    bundle_manifest_proto,
+    bundle_manifest_proto_deplibs,
+    ]
 
-file_proto = env.Library(
+file_proto_pb = env.Protoc(
+    [], ["file.proto"],
+    PROTOCPROTOPATH=['.'],
+    PROTOCPYTHONOUTDIR=None,
+    PROTOCOUTDIR = '.',
+    )
+file_proto_deplibs = mkdeps([
+    'protobuf',
+    ])
+file_proto = env.StaticLibrary(
     target='file_proto',
     source=[
         'file.pb.cc',
         ],
-    LIBS=[
-        'protobuf'
-        ],
+    LIBS=file_proto_deplibs,
     )
-Depends(file_proto, proto_files)
+Depends(file_proto, file_proto_pb)
+file_proto_pkg = [
+    file_proto,
+    file_proto_deplibs,
+    ]
 
-glacier_proto = env.Library(
+glacier_proto_pb = env.Protoc(
+    [], ["glacier.proto"],
+    PROTOCPROTOPATH=['.'],
+    PROTOCPYTHONOUTDIR=None,
+    PROTOCOUTDIR = '.',
+    )
+glacier_proto_deplibs = mkdeps([
+    'protobuf',
+    ])
+glacier_proto = env.StaticLibrary(
     target='glacier_proto',
     source=[
         'glacier.pb.cc',
         ],
-    LIBS=[
-        'protobuf'
-        ],
+    LIBS=glacier_proto_deplibs,
     )
-Depends(glacier_proto, proto_files)
+Depends(glacier_proto, glacier_proto_pb)
+glacier_proto_pkg = [
+    glacier_proto,
+    glacier_proto_deplibs,
+    ]
 
-http_proto = env.Library(
+http_proto_pb = env.Protoc(
+    [], ["http.proto"],
+    PROTOCPROTOPATH=['.'],
+    PROTOCPYTHONOUTDIR=None,
+    PROTOCOUTDIR = '.',
+    )
+http_proto_deplibs = mkdeps([
+    'protobuf',
+    ])
+http_proto = env.StaticLibrary(
     target='http_proto',
     source=[
         'http.pb.cc',
         ],
-    LIBS=[
-        'protobuf'
-        ],
+    LIBS=http_proto_deplibs,
     )
-Depends(http_proto, proto_files)
+Depends(http_proto, http_proto_pb)
+http_proto_pkg = [
+    http_proto,
+    http_proto_deplibs,
+    ]
 
-snapshot_proto = env.Library(
+snapshot_proto_pb = env.Protoc(
+    [], ["snapshot.proto"],
+    PROTOCPROTOPATH=['.'],
+    PROTOCPYTHONOUTDIR=None,
+    PROTOCOUTDIR = '.',
+    )
+snapshot_proto_deplibs = mkdeps([
+    block_proto_pkg,
+    file_proto_pkg,
+    'protobuf',
+    ])
+snapshot_proto = env.StaticLibrary(
     target='snapshot_proto',
     source=[
         'snapshot.pb.cc',
         ],
-    LIBS=[
-        block_proto,
-        file_proto,
-        'protobuf'
-        ],
+    LIBS=snapshot_proto_deplibs,
     )
-Depends(snapshot_proto, proto_files)
+Depends(snapshot_proto, snapshot_proto_pb)
+snapshot_proto_pkg = [
+    snapshot_proto,
+    snapshot_proto_deplibs,
+    ]
 
-
-
-
+proto_exports = {
+    'block_proto': block_proto_pkg,
+    'bundle_manifest_proto': bundle_manifest_proto_pkg,
+    'file_proto': file_proto_pkg,
+    'glacier_proto': glacier_proto_pkg,
+    'http_proto': http_proto_pkg,
+    'snapshot_proto': snapshot_proto_pkg,
+}
+Return('proto_exports')
