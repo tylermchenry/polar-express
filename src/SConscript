@@ -15,7 +15,6 @@ env.Append(CPPFLAGS=('-I. -Isrc -DSQLITE_THREADSAFE -DZLIB_CONST '
                      '-DBOOST_MPL_LIMIT_VECTOR_SIZE=30 '
                      '-D"GTEST_EXCLUSIVE_LOCK_REQUIRED_(x)=" '
                      '-D"GTEST_LOCK_EXCLUDED_(x)= " '))
-env.Append(LIBPATH="/usr/lib/x86_64-linux-gnu")
 
 # Order is important. Targets in each subdir may only depend on
 # targets in preceding subdirs.
