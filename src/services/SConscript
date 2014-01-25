@@ -125,6 +125,7 @@ filesystem_scanner_pkg = [
 compressors_deplibs = mkdeps([
     exports['proto']['bundle_manifest_proto'],
     exports['base']['asio_dispatcher'],
+    exports['base']['options'],
     'z',
     ])
 compressors = env.StaticLibrary(

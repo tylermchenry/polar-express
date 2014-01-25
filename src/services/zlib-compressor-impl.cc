@@ -2,6 +2,11 @@
 
 #include <zlib.h>
 
+#include "base/options.h"
+
+DEFINE_OPTION(zlib_compression_level, int, Z_BEST_COMPRESSION,
+              "Compression level when using zlib for compression.");
+
 namespace polar_express {
 
 ZlibCompressorImpl::ZlibCompressorImpl() {
@@ -23,8 +28,7 @@ void ZlibCompressorImpl::InitializeCompression(size_t max_buffer_size) {
   stream_->zfree = nullptr;
   stream_->opaque = nullptr;
 
-  // TODO(tylermchenry): Compression level should be configurable.
-  if (deflateInit(stream_.get(), Z_BEST_COMPRESSION) != Z_OK) {
+  if (deflateInit(stream_.get(), options::zlib_compression_level) != Z_OK) {
     // TODO(tylermchenry): Reasonable error handling.
     assert(false);
   }

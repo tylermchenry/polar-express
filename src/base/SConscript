@@ -20,7 +20,23 @@ asio_dispatcher_pkg = [
     asio_dispatcher_deplibs
     ]
 
+options_deplibs = mkdeps([
+    'boost_program_options',
+    ])
+options = env.StaticLibrary(
+    target='options',
+    source=[
+        'options.cc',
+        ],
+    LIBS=options_deplibs,
+    )
+options_pkg = [
+    options,
+    options_deplibs
+    ]
+
 base_exports = {
     'asio_dispatcher': asio_dispatcher_pkg,
+    'options': options_pkg,
 }
 Return('base_exports')

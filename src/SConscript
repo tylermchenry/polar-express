@@ -62,6 +62,7 @@ polar_express = env.Program(
         ],
     LIBS=mkdeps([
         exports['base']['asio_dispatcher'],
+        exports['base']['options'],
         exports['util']['io_util'],
         exports['services']['cryptors'],
         backup_executor_pkg,
