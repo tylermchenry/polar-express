@@ -63,7 +63,7 @@ upload_state_machine_deplibs = mkdeps([
     exports['file']['bundle'],
     exports['network']['glacier_connection'],
     exports['services']['metadata_db'],
-    'boost_filesystem-mt',
+    'boost_filesystem',
     'crypto++',
     ])
 upload_state_machine = env.StaticLibrary(

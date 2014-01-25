@@ -15,12 +15,12 @@ env.Append(CPPFLAGS=('-I. -Isrc -DSQLITE_THREADSAFE -DZLIB_CONST '
                      '-DBOOST_MPL_LIMIT_VECTOR_SIZE=30 '
                      '-D"GTEST_EXCLUSIVE_LOCK_REQUIRED_(x)=" '
                      '-D"GTEST_LOCK_EXCLUDED_(x)= " '))
+env.Append(LIBPATH="/usr/lib/x86_64-linux-gnu")
 
 # Order is important. Targets in each subdir may only depend on
 # targets in preceding subdirs.
 ordered_subdirs = [
     'proto', 'base', 'util', 'file', 'network', 'services', 'state_machines']
-#env.Append(LIBPATH=ordered_subdirs)
 
 exports = {}
 for d in ordered_subdirs:
@@ -37,8 +37,8 @@ backup_executor_deplibs = mkdeps([
     exports['state_machines']['bundle_state_machine'],
     exports['state_machines']['snapshot_state_machine'],
     exports['state_machines']['upload_state_machine'],
-    'boost_filesystem-mt',
-    'boost_system-mt',
+    'boost_filesystem',
+    'boost_system',
     'boost_thread',
     'crypto++',
     ])
@@ -66,6 +66,7 @@ polar_express = env.Program(
         exports['util']['io_util'],
         exports['services']['cryptors'],
         backup_executor_pkg,
+        'boost_program_options',
         'crypto++',
         'pthread',
         ]),

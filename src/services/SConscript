@@ -9,8 +9,8 @@ candidate_snapshot_generator_deplibs = mkdeps([
     exports['proto']['snapshot_proto'],
     exports['proto']['file_proto'],
     exports['base']['asio_dispatcher'],
-    'boost_filesystem-mt',
-    'boost_system-mt',
+    'boost_filesystem',
+    'boost_system',
     'boost_thread',
     ])
 candidate_snapshot_generator = env.StaticLibrary(
@@ -29,9 +29,9 @@ candidate_snapshot_generator_pkg = [
 chunk_reader_deplibs = mkdeps([
     exports['proto']['block_proto'],
     exports['base']['asio_dispatcher'],
-    'boost_filesystem-mt',
-    'boost_system-mt',
-    'boost_iostreams-mt',
+    'boost_filesystem',
+    'boost_system',
+    'boost_iostreams',
     ])
 chunk_reader = env.StaticLibrary(
     target='chunk-reader',
@@ -86,9 +86,9 @@ chunk_hasher_pkg = [
 file_writer_deplibs = mkdeps([
     exports['proto']['block_proto'],
     exports['base']['asio_dispatcher'],
-    'boost_filesystem-mt',
-    'boost_system-mt',
-    'boost_iostreams-mt',
+    'boost_filesystem',
+    'boost_system',
+    'boost_iostreams',
     ])
 file_writer = env.StaticLibrary(
     target='file-writer',
@@ -105,8 +105,8 @@ file_writer_pkg = [
 
 filesystem_scanner_deplibs = mkdeps([
     exports['base']['asio_dispatcher'],
-    'boost_filesystem-mt',
-    'boost_system-mt',
+    'boost_filesystem',
+    'boost_system',
     'boost_thread',
     ])
 filesystem_scanner = env.StaticLibrary(
