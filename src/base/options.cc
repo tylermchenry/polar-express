@@ -72,6 +72,7 @@ OptionDefinition::OptionDefinition(const string& name,
   : name_(name),
     description_(description) {
   assert(name != kHelpOption);
+  assert(name != kVersionOption);
   if (!defined_options_) {
     defined_options_ = make_unique<map<string,const OptionDefinition*> >();
   }
