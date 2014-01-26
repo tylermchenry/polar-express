@@ -58,7 +58,9 @@ OptionDefinitionTmpl<T>::OptionDefinitionTmpl(const string& name,
 template <typename T>
 void OptionDefinitionTmpl<T>::AddSelf(
     program_options::options_description* desc) const {
-  desc->add_options()(name_.c_str(), program_options::value<T>(value_->get()),
+  desc->add_options()(name_.c_str(),
+                      program_options::value<T>(value_->get())
+                          ->default_value(**value_)->value_name("<arg>"),
                       description_.c_str());
 }
 
