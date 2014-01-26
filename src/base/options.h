@@ -37,7 +37,8 @@ template <typename T>
 class OptionDefinitionTmpl : public OptionDefinition {
  public:
   OptionDefinitionTmpl(const string& name, const string& description,
-                       const T& default_value, unique_ptr<T>* value);
+                       const T& default_value,
+                       const unique_ptr<T>* value);
 
  private:
   virtual void AddSelf(program_options::options_description* desc) const;
@@ -49,7 +50,7 @@ template <typename T>
 OptionDefinitionTmpl<T>::OptionDefinitionTmpl(const string& name,
                                               const string& description,
                                               const T& default_value,
-                                              unique_ptr<T>* value)
+                                              const unique_ptr<T>* value)
     : OptionDefinition(name, description),
       value_(CHECK_NOTNULL(value)) {
   *CHECK_NOTNULL(*value_) = default_value;
@@ -68,27 +69,35 @@ void OptionDefinitionTmpl<T>::AddSelf(
 }  // namespace options
 }  // namespace polar_express
 
+#define OPTION_VALUE_NAME(opt_name) opt_##opt_name
+#define OPTION_DEFINITION_NAME(opt_name) def_opt_##opt_name
+
 // These macros must be used outside of any namespace block!
-#define DEFINE_OPTION(name, type, default_value, description)         \
-  namespace polar_express {                                           \
-  namespace options {                                                 \
-  namespace internal {                                                \
-  unique_ptr<type> opt_##type_##name(new type);                       \
-  OptionDefinitionTmpl<type> polar_express_options_definition_##name( \
-      #name, (description), (default_value), &(opt_##type_##name));   \
-  } /* namespace internal */                                          \
-  static const type& name = *(internal::opt_##type_##name);           \
-  } /* namespace options */                                           \
+#define DEFINE_OPTION(opt_name, opt_type, default_value, description)          \
+  namespace polar_express {                                                    \
+  namespace options {                                                          \
+  namespace internal {                                                         \
+  extern const unique_ptr<opt_type> OPTION_VALUE_NAME(opt_name)(new opt_type); \
+  const OptionDefinitionTmpl<opt_type> OPTION_DEFINITION_NAME(opt_name)(       \
+      #opt_name, (description), (default_value),                               \
+      &(OPTION_VALUE_NAME(opt_name)));                                         \
+  } /* namespace internal */                                                   \
+  namespace {                                                                  \
+  const opt_type& opt_name = *(internal::OPTION_VALUE_NAME(opt_name));         \
+  } /* namespace */                                                            \
+  } /* namespace options */                                                    \
   } /* namespace_polar_express */
 
-#define DECLARE_OPTION(name, type)                          \
-  namespace polar_express {                                 \
-  namespace options {                                       \
-  namespace internal {                                      \
-  extern unique_ptr<type> opt_##type_##name;                \
-  } /* namespace internal */                                \
-  static const type& name = *(internal::opt_##type_##name); \
-  } /* namespace options */                                 \
+#define DECLARE_OPTION(opt_name, opt_type)                             \
+  namespace polar_express {                                            \
+  namespace options {                                                  \
+  namespace internal {                                                 \
+  extern const unique_ptr<opt_type> OPTION_VALUE_NAME(opt_name);       \
+  } /* namespace internal */                                           \
+  namespace {                                                          \
+  const opt_type& opt_name = *(internal::OPTION_VALUE_NAME(opt_name)); \
+  } /* namespace */                                                    \
+  } /* namespace options */                                            \
   } /* namespace_polar_express */
 
 #endif  // OPTIONS_H
