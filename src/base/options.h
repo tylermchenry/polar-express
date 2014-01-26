@@ -7,6 +7,7 @@
 
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
+#include <crypto++/secblock.h>
 
 #include "base/macros.h"
 
@@ -22,11 +23,13 @@ class OptionDefinition {
   static void AddAllDefinedOptions(program_options::options_description* desc);
 
  protected:
-  OptionDefinition();
+  OptionDefinition(const string& name, const string& description);
   virtual ~OptionDefinition();
 
   virtual void AddSelf(program_options::options_description* desc) const = 0;
-  virtual const string& name() const = 0;
+
+  const string name_;
+  const string description_;
 
  private:
   static unique_ptr<vector<const OptionDefinition*> > defined_options_;
@@ -35,35 +38,30 @@ class OptionDefinition {
 template <typename T>
 class OptionDefinitionTmpl : public OptionDefinition {
  public:
-  OptionDefinitionTmpl(const string& name, const string& description, T* value);
-
- protected:
-  virtual void AddSelf(program_options::options_description* desc) const;
-  virtual const string& name() const;
+  OptionDefinitionTmpl(const string& name, const string& description,
+                       const T& default_value, unique_ptr<T>* value);
 
  private:
-  const string name_;
-  const string description_;
-  T* value_;
+  virtual void AddSelf(program_options::options_description* desc) const;
+
+  const unique_ptr<T>* value_;
 };
 
 template <typename T>
 OptionDefinitionTmpl<T>::OptionDefinitionTmpl(const string& name,
                                               const string& description,
-                                              T* value)
-    : name_(name), description_(description), value_(CHECK_NOTNULL(value)) {
+                                              const T& default_value,
+                                              unique_ptr<T>* value)
+    : OptionDefinition(name, description),
+      value_(CHECK_NOTNULL(value)) {
+  *CHECK_NOTNULL(*value_) = default_value;
 }
 
 template <typename T>
 void OptionDefinitionTmpl<T>::AddSelf(
     program_options::options_description* desc) const {
-  desc->add_options()(name_.c_str(), program_options::value<T>(value_),
+  desc->add_options()(name_.c_str(), program_options::value<T>(value_->get()),
                       description_.c_str());
-}
-
-template <typename T>
-const string& OptionDefinitionTmpl<T>::name() const {
-  return name_;
 }
 
 }  // namespace internal
@@ -75,22 +73,22 @@ const string& OptionDefinitionTmpl<T>::name() const {
   namespace polar_express {                                           \
   namespace options {                                                 \
   namespace internal {                                                \
-  type opt_##type_##name = (default_value);                           \
+  unique_ptr<type> opt_##type_##name(new type);                       \
   OptionDefinitionTmpl<type> polar_express_options_definition_##name( \
-      #name, (description), &(opt_##type_##name));                    \
+      #name, (description), (default_value), &(opt_##type_##name));   \
   } /* namespace internal */                                          \
-  static const type& name = options::internal::opt_##type_##name;     \
+  static const type& name = *(internal::opt_##type_##name);           \
   } /* namespace options */                                           \
   } /* namespace_polar_express */
 
-#define DECLARE_OPTION(name, type)                       \
-  namespace polar_express {                              \
-  namespace options {                                    \
-  namespace internal {                                   \
-  extern type opt_##type_##name;                         \
-  } /* namespace internal */                             \
-  static const type& name = internal::opt_##type_##name; \
-  } /* namespace options */                              \
+#define DECLARE_OPTION(name, type)                          \
+  namespace polar_express {                                 \
+  namespace options {                                       \
+  namespace internal {                                      \
+  extern unique_ptr<type> opt_##type_##name;                \
+  } /* namespace internal */                                \
+  static const type& name = *(internal::opt_##type_##name); \
+  } /* namespace options */                                 \
   } /* namespace_polar_express */
 
 #endif  // OPTIONS_H

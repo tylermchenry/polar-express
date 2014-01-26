@@ -38,7 +38,10 @@ namespace internal {
 // static
 unique_ptr<vector<const OptionDefinition*> > OptionDefinition::defined_options_;
 
-OptionDefinition::OptionDefinition() {
+OptionDefinition::OptionDefinition(const string& name,
+                                   const string& description)
+  : name_(name),
+    description_(description) {
   if (!defined_options_) {
     defined_options_ = make_unique<vector<const OptionDefinition*> >();
   }
