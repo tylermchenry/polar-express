@@ -5,6 +5,7 @@
 #include <boost/thread/once.hpp>
 #include <sqlite3.h>
 
+#include "base/options.h"
 #include "file/bundle.h"
 #include "proto/bundle-manifest.pb.h"
 #include "proto/file.pb.h"
@@ -41,6 +42,12 @@
               QUALIFIED_COL_NAME(tbl_name, field_name)));            \
     }                                                                \
   } while(0)
+
+DEFINE_OPTION(sqlite_use_write_ahead_logging, bool, true,
+              "When true, SQLite will be used in write-ahead-logging mode. "
+              "This vastly improves performance on mechanical disks, at the "
+              "expense of the possibility of losing some of most recent "
+              "transactions in the event of a crash.");
 
 namespace polar_express {
 
@@ -377,16 +384,14 @@ void MetadataDbImpl::PrepareStatements() {
   // backed up on account of the lost writes. The gain is a 15x or better
   // speedup over full synchronous mode.
   //
-  // TODO: Should be configurable. Users who are storing their metadata DB on a
-  // solid-state drive can enable full-synchronous mode without a significant
-  // performance penalty.
-  //
   // TODO: When in non-full-synchronous mode, the system should force a
   // synchronization when it is otherwise idle (waiting on upstream).
-  sqlite3_exec(db(), "pragma synchronous = NORMAL",
-               nullptr, nullptr, nullptr);
-  sqlite3_exec(db(), "pragma journal_mode = WAL",
-               nullptr, nullptr, nullptr);
+  if (options::sqlite_use_write_ahead_logging) {
+    sqlite3_exec(db(), "pragma synchronous = NORMAL",
+                 nullptr, nullptr, nullptr);
+    sqlite3_exec(db(), "pragma journal_mode = WAL",
+                 nullptr, nullptr, nullptr);
+  }
 }
 
 int64_t MetadataDbImpl::GetLatestSnapshotId(const File& file) const {

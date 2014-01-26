@@ -1,5 +1,6 @@
 #include "state_machines/bundle-state-machine.h"
 
+#include "base/options.h"
 #include "file/bundle.h"
 #include "services/bundle-hasher.h"
 #include "services/chunk-hasher.h"
@@ -11,14 +12,14 @@
 #include "proto/file.pb.h"
 #include "proto/snapshot.pb.h"
 
+DEFINE_OPTION(
+    max_compression_buffer_size_bytes, size_t, 2 * (1 << 20) /* 2 MiB */,
+    "Maximum amount of memory to dedicate to a compression buffer (a larger "
+    "buffer yields better compression).");
+
+DECLARE_OPTION(max_bundle_size_bytes, size_t);
+
 namespace polar_express {
-namespace {
-
-// TODO: These should be configurable.
-const size_t kMaxBundleSize = 20 * (1 << 20);  // 20 MiB
-const size_t kMaxCompressionBufferSize = 2 * (1 << 20);  // 2 MiB
-
-}  // namespace
 
 void BundleStateMachine::Start(
     const string& root,
@@ -45,7 +46,8 @@ BundleStateMachineImpl::BundleStateMachineImpl()
       bundle_hasher_(new BundleHasher),
       metadata_db_(new MetadataDb),
       file_writer_(new FileWriter) {
-  compressor_->InitializeCompression(kMaxCompressionBufferSize);
+  compressor_->InitializeCompression(
+      options::max_compression_buffer_size_bytes);
 }
 
 BundleStateMachineImpl::~BundleStateMachineImpl() {
@@ -206,7 +208,7 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, FinishChunk) {
 
   compressed_block_data_for_active_chunk_.clear();
 
-  if (active_bundle_->size() >= kMaxBundleSize) {
+  if (active_bundle_->size() >= options::max_bundle_size_bytes) {
     PostEvent<MaxBundleSizeReached>();
   } else {
     PostEvent<MaxBundleSizeNotReached>();
@@ -302,7 +304,8 @@ PE_STATE_MACHINE_ACTION_HANDLER(BundleStateMachineImpl, ResetForNextBundle) {
   generated_bundle_.reset();
   active_bundle_.reset(new Bundle);
   block_ids_in_active_bundle_.clear();
-  compressor_->InitializeCompression(kMaxCompressionBufferSize);
+  compressor_->InitializeCompression(
+      options::max_compression_buffer_size_bytes);
   NextChunk();
 }
 

@@ -6,13 +6,6 @@
 #include "state_machines/upload-state-machine-pool.h"
 
 namespace polar_express {
-namespace {
-
-// TODO: Should be configurable.
-// Until configurable, must match value in chunk-hasher-impl.cc.
-const size_t kBlockSizeBytes = 1024 * 1024;  // 1 MiB
-
-}  // namespace
 
 BackupExecutor::BackupExecutor()
     : scan_state_(ScanState::kNotStarted),

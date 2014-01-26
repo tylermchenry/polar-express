@@ -6,15 +6,16 @@
 #include <crypto++/hex.h>
 #include <crypto++/sha.h>
 
+#include "base/options.h"
 #include "proto/snapshot.pb.h"
 #include "services/chunk-reader.h"
 
+DEFINE_OPTION(
+    max_block_size_bytes, size_t, 1024 * 1024 /* 1 MB */,
+    "Maximum size of blocks that files will be split into during backup.");
+
 namespace polar_express {
 namespace {
-
-// TODO: Should be configurable.
-// Until configurable, must match value in backup-executor.cc.
-const size_t kBlockSizeBytes = 1024 * 1024;  // 1 MiB
 
 template <int N>
 void WriteHashToString(unsigned char (&raw_digest)[N], string* str) {
@@ -68,7 +69,8 @@ void ChunkHasherImpl::ContinueGeneratingAndHashingChunks(
 
   // Ask for a block of the default size. If EOF is reached, then the
   // reader will return less than this many bytes.
-  context->current_chunk_->mutable_block()->set_length(kBlockSizeBytes);
+  context->current_chunk_->mutable_block()
+      ->set_length(options::max_block_size_bytes);
 
   context->block_data_buffer_.clear();
   context->chunk_reader_->ReadBlockDataForChunk(

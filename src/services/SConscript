@@ -67,6 +67,7 @@ bundle_hasher_pkg = [
 chunk_hasher_deplibs = mkdeps([
     exports['proto']['block_proto'],
     exports['base']['asio_dispatcher'],
+    exports['base']['options'],
     chunk_reader_pkg,
     'crypto++',
     ])
@@ -166,8 +167,9 @@ metadata_db_deplibs = mkdeps([
     exports['proto']['block_proto'],
     exports['proto']['file_proto'],
     exports['proto']['snapshot_proto'],
-    exports['file']['bundle'],
     exports['base']['asio_dispatcher'],
+    exports['base']['options'],
+    exports['file']['bundle'],
     'boost_thread',
     'sqlite3',
     ])

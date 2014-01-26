@@ -2,28 +2,30 @@
 
 #include <iostream>
 
+#include "base/options.h"
 #include "proto/snapshot.pb.h"
 #include "state_machines/snapshot-state-machine.h"
 
+DEFINE_OPTION(max_pending_snapshot_bytes, size_t, 50 * (1 << 20) /* 50 MiB */,
+              "Maximum amount of on-disk file data that may be waiting to "
+              "be snapshotted at any time.");
+
+DEFINE_OPTION(max_simultaneous_snapshots, size_t, 20,
+              "Maximum number of snapshots that the system will perform "
+              "simultaneously.");
+
 namespace polar_express {
-namespace {
-
-// TODO: Configurable.
-const size_t kMaxPendingBlockBytes = 50 * (1 << 20);  // 50 MiB
-const size_t kMaxSimultaneousSnapshots = 20;
-
-}  // namespace
 
 SnapshotStateMachinePool::SnapshotStateMachinePool(
     boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher,
     const string& root)
     : OneShotStateMachinePool<SnapshotStateMachine, boost::filesystem::path>(
-        strand_dispatcher, kMaxPendingBlockBytes, kMaxSimultaneousSnapshots),
+          strand_dispatcher, options::max_pending_snapshot_bytes,
+          options::max_simultaneous_snapshots),
       root_(root),
       input_finished_(false),
       num_snapshots_generated_(0),
-      size_of_snapshots_generated_(0) {
-}
+      size_of_snapshots_generated_(0) {}
 
 SnapshotStateMachinePool::~SnapshotStateMachinePool() {
 }

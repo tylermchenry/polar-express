@@ -4,11 +4,15 @@
 
 #include <boost/filesystem.hpp>
 
+#include "base/options.h"
 #include "file/bundle.h"
 #include "network/glacier-connection.h"
 #include "proto/bundle-manifest.pb.h"
 #include "proto/glacier.pb.h"
 #include "services/metadata-db.h"
+
+DEFINE_OPTION(use_ssl, bool, true,
+              "If true, network connections will be established over SSL.");
 
 namespace polar_express {
 namespace {
@@ -31,12 +35,12 @@ UploadStateMachineImpl::BackEnd* UploadStateMachine::GetBackEnd() {
 UploadStateMachineImpl::UploadStateMachineImpl()
     : exit_requested_(false),
       metadata_db_(new MetadataDb),
-      // TODO: Secure-or-not should be configurable (but secure as default).
-      glacier_connection_(new SecureGlacierConnection),
+      glacier_connection_(options::use_ssl ? static_cast<GlacierConnection*>(
+                                                 new SecureGlacierConnection)
+                                           : new GlacierConnection),
       attempted_vault_creation_(false),
       vault_created_(false),
-      vault_description_(new GlacierVaultDescription) {
-}
+      vault_description_(new GlacierVaultDescription) {}
 
 UploadStateMachineImpl::~UploadStateMachineImpl() {
 }

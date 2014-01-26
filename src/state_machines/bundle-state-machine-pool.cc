@@ -2,22 +2,29 @@
 
 #include <iostream>
 
+#include "base/options.h"
 #include "file/bundle.h"
 #include "proto/snapshot.pb.h"
 #include "state_machines/bundle-state-machine.h"
 
+DEFINE_OPTION(max_pending_bundle_bytes, size_t, 40 * (1 << 20) /* 40 MiB */,
+              "Maximum amount of snapshotted file data that may be waiting to "
+              "be bundled at any time.");
+
+DEFINE_OPTION(max_bundle_size_bytes, size_t, 20 * (1 << 20) /* 20 MiB */,
+              "Maximum size of bundles that will be uploaded to Glacier "
+              "(before headers).");
+
+DEFINE_OPTION(max_simultaneous_bundles, size_t, 3,
+              "Maximum number of bundles that the system will simultaneously "
+              "work on building.");
+
+DEFINE_OPTION(max_upstream_idle_time_seconds, time_t, 30,
+              "Amount of time elapse with no upstream traffic after which all "
+              "pending bundles will be finalized and uploaded, even if they "
+              "are not at maximum size.");
+
 namespace polar_express {
-namespace {
-
-// TODO: Configurable.
-const size_t kMaxBytesWaitingToBundle = 40 * (1 << 20);  // 40 MiB
-const size_t kMaxSimultaneousBundles = 3;
-const time_t kMaxUpstreamIdleTimeSeconds = 30;
-
-// Until configurable, must match bundle-state-machine.cc
-const size_t kMaxBundleSize = 20 * (1 << 20);  // 20 MiB
-
-}  // namespace
 
 BundleStateMachinePool::BundleStateMachinePool(
     boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher,
@@ -25,8 +32,8 @@ BundleStateMachinePool::BundleStateMachinePool(
     boost::shared_ptr<const Cryptor::KeyingData> encryption_keying_data,
     boost::shared_ptr<StateMachinePoolBase> preceding_pool)
     : PersistentStateMachinePool<BundleStateMachine, Snapshot>(
-          strand_dispatcher, kMaxBytesWaitingToBundle,
-          kMaxSimultaneousBundles, preceding_pool),
+          strand_dispatcher, options::max_pending_bundle_bytes,
+          options::max_simultaneous_bundles, preceding_pool),
       root_(root),
       encryption_type_(encryption_type),
       encryption_keying_data_(CHECK_NOTNULL(encryption_keying_data)),
@@ -58,7 +65,7 @@ size_t BundleStateMachinePool::OutputWeightToBeAddedByInputInternal(
 }
 
 size_t BundleStateMachinePool::MaxOutputWeightGeneratedByAnyInput() const {
-  return kMaxBundleSize;
+  return options::max_bundle_size_bytes;
 }
 
 void BundleStateMachinePool::StartNewStateMachine(
@@ -101,7 +108,7 @@ void BundleStateMachinePool::HandleSnapshotDone(
   time_t now = time(nullptr);
   if (next_pool_ != nullptr && last_bundle_generated_time_ > 0 &&
       now - last_bundle_generated_time_ >
-          kMaxUpstreamIdleTimeSeconds &&
+          options::max_upstream_idle_time_seconds &&
       PoolIsCompletelyIdle(next_pool_)) {
     DLOG(std::cerr << "Flushing bundle due to timeout." << std::endl);
     CHECK_NOTNULL(state_machine)->FlushCurrentBundle();
