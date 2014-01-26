@@ -1,20 +1,18 @@
 #ifndef OPTIONS_H
 #define OPTIONS_H
 
+#include <map>
 #include <memory>
 #include <string>
-#include <vector>
 
 #include <boost/program_options/options_description.hpp>
-#include <boost/program_options/variables_map.hpp>
-#include <crypto++/secblock.h>
 
 #include "base/macros.h"
 
 namespace polar_express {
 namespace options {
 
-bool Init(int argc, char** argv, program_options::variables_map* vm);
+bool Init(int argc, char** argv);
 
 namespace internal {
 
@@ -32,7 +30,7 @@ class OptionDefinition {
   const string description_;
 
  private:
-  static unique_ptr<vector<const OptionDefinition*> > defined_options_;
+  static unique_ptr<map<string, const OptionDefinition*> > defined_options_;
 };
 
 template <typename T>
