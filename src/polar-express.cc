@@ -27,6 +27,7 @@
 #include "base/options.h"
 #include "services/cryptor.h"
 #include "util/io-util.h"
+#include "util/key-loading-util.h"
 
 using namespace polar_express;
 
@@ -34,10 +35,13 @@ DEFINE_OPTION(passphrase, string, "", "Passphrase for encrypting backups.");
 DEFINE_OPTION(aws_region_name, string, "",
               "Amazon Web Services region (e.g. 'us-west').");
 DEFINE_OPTION(aws_access_key, string, "", "Amazon Web Services access key.");
-DEFINE_OPTION(aws_secret_key, string, "", "Amazon Web Services secret key.");
+DEFINE_OPTION(aws_secret_key_file, string, "",
+              "Path to file where Amazon Web Services secret key is stored "
+              "(must be owner-readable only).");
 DEFINE_OPTION(aws_glacier_vault_name, string, "",
               "Name of Glacier vault in which to store backups.");
 DEFINE_OPTION(backup_root, string, "", "Local path to back up.");
+
 
 int main(int argc, char** argv) {
   if (!options::Init(argc, argv)) {
@@ -63,14 +67,17 @@ int main(int argc, char** argv) {
     encryption_keying_data.reset(new Cryptor::KeyingData(tmp_keying_data));
   }
 
-  const CryptoPP::SecByteBlock aws_secret_key(
-      reinterpret_cast<const byte*>(options::aws_secret_key.c_str()),
-      options::aws_secret_key.size());
+  string aws_access_key;
+  CryptoPP::SecByteBlock aws_secret_key;
+  if (!key_loading_util::LoadAwsKeys(&aws_access_key, &aws_secret_key)) {
+    std::cerr << "FATAL: Failed to load AWS keys." << std::endl;
+    return -1;
+  }
 
   BackupExecutor backup_executor;
   backup_executor.Start(options::backup_root, encryption_type,
                         encryption_keying_data, options::aws_region_name,
-                        options::aws_access_key, aws_secret_key,
+                        aws_access_key, aws_secret_key,
                         options::aws_glacier_vault_name);
 
   AsioDispatcher::GetInstance()->WaitForFinish();

@@ -64,6 +64,7 @@ polar_express = env.Program(
         exports['base']['asio_dispatcher'],
         exports['base']['options'],
         exports['util']['io_util'],
+        exports['util']['key_loading_util'],
         exports['services']['cryptors'],
         backup_executor_pkg,
         'boost_program_options',

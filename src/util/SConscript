@@ -35,6 +35,23 @@ amazon_http_request_util_pkg = [
     amazon_http_request_util_deplibs,
     ]
 
+key_loading_util_deplibs = mkdeps([
+    exports['base']['options'],
+    'boost_filesystem',
+    'crypto++',
+    ])
+key_loading_util = env.StaticLibrary(
+    target='key-loading-util',
+    source=[
+        'key-loading-util.cc',
+        ],
+    LIBS=key_loading_util_deplibs,
+    )
+key_loading_util_pkg = [
+    key_loading_util,
+    key_loading_util_deplibs,
+    ]
+
 snapshot_util_deplibs = mkdeps([
     exports['proto']['file_proto'],
     exports['proto']['snapshot_proto'],
@@ -54,6 +71,7 @@ snapshot_util_pkg = [
 util_exports = {
   'io_util': io_util_pkg,
   'amazon_http_request_util': amazon_http_request_util_pkg,
+  'key_loading_util': key_loading_util_pkg,
   'snapshot_util': snapshot_util_pkg
 }
 Return('util_exports')
