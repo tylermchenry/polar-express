@@ -32,11 +32,17 @@ class Cryptor {
 
     const char* key_derivation_type_id;  // From encrypted-file-headers.h
 
-    // The below are relevant only when encryption_key and mac_key were
+    // This is relevant only when the key derivation method requires a salt.
+    boost::shared_ptr<vector<byte> > encryption_key_salt;
+    boost::shared_ptr<vector<byte> > mac_key_salt;
+
+    // This is relevant only when encryption_key and mac_key were
     // derived using PBKDF2.
     uint8_t pbkdf2_iterations_exponent;
-    boost::shared_ptr<vector<byte> > pbkdf2_encryption_key_salt;
-    boost::shared_ptr<vector<byte> > pbkdf2_mac_key_salt;
+
+    // This is relevant only when encryption_key and mac_key were derived using
+    // HKDF (for any hash).
+    boost::shared_ptr<vector<byte> > hkdf_info;
   };
 
   static unique_ptr<Cryptor> CreateCryptor(EncryptionType encryption_type);
@@ -93,6 +99,10 @@ class Cryptor {
 
   static void DeriveKeyPbkdf2(
       const boost::shared_ptr<CryptoPP::SecByteBlock> passphrase,
+      vector<byte>* salt, CryptoPP::SecByteBlock* derived_key);
+
+  static void DeriveKeyHkdfSha256(
+      const boost::shared_ptr<CryptoPP::SecByteBlock> master_key,
       vector<byte>* salt, CryptoPP::SecByteBlock* derived_key);
 
   std::unique_ptr<Cryptor> impl_;

@@ -146,6 +146,7 @@ compressors_pkg = [
 cryptors_deplibs = mkdeps([
     exports['proto']['bundle_manifest_proto'],
     exports['base']['asio_dispatcher'],
+    exports['base']['options'],
     exports['file']['encrypted_file_headers'],
     'crypto++',
     ])

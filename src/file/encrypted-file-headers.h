@@ -40,6 +40,13 @@ class EncryptedFileHeaders {
                               const vector<byte>& encryption_key_salt,
                               const vector<byte>& mac_key_salt);
 
+  // Salts must be exactly 32 bytes. Info must be at most 32 bytes (and may be
+  // empty).
+  void SetKeyDerivationHkdfSha256(
+      const vector<byte>& info,
+      const vector<byte>& encryption_key_salt,
+      const vector<byte>& mac_key_salt);
+
   // Initialization vector must be exactly 32 bytes.
   void SetEncryptionAes256Gcm(const vector<byte>& initialization_vector);
 
@@ -49,17 +56,21 @@ class EncryptedFileHeaders {
 
   static const char* const kKeyDerivationTypeIdNone;
   static const char* const kKeyDerivationTypeIdPbkdf2;
+  static const char* const kKeyDerivationTypeIdHkdfSha256;
   static const char* const kEncryptionTypeIdAes256Gcm;
   static const char* const kMacTypeIdNone;
 
  private:
   struct GenericHeaderFields;
   struct KeyDerivationParametersPbkdf2;
+  struct KeyDerivationParametersHkdfSha256;
   struct EncryptionParametersAes256Gcm;
 
   std::unique_ptr<GenericHeaderFields> generic_header_fields_;
   std::unique_ptr<KeyDerivationParametersPbkdf2>
       key_derivation_parameters_pbkdf2_;
+  std::unique_ptr<KeyDerivationParametersHkdfSha256>
+      key_derivation_parameters_hkdf_sha256_;
   std::unique_ptr<EncryptionParametersAes256Gcm>
       encryption_parameters_aes256_gcm_;
 

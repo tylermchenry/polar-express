@@ -38,7 +38,7 @@ void SetTypeId(char (&type_id_field)[N], const char* type_id) {
 // This Generic Header also has a format version. This struct is version 0.
 //
 // Currently supported type IDs:
-//   Key Derivation: "", "pbkdf2"
+//   Key Derivation: "", "pbkdf2", "hkdf-sha-256"
 //   Encryption: "aes-256-gcm"
 //   MAC: ""
 struct EncryptedFileHeaders::GenericHeaderFields {
@@ -61,6 +61,17 @@ struct EncryptedFileHeaders::KeyDerivationParametersPbkdf2 {
   byte mac_key_salt[32];
 } __attribute__((packed));
 
+// Parameters for HKDF key derivation as defined by RFC 5869, with SHA256 as the
+// underlying hash ("hkdf-sha-256"). This struct is version 0.
+const char* const EncryptedFileHeaders::kKeyDerivationTypeIdHkdfSha256 =
+    "hkdf-sha-256";
+struct EncryptedFileHeaders::KeyDerivationParametersHkdfSha256 {
+  uint8_t info_size;  // How many bytes of the 'info' field are relevant?
+  byte info[32];
+  byte encryption_key_salt[32];
+  byte mac_key_salt[32];
+} __attribute__((packed));
+
 // Parameters for AES256 GCM-mode encryption ("aes-256-gcm"). This struct is
 // version 0.
 const char* const EncryptedFileHeaders::kEncryptionTypeIdAes256Gcm =
@@ -76,6 +87,8 @@ const char* const EncryptedFileHeaders::kMacTypeIdNone = "";
 EncryptedFileHeaders::EncryptedFileHeaders()
     : generic_header_fields_(new GenericHeaderFields({})),
       key_derivation_parameters_pbkdf2_(new KeyDerivationParametersPbkdf2({})),
+      key_derivation_parameters_hkdf_sha256_(
+          new KeyDerivationParametersHkdfSha256({})),
       encryption_parameters_aes256_gcm_(new EncryptionParametersAes256Gcm({})) {
 }
 
@@ -109,6 +122,32 @@ void EncryptedFileHeaders::SetKeyDerivationPbkdf2(
             &key_derivation_parameters_pbkdf2_->encryption_key_salt[0]);
   std::copy(mac_key_salt.begin(), mac_key_salt.end(),
             &key_derivation_parameters_pbkdf2_->mac_key_salt[0]);
+}
+
+void EncryptedFileHeaders::SetKeyDerivationHkdfSha256(
+    const vector<byte>& info, const vector<byte>& encryption_key_salt,
+    const vector<byte>& mac_key_salt) {
+  assert(info.size() <=
+         sizeof(EncryptedFileHeaders::KeyDerivationParametersHkdfSha256::info));
+  assert(encryption_key_salt.size() ==
+         sizeof(EncryptedFileHeaders::KeyDerivationParametersHkdfSha256::
+                    encryption_key_salt));
+  assert(mac_key_salt.size() ==
+         sizeof(EncryptedFileHeaders::KeyDerivationParametersHkdfSha256::
+                mac_key_salt));
+
+  SetTypeId(generic_header_fields_->key_derivation_type_id,
+            kKeyDerivationTypeIdHkdfSha256);
+  generic_header_fields_->key_derivation_parameters_format_version = 0;
+
+  *key_derivation_parameters_hkdf_sha256_ = {};
+  key_derivation_parameters_hkdf_sha256_->info_size = info.size();
+  std::copy(info.begin(), info.end(),
+            &key_derivation_parameters_hkdf_sha256_->info[0]);
+  std::copy(encryption_key_salt.begin(), encryption_key_salt.end(),
+            &key_derivation_parameters_hkdf_sha256_->encryption_key_salt[0]);
+  std::copy(mac_key_salt.begin(), mac_key_salt.end(),
+            &key_derivation_parameters_hkdf_sha256_->mac_key_salt[0]);
 }
 
 void EncryptedFileHeaders::SetEncryptionAes256Gcm(
