@@ -47,6 +47,8 @@ class Cryptor {
 
   static unique_ptr<Cryptor> CreateCryptor(EncryptionType encryption_type);
 
+  static size_t GetKeyLength(EncryptionType encryption_type);
+
   static void DeriveKeysFromMasterKey(
       const boost::shared_ptr<CryptoPP::SecByteBlock> master_key,
       const EncryptionType encryption_type,

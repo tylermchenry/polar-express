@@ -10,6 +10,13 @@
 namespace polar_express {
 namespace key_loading_util {
 
+// Loads and sanity-checks master key for client-side encryption based on
+// options, with informative error messages. Returns true only if key loading &
+// checking succeeded. Returns false (and prints no error message) if master key
+// flags are not being used.
+bool LoadMasterKey(const size_t expected_key_length,
+                   CryptoPP::SecByteBlock* master_key);
+
 // Loads and sanity-checks keys for Amazon Web Services based on options, with
 // informative error messages. Returns true only if key loading & checking
 // succeeded.

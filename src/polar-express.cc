@@ -34,14 +34,42 @@ using namespace polar_express;
 DEFINE_OPTION(passphrase, string, "", "Passphrase for encrypting backups.");
 DEFINE_OPTION(aws_region_name, string, "",
               "Amazon Web Services region (e.g. 'us-west').");
-DEFINE_OPTION(aws_access_key, string, "", "Amazon Web Services access key.");
-DEFINE_OPTION(aws_secret_key_file, string, "",
-              "Path to file where Amazon Web Services secret key is stored "
-              "(must be owner-readable only).");
 DEFINE_OPTION(aws_glacier_vault_name, string, "",
               "Name of Glacier vault in which to store backups.");
 DEFINE_OPTION(backup_root, string, "", "Local path to back up.");
 
+// Initializes the KeyingData structure with derived keys for use in client-side
+// encryption. Importantly, once this function returns, the master key is no
+// longer in memory (unless the user has elected to encrypt data directly with
+// the master key).
+bool InitializeEncryptionKeyingData(
+    const Cryptor::EncryptionType encryption_type,
+    boost::shared_ptr<const Cryptor::KeyingData>* encryption_keying_data) {
+  Cryptor::KeyingData tmp_encryption_keying_data;
+  boost::shared_ptr<CryptoPP::SecByteBlock> master_key(
+      new CryptoPP::SecByteBlock);
+  if (key_loading_util::LoadMasterKey(Cryptor::GetKeyLength(encryption_type),
+                                      master_key.get())) {
+    Cryptor::DeriveKeysFromMasterKey(master_key, encryption_type,
+                                     &tmp_encryption_keying_data);
+  } else if (!options::passphrase.empty()) {
+    boost::shared_ptr<CryptoPP::SecByteBlock> passphrase(
+        new CryptoPP::SecByteBlock(
+            reinterpret_cast<const byte*>(options::passphrase.c_str()),
+            options::passphrase.size()));
+    Cryptor::DeriveKeysFromPassphrase(passphrase, Cryptor::EncryptionType::kAES,
+                                      &tmp_encryption_keying_data);
+  } else {
+    std::cerr << "ERROR: Unable to load or master key, and no passphrase "
+        "is specified. Run with --help for usage instructions."
+              << std::endl;
+    return false;
+  }
+
+  CHECK_NOTNULL(encryption_keying_data)
+      ->reset(new Cryptor::KeyingData(tmp_encryption_keying_data));
+  return true;
+}
 
 int main(int argc, char** argv) {
   if (!options::Init(argc, argv)) {
@@ -51,20 +79,14 @@ int main(int argc, char** argv) {
   const time_t start_time = time(nullptr);
   AsioDispatcher::GetInstance()->Start();
 
-  Cryptor::EncryptionType encryption_type = Cryptor::EncryptionType::kAES;
+  // TODO: Encryption type should be configurable.
+  const Cryptor::EncryptionType encryption_type = Cryptor::EncryptionType::kAES;
   boost::shared_ptr<const Cryptor::KeyingData> encryption_keying_data;
-
-  {
-    boost::shared_ptr<CryptoPP::SecByteBlock> passphrase(
-        new CryptoPP::SecByteBlock);
-    passphrase->Assign(
-        reinterpret_cast<const byte*>(options::passphrase.c_str()),
-        options::passphrase.size());
-
-    Cryptor::KeyingData tmp_keying_data;
-    Cryptor::DeriveKeysFromPassphrase(
-        passphrase, Cryptor::EncryptionType::kAES, &tmp_keying_data);
-    encryption_keying_data.reset(new Cryptor::KeyingData(tmp_keying_data));
+  if (!InitializeEncryptionKeyingData(encryption_type,
+                                      &encryption_keying_data)) {
+    std::cerr << "FATAL: Failed to initialize encryption keying data."
+              << std::endl;
+    return -1;
   }
 
   string aws_access_key;
