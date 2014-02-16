@@ -61,7 +61,7 @@ bool InitializeEncryptionKeyingData(
                                       &tmp_encryption_keying_data);
   } else {
     std::cerr << "ERROR: Unable to load or master key, and no passphrase "
-        "is specified. Run with --help for usage instructions."
+              << "is specified. Run with --help for usage instructions."
               << std::endl;
     return false;
   }

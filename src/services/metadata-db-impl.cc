@@ -43,6 +43,10 @@
     }                                                                \
   } while(0)
 
+DEFINE_OPTION(metadata_db_path, string, "metadata.db",
+              "Path to the directory where the metadata database should "
+              "be stored.");
+
 DEFINE_OPTION(sqlite_use_write_ahead_logging, bool, true,
               "When true, SQLite will be used in write-ahead-logging mode. "
               "This vastly improves performance on mechanical disks, at the "
@@ -721,7 +725,7 @@ sqlite3* MetadataDbImpl::db() {
 void MetadataDbImpl::InitDb() {
   assert(sqlite3_threadsafe());
   int code = sqlite3_open_v2(
-      "metadata.db", &db_,
+      options::metadata_db_path.c_str(), &db_,
       SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX, nullptr);
   assert(code == SQLITE_OK);
 }
