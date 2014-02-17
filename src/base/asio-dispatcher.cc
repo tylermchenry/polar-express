@@ -8,6 +8,8 @@
 
 namespace polar_express {
 
+// TODO(tylermchenry): Don't really need 10 workers for UI service; consider
+// revising.
 int AsioDispatcher::kNumWorkersPerService = 10;
 boost::shared_ptr<AsioDispatcher> AsioDispatcher::instance_;
 
@@ -33,6 +35,7 @@ void AsioDispatcher::Start() {
   uplink_io_service_ = StartService();
   downlink_io_service_ = StartService();
   state_machine_io_service_ = StartService();
+  user_interface_io_service_ = StartService();
 }
 
 void AsioDispatcher::WaitForFinish() {
@@ -59,6 +62,10 @@ void AsioDispatcher::PostDownlinkBound(Callback callback) {
 
 void AsioDispatcher::PostStateMachine(Callback callback) {
   PostToService(callback, state_machine_io_service_);
+}
+
+void AsioDispatcher::PostUserInterface(Callback callback) {
+  PostToService(callback, user_interface_io_service_);
 }
 
 boost::shared_ptr<AsioDispatcher::StrandDispatcher>
@@ -92,6 +99,12 @@ AsioDispatcher::NewStrandDispatcherStateMachine() {
 }
 
 boost::shared_ptr<AsioDispatcher::StrandDispatcher>
+AsioDispatcher::NewStrandDispatcherUserInterface() {
+  return boost::shared_ptr<StrandDispatcher>(
+      new StrandDispatcher(this, user_interface_io_service_));
+}
+
+boost::shared_ptr<AsioDispatcher::StrandDispatcher>
 AsioDispatcher::NewStrandDispatcherNetworkBound(
     NetworkUsageType network_usage_type) {
   switch (network_usage_type) {
@@ -99,6 +112,8 @@ AsioDispatcher::NewStrandDispatcherNetworkBound(
       return NewStrandDispatcherUplinkBound();
     case NetworkUsageType::kDownlinkBound:
       return NewStrandDispatcherDownlinkBound();
+    case NetworkUsageType::kLocalhost:
+      return NewStrandDispatcherUserInterface();
     default:
       return boost::shared_ptr<StrandDispatcher>();
   }

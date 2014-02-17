@@ -58,11 +58,13 @@ class AsioDispatcher {
   //  Downlink-Bound: For tasks that download data.
   //  State Machine: For tasks that execute a short-running, non-CPU-intensive
   //                 piece of state machine logic.
+  //  User Interface: All tasks that are interactive with a user.
   virtual void PostCpuBound(Callback callback);
   virtual void PostDiskBound(Callback callback);
   virtual void PostUplinkBound(Callback callback);
   virtual void PostDownlinkBound(Callback callback);
   virtual void PostStateMachine(Callback callback);
+  virtual void PostUserInterface(Callback callback);
 
   // Used externally to tell other classes whether they should consider
   // themselves uplink or downlink bound when posting to dispatcher
@@ -70,7 +72,8 @@ class AsioDispatcher {
   enum class NetworkUsageType {
     kInvalid,
     kUplinkBound,
-    kDownlinkBound
+    kDownlinkBound,
+    kLocalhost,
   };
 
   // A strand dispatcher is a wrapper around an ASIO strand that is associated
@@ -104,9 +107,16 @@ class AsioDispatcher {
   virtual boost::shared_ptr<StrandDispatcher> NewStrandDispatcherCpuBound();
   virtual boost::shared_ptr<StrandDispatcher> NewStrandDispatcherDiskBound();
   virtual boost::shared_ptr<StrandDispatcher> NewStrandDispatcherUplinkBound();
-  virtual boost::shared_ptr<StrandDispatcher> NewStrandDispatcherDownlinkBound();
+  virtual boost::shared_ptr<StrandDispatcher>
+      NewStrandDispatcherDownlinkBound();
   virtual boost::shared_ptr<StrandDispatcher> NewStrandDispatcherStateMachine();
+  virtual boost::shared_ptr<StrandDispatcher>
+      NewStrandDispatcherUserInterface();
 
+  // When network_usage_type is kLocalhost, this returns a dispatcher for the
+  // User Interface thread pool. (This assumes that the UI is always going to be
+  // interacting with the main daemon program over a local socket of some sort,
+  // which is currently the plan.)
   virtual boost::shared_ptr<StrandDispatcher> NewStrandDispatcherNetworkBound(
       NetworkUsageType network_usage_type);
 
