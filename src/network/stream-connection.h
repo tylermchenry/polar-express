@@ -26,6 +26,21 @@ class StreamConnection {
  public:
   virtual ~StreamConnection();
 
+  struct ConnectionProperties {
+    AsioDispatcher::NetworkUsageType network_usage_type_;
+    string hostname_;
+    string protocol_;
+
+    ConnectionProperties()
+    : network_usage_type_(AsioDispatcher::NetworkUsageType::kInvalid) {}
+
+    ConnectionProperties(AsioDispatcher::NetworkUsageType network_usage_type,
+                         const string& hostname, const string& protocol)
+        : network_usage_type_(network_usage_type),
+          hostname_(hostname),
+          protocol_(protocol) {}
+  };
+
   // These methods are synchronous but not internally synchronized.
   virtual bool is_secure() const;
   virtual bool is_opening() const;
@@ -42,6 +57,8 @@ class StreamConnection {
   virtual bool Open(
       AsioDispatcher::NetworkUsageType network_usage_type,
       const string& hostname, const string& protocol, Callback callback);
+
+  virtual bool Open(const ConnectionProperties& properties, Callback callback);
 
   // Re-opens with the same parameters as the previous call to Open. Returns
   // false and does nothing of Open has never been called.
@@ -79,7 +96,9 @@ class StreamConnection {
       size_t max_data_size, vector<byte>* data, Callback callback);
 
  protected:
-  StreamConnection(bool is_secure, bool is_open);
+  explicit StreamConnection(bool is_secure);
+  StreamConnection(bool is_secure, bool is_open,
+                   const ConnectionProperties& properties);
 
   typedef asio::buffers_iterator<asio::streambuf::const_buffers_type>
     boost_streambuf_iterator;
@@ -181,9 +200,7 @@ class StreamConnection {
   bool is_open_;
   bool is_writing_;
   bool is_reading_;
-  AsioDispatcher::NetworkUsageType network_usage_type_;
-  string hostname_;
-  string protocol_;
+  ConnectionProperties properties_;
   bool last_write_succeeded_;
   bool last_read_succeeded_;
 
@@ -227,7 +244,8 @@ class StreamConnectionTmpl : public StreamConnection {
   explicit StreamConnectionTmpl(bool is_secure);
 
   StreamConnectionTmpl(bool is_secure,
-                       unique_ptr<AsyncStreamT>&& connected_stream);
+                       unique_ptr<AsyncStreamT>&& connected_stream,
+                       const ConnectionProperties& properties);
 
   // Subclasses must provide for creation of the underlying stream object.
   virtual unique_ptr<AsyncStreamT> StreamConstruct(
@@ -267,15 +285,15 @@ class StreamConnectionTmpl : public StreamConnection {
 
 template <typename AsyncStreamT>
 StreamConnectionTmpl<AsyncStreamT>::StreamConnectionTmpl(bool is_secure)
-    : StreamConnection(is_secure, false /* is_open */) {
+    : StreamConnection(is_secure) {
 }
 
 template <typename AsyncStreamT>
 StreamConnectionTmpl<AsyncStreamT>::StreamConnectionTmpl(
-    bool is_secure, unique_ptr<AsyncStreamT>&& connected_stream)
-    : StreamConnection(is_secure, true /* is_open */),
-      stream_(std::move(CHECK_NOTNULL(connected_stream))) {
-}
+    bool is_secure, unique_ptr<AsyncStreamT>&& connected_stream,
+    const ConnectionProperties& properties)
+    : StreamConnection(is_secure, true /* is_open */, properties),
+      stream_(std::move(CHECK_NOTNULL(connected_stream))) {}
 
 template <typename AsyncStreamT>
 StreamConnectionTmpl<AsyncStreamT>::~StreamConnectionTmpl() {

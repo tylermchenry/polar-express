@@ -8,15 +8,23 @@
 
 namespace polar_express {
 
-StreamConnection::StreamConnection(bool is_secure, bool is_open)
+StreamConnection::StreamConnection(bool is_secure)
+    : StreamConnection(is_secure, false, ConnectionProperties()) {
+}
+
+StreamConnection::StreamConnection(
+    bool is_secure, bool is_open, const ConnectionProperties& properties)
     : is_secure_(is_secure),
       is_opening_(false),
       is_open_(is_open),
       is_writing_(false),
       is_reading_(false),
-      network_usage_type_(AsioDispatcher::NetworkUsageType::kInvalid),
+      properties_(properties),
       last_write_succeeded_(false),
       last_read_succeeded_(false) {
+  if (is_open_) {
+    CreateNetworkingObjects(properties_.network_usage_type_);
+  }
 }
 
 StreamConnection::~StreamConnection() {
@@ -36,15 +44,15 @@ bool StreamConnection::is_open() const {
 
 AsioDispatcher::NetworkUsageType StreamConnection::network_usage_type()
     const {
-  return network_usage_type_;
+  return properties_.network_usage_type_;
 }
 
 const string& StreamConnection::hostname() const {
-  return hostname_;
+  return properties_.hostname_;
 }
 
 const string& StreamConnection::protocol() const {
-  return protocol_;
+  return properties_.protocol_;
 }
 
 bool StreamConnection::last_write_succeeded() const {
@@ -58,14 +66,21 @@ bool StreamConnection::last_read_succeeded() const {
 bool StreamConnection::Open(
     AsioDispatcher::NetworkUsageType network_usage_type,
     const string& hostname, const string& protocol, Callback callback) {
-  if (is_opening_ || is_open_ || !CreateNetworkingObjects(network_usage_type)) {
+  return Open(ConnectionProperties(network_usage_type, hostname, protocol),
+              callback);
+}
+
+bool StreamConnection::Open(
+    const ConnectionProperties& properties, Callback callback) {
+  if (is_opening_ || is_open_ ||
+      !CreateNetworkingObjects(properties.network_usage_type_)) {
     return false;
   }
   is_opening_ = true;
-  hostname_ = hostname;
-  protocol_ = protocol;
+  properties_ = properties;
 
-  asio::ip::tcp::resolver::query query(hostname, protocol);
+  asio::ip::tcp::resolver::query query(properties_.hostname_,
+                                       properties_.protocol_);
   auto handler = MakeStrandCallbackWithArgs<
       const system::error_code&, asio::ip::tcp::resolver::iterator>(
           boost::bind(
@@ -81,7 +96,7 @@ bool StreamConnection::Reopen(Callback callback) {
   if (is_opening_ || is_open_) {
     return false;
   }
-  return Open(network_usage_type_, hostname_, protocol_, callback);
+  return Open(properties_, callback);
 }
 
 bool StreamConnection::Close() {
@@ -190,7 +205,7 @@ bool StreamConnection::CreateNetworkingObjects(
     return false;
   }
 
-  network_usage_type_ = network_usage_type;
+  properties_.network_usage_type_ = network_usage_type;
   last_write_succeeded_ = false;
   last_read_succeeded_ = false;
 
