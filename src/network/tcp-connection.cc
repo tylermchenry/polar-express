@@ -8,6 +8,12 @@ TcpConnection::TcpConnection()
     : StreamConnectionTmpl<asio::ip::tcp::socket>(false  /* not secure */) {
 }
 
+TcpConnection::TcpConnection(
+    unique_ptr<asio::ip::tcp::socket>&& connected_socket)
+    : StreamConnectionTmpl<asio::ip::tcp::socket>(
+        false  /* not secure */, std::move(connected_socket)) {
+}
+
 TcpConnection::~TcpConnection() {
 }
 

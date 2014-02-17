@@ -79,7 +79,7 @@ class StreamConnection {
       size_t max_data_size, vector<byte>* data, Callback callback);
 
  protected:
-  explicit StreamConnection(bool is_secure);
+  StreamConnection(bool is_secure, bool is_open);
 
   typedef asio::buffers_iterator<asio::streambuf::const_buffers_type>
     boost_streambuf_iterator;
@@ -129,6 +129,21 @@ class StreamConnection {
   // Subclasses may override this for extra behavior after a connection is
   // successfully established. By default, just invokes open_callback.
   virtual void AfterConnect(Callback open_callback);
+
+  template <typename T1, typename PT1>
+  boost::function<void(T1)> MakeStrandCallbackWithArgs(
+      boost::function<void(T1)> callback_with_args, PT1 arg1_placeholder) {
+    return strand_dispatcher_->MakeStrandCallbackWithArgs(
+        callback_with_args, arg1_placeholder);
+  }
+
+  template <typename T1, typename T2, typename PT1, typename PT2>
+  boost::function<void(T1, T2)> MakeStrandCallbackWithArgs(
+      boost::function<void(T1, T2)> callback_with_args, PT1 arg1_placeholder,
+      PT2 arg2_placeholder) {
+    return strand_dispatcher_->MakeStrandCallbackWithArgs(
+        callback_with_args, arg1_placeholder, arg2_placeholder);
+  }
 
  private:
   bool CreateNetworkingObjects(
@@ -211,6 +226,9 @@ class StreamConnectionTmpl : public StreamConnection {
  protected:
   explicit StreamConnectionTmpl(bool is_secure);
 
+  StreamConnectionTmpl(bool is_secure,
+                       unique_ptr<AsyncStreamT>&& connected_stream);
+
   // Subclasses must provide for creation of the underlying stream object.
   virtual unique_ptr<AsyncStreamT> StreamConstruct(
       asio::io_service& io_service) = 0;
@@ -249,7 +267,14 @@ class StreamConnectionTmpl : public StreamConnection {
 
 template <typename AsyncStreamT>
 StreamConnectionTmpl<AsyncStreamT>::StreamConnectionTmpl(bool is_secure)
-  : StreamConnection(is_secure) {
+    : StreamConnection(is_secure, false /* is_open */) {
+}
+
+template <typename AsyncStreamT>
+StreamConnectionTmpl<AsyncStreamT>::StreamConnectionTmpl(
+    bool is_secure, unique_ptr<AsyncStreamT>&& connected_stream)
+    : StreamConnection(is_secure, true /* is_open */),
+      stream_(std::move(CHECK_NOTNULL(connected_stream))) {
 }
 
 template <typename AsyncStreamT>
@@ -264,7 +289,9 @@ AsyncStreamT& StreamConnectionTmpl<AsyncStreamT>::stream() {
 template <typename AsyncStreamT>
 void StreamConnectionTmpl<AsyncStreamT>::StreamCreate(
     asio::io_service& io_service) {
-  stream_ = StreamConstruct(io_service);
+  if (stream_.get() == nullptr) {
+    stream_ = StreamConstruct(io_service);
+  }
 }
 
 template <typename AsyncStreamT>

@@ -16,6 +16,7 @@ namespace polar_express {
 class TcpConnection : public StreamConnectionTmpl<asio::ip::tcp::socket> {
  public:
   TcpConnection();
+  explicit TcpConnection(unique_ptr<asio::ip::tcp::socket>&& connected_socket);
   virtual ~TcpConnection();
 
  private:
