@@ -415,8 +415,6 @@ void GlacierConnection::HandleDescribeVault(
     Callback describe_vault_callback) {
   assert(vault_description != nullptr);
 
-  std::cerr << "In HandleDescribeVault" << std::endl;
-
   if (!http_connection_->last_request_succeeded() &&
       response_->status_code() != 200) {
     HandleOperationError(describe_vault_callback);
