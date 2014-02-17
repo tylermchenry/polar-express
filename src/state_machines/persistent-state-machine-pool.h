@@ -70,7 +70,6 @@ class PersistentStateMachinePool : public StateMachinePool<InputT> {
   void DeactivateStateMachineAndTryRunNext(
       boost::shared_ptr<StateMachineT> state_machine);
 
- protected:
   void StateMachineProducedOutput(
       boost::shared_ptr<StateMachineT> state_machine,
       size_t output_weight_remaining);
@@ -166,13 +165,34 @@ void
 PersistentStateMachinePool<StateMachineT, InputT>::StateMachineProducedOutput(
     boost::shared_ptr<StateMachineT> state_machine,
     size_t output_weight_remaining) {
+  DLOG(std::cerr << name() << " notified of output produced from state machine "
+                 << state_machine.get()
+                 << " without outstanding output weight = "
+                 << output_weight_outstanding_[state_machine.get()]
+                 << " (current active output weight outstanding = "
+                 << active_output_weight_outstanding_
+                 << "). Machine reports output weight remaining = "
+                 << output_weight_remaining << std::endl);
+
   // Terminated machines get special treatment because their output is not in
   // response to input, so may exceed the output weight outstanding for the
   // machine.
   if (terminated_state_machines_.find(state_machine) !=
       terminated_state_machines_.end()) {
-    active_output_weight_outstanding_ -=
-        output_weight_outstanding_[state_machine.get()];
+    DLOG(std::cerr << name() << " notices state machine " << state_machine.get()
+                   << " is terminated. Disregarding reported remaining weight."
+                   << std::endl);
+
+    // Terminated state machines may be active or inactive at this point. If
+    // active, we must account for the output weight outstanding before erasing
+    // the terminated machine's entry from the output_weight_outstanding_ map.
+    // If inactive, leave active output weight alone, since this machine is not
+    // contributing to it.
+    if (active_state_machines_.find(state_machine) !=
+        active_state_machines_.end()) {
+      active_output_weight_outstanding_ -=
+          output_weight_outstanding_[state_machine.get()];
+    }
     output_weight_outstanding_.erase(state_machine.get());
   } else {
     assert(output_weight_outstanding_[state_machine.get()] >=
@@ -180,11 +200,18 @@ PersistentStateMachinePool<StateMachineT, InputT>::StateMachineProducedOutput(
     const size_t output_weight_produced =
         output_weight_outstanding_[state_machine.get()] -
         output_weight_remaining;
+    DLOG(std::cerr << name()
+                   << " computed output weight produced by state machine "
+                   << state_machine.get() << " = " << output_weight_produced
+                   << std::endl);
     output_weight_outstanding_[state_machine.get()] = output_weight_remaining;
 
     assert(active_output_weight_outstanding_ >= output_weight_produced);
     active_output_weight_outstanding_ -= output_weight_produced;
   }
+
+  DLOG(std::cerr << name() << " new active output weight oustanding = "
+       << active_output_weight_outstanding_ << std::endl);
 }
 
 template <typename StateMachineT, typename InputT>
@@ -270,6 +297,12 @@ PersistentStateMachinePool<StateMachineT, InputT>::TryActivateStateMachine() {
     active_state_machines_.insert(activated_state_machine);
     active_output_weight_outstanding_ +=
         output_weight_outstanding_[activated_state_machine.get()];
+    DLOG(std::cerr << name() << " activated state machine "
+                   << activated_state_machine.get()
+                   << " with outstanding output weight = "
+                   << output_weight_outstanding_[activated_state_machine.get()]
+                   << ". New active output weight outstanding = "
+                   << active_output_weight_outstanding_ << std::endl);
   }
   return activated_state_machine;
 }
@@ -281,10 +314,19 @@ void PersistentStateMachinePool<StateMachineT, InputT>::DeactivateStateMachine(
   if(active_state_machines_.find(state_machine) !=
      active_state_machines_.end()) {
     active_state_machines_.erase(state_machine);
+    DLOG(std::cerr << name() << " is deactivating state machine "
+                   << state_machine.get()
+                   << " without outstanding output weight = "
+                   << output_weight_outstanding_[state_machine.get()]
+                   << " (current active output weight outstanding = "
+                   << active_output_weight_outstanding_ << ")" << std::endl);
+
     assert(active_output_weight_outstanding_ >=
            output_weight_outstanding_[state_machine.get()]);
     active_output_weight_outstanding_ -=
         output_weight_outstanding_[state_machine.get()];
+    DLOG(std::cerr << name() << " new active output weight oustanding = "
+                   << active_output_weight_outstanding_ << std::endl);
 
     if (terminated_state_machines_.find(state_machine) ==
         terminated_state_machines_.end()) {
@@ -318,6 +360,13 @@ void PersistentStateMachinePool<StateMachineT, InputT>::TryRunNextInput(
     const size_t output_weight = OutputWeightToBeAddedByInput(input);
     output_weight_outstanding_[state_machine.get()] += output_weight;
     active_output_weight_outstanding_ += output_weight;
+    DLOG(std::cerr << name() << " added input corresponding to output weight = "
+                   << output_weight << " to state machine "
+                   << state_machine.get()
+                   << ". Its new outstanding output weight = "
+                   << output_weight_outstanding_[state_machine.get()]
+                   << ". New active output weight outstanding = "
+                   << active_output_weight_outstanding_ << std::endl);
     RunInputOnStateMachine(input, state_machine);
   } else {
     DeactivateStateMachine(state_machine);
