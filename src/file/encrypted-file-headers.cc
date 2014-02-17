@@ -131,7 +131,7 @@ void EncryptedFileHeaders::SetKeyDerivationHkdfSha256(
          sizeof(EncryptedFileHeaders::KeyDerivationParametersHkdfSha256::info));
   assert(encryption_key_salt.size() ==
          sizeof(EncryptedFileHeaders::KeyDerivationParametersHkdfSha256::
-                    encryption_key_salt));
+                encryption_key_salt));
   assert(mac_key_salt.size() ==
          sizeof(EncryptedFileHeaders::KeyDerivationParametersHkdfSha256::
                 mac_key_salt));
@@ -187,6 +187,15 @@ void EncryptedFileHeaders::GetHeaderBlock(vector<byte>* header_block) const {
         header_block->end(),
         reinterpret_cast<const byte*>(key_derivation_parameters_pbkdf2_.get()),
         reinterpret_cast<const byte*>(key_derivation_parameters_pbkdf2_.get()) +
+            sizeof(*key_derivation_parameters_pbkdf2_));
+  } else if (strcmp(generic_header_fields_->key_derivation_type_id,
+                    kKeyDerivationTypeIdHkdfSha256) == 0) {
+    header_block->insert(
+        header_block->end(),
+        reinterpret_cast<const byte*>(
+            key_derivation_parameters_hkdf_sha256_.get()),
+        reinterpret_cast<const byte*>(
+            key_derivation_parameters_hkdf_sha256_.get()) +
             sizeof(*key_derivation_parameters_pbkdf2_));
   }
 

@@ -65,6 +65,7 @@ void Cryptor::DeriveKeysFromMasterKey(
     KeyingData* keying_data) {
   assert(keying_data != nullptr);
   const size_t kKeyLength = CreateCryptor(encryption_type)->key_length();
+  const size_t kSaltLength = kKeyLength;
 
   // Using the same key for encryption and MAC is not safe, but no
   // currently-supported authentication modes in this program actually use a
@@ -93,13 +94,11 @@ void Cryptor::DeriveKeysFromMasterKey(
   keying_data->hkdf_info.reset(new vector<byte>(
       kHkdfInfoSha256, kHkdfInfoSha256 + sizeof(kHkdfInfoSha256)));
 
-  keying_data->encryption_key_salt
-      .reset(new vector<byte>(CryptoPP::HMAC<CryptoPP::SHA256>::MAX_KEYLENGTH));
+  keying_data->encryption_key_salt.reset(new vector<byte>(kSaltLength));
   DeriveKeyHkdfSha256(master_key, keying_data->encryption_key_salt.get(),
                       keying_data->encryption_key.get());
 
-  keying_data->mac_key_salt
-      .reset(new vector<byte>(CryptoPP::HMAC<CryptoPP::SHA256>::MAX_KEYLENGTH));
+  keying_data->mac_key_salt.reset(new vector<byte>(kSaltLength));
   DeriveKeyHkdfSha256(master_key, keying_data->mac_key_salt.get(),
                       keying_data->mac_key.get());
 }
