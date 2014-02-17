@@ -66,7 +66,7 @@ bool StreamConnection::Open(
   protocol_ = protocol;
 
   asio::ip::tcp::resolver::query query(hostname, protocol);
-  auto handler = MakeStrandCallbackWithArgs<
+  auto handler = strand_dispatcher_->MakeStrandCallbackWithArgs<
       const system::error_code&, asio::ip::tcp::resolver::iterator>(
           boost::bind(
               &StreamConnection::HandleResolve, this, _1, _2, callback),
@@ -114,10 +114,11 @@ bool StreamConnection::WriteAll(
     write_buffers_.push_back(asio::buffer(*CHECK_NOTNULL(data)));
   }
 
-  auto handler = MakeStrandCallbackWithArgs<const system::error_code&, size_t>(
-      boost::bind(&StreamConnection::HandleWrite, this, _1, _2, callback),
-      asio::placeholders::error,
-      asio::placeholders::bytes_transferred);
+  auto handler = strand_dispatcher_->MakeStrandCallbackWithArgs<
+    const system::error_code&, size_t>(
+        boost::bind(&StreamConnection::HandleWrite, this, _1, _2, callback),
+        asio::placeholders::error,
+        asio::placeholders::bytes_transferred);
 
   StreamAsyncWrite(write_buffers_, handler);
   return true;
@@ -133,11 +134,12 @@ bool StreamConnection::ReadUntil(
   is_reading_ = true;
 
   auto termination_condition = MatchByteSequenceCondition(terminator_bytes);
-  auto handler = MakeStrandCallbackWithArgs<const system::error_code&, size_t>(
-      boost::bind(&StreamConnection::HandleReadUntil, this, _1, _2,
-                  termination_condition, data, callback),
-      asio::placeholders::error,
-      asio::placeholders::bytes_transferred);
+  auto handler = strand_dispatcher_->MakeStrandCallbackWithArgs<
+    const system::error_code&, size_t>(
+        boost::bind(&StreamConnection::HandleReadUntil, this, _1, _2,
+                    termination_condition, data, callback),
+        asio::placeholders::error,
+        asio::placeholders::bytes_transferred);
 
   StreamAsyncReadUntil(read_streambuf_.get(), termination_condition, handler);
   return true;
@@ -161,11 +163,12 @@ bool StreamConnection::ReadSize(
        data->begin());
   read_streambuf_->consume(existing_output_size);
 
-  auto handler = MakeStrandCallbackWithArgs<const system::error_code&, size_t>(
-      boost::bind(
-          &StreamConnection::HandleReadSize, this, _1, _2, data, callback),
-      asio::placeholders::error,
-      asio::placeholders::bytes_transferred);
+  auto handler = strand_dispatcher_->MakeStrandCallbackWithArgs<
+    const system::error_code&, size_t>(
+        boost::bind(
+            &StreamConnection::HandleReadSize, this, _1, _2, data, callback),
+        asio::placeholders::error,
+        asio::placeholders::bytes_transferred);
 
   // Read the amount of data necessary to reach max_data_size. It is
   // possible that the existing output from read_streambuf_ has
@@ -215,12 +218,12 @@ void StreamConnection::DestroyNetworkingObjects() {
 void StreamConnection::TryConnect(
     asio::ip::tcp::resolver::iterator endpoint_iterator,
     Callback open_callback) {
-  auto handler = MakeStrandCallbackWithArgs<
+  auto handler = strand_dispatcher_->MakeStrandCallbackWithArgs<
     const system::error_code&, asio::ip::tcp::resolver::iterator>(
-      boost::bind(
-          &StreamConnection::HandleConnect, this, _1, _2, open_callback),
-      asio::placeholders::error,
-      asio::placeholders::iterator);
+        boost::bind(
+            &StreamConnection::HandleConnect, this, _1, _2, open_callback),
+        asio::placeholders::error,
+        asio::placeholders::iterator);
 
   StreamAsyncConnect(endpoint_iterator, handler);
 }

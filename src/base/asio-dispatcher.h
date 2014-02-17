@@ -4,6 +4,7 @@
 #include <memory>
 
 #include <boost/asio.hpp>
+#include <boost/bind.hpp>
 #include <boost/shared_ptr.hpp>
 
 #include "base/callback.h"
@@ -89,12 +90,40 @@ class AsioDispatcher {
     // this strand.
     Callback CreateStrandCallback(Callback callback);
 
+    // The following is some template magic that allows creation of
+    // callbacks which will be run in the appropriate strand for the purpose of
+    // passing to certain boost methods. This requires some work, because unlike
+    // all of the internal callbacks in polar express, which are zero-argument
+    // and fully bound, the some callbacks invoked by boost objects need to take
+    // arguments.
+    //
+    // So the following templates allow us to create a callback that takes
+    // the arguments that boost wants to pass. When it is invoked, it
+    // creates a new, fully-bound callback using those arguments and posts
+    // it to the appropriate strand.
+    template <typename T1, typename PT1>
+    boost::function<void(T1)> MakeStrandCallbackWithArgs(
+        boost::function<void(T1)> callback_with_args, PT1 arg1_placeholder);
+
+    template <typename T1, typename T2, typename PT1, typename PT2>
+    boost::function<void(T1, T2)> MakeStrandCallbackWithArgs(
+        boost::function<void(T1, T2)> callback_with_args, PT1 arg1_placeholder,
+        PT2 arg2_placeholder);
+
     // USE THESE SPARINGLY. Misuse of raw io_service objects can really
     // screw up the dispatch loop. This should only really be
-    // necessary for creating boost ASIO-based networking objects.
+    // necessary for creating low-level boost ASIO-based networking objects.
     asio::io_service& io_service();
     unique_ptr<asio::io_service::work> make_work();
    private:
+    template <typename T1>
+    void StrandCallbackWithArgs(
+        boost::function<void(T1)> callback_with_args, T1 arg1);
+
+    template <typename T1, typename T2>
+    void StrandCallbackWithArgs(
+        boost::function<void(T1, T2)> callback_with_args, T1 arg1, T2 arg2);
+
     const AsioDispatcher* const asio_dispatcher_;
     const boost::shared_ptr<asio::io_service> io_service_;
     const boost::shared_ptr<asio::io_service::strand> strand_;
@@ -142,6 +171,7 @@ class AsioDispatcher {
   boost::shared_ptr<asio::io_service> uplink_io_service_;
   boost::shared_ptr<asio::io_service> downlink_io_service_;
   boost::shared_ptr<asio::io_service> state_machine_io_service_;
+  boost::shared_ptr<asio::io_service> user_interface_io_service_;
 
   vector<boost::shared_ptr<asio::io_service::work> > work_;
   boost::shared_ptr<thread_group> worker_threads_;
@@ -151,6 +181,37 @@ class AsioDispatcher {
 
   DISALLOW_COPY_AND_ASSIGN(AsioDispatcher);
 };
+
+template <typename T1>
+void AsioDispatcher::StrandDispatcher::StrandCallbackWithArgs(
+    boost::function<void(T1)> callback_with_args, T1 arg1) {
+  Post(boost::bind(callback_with_args, arg1));
+}
+
+template <typename T1, typename T2>
+void AsioDispatcher::StrandDispatcher::StrandCallbackWithArgs(
+    boost::function<void(T1, T2)> callback_with_args, T1 arg1, T2 arg2) {
+  Post(boost::bind(callback_with_args, arg1, arg2));
+}
+
+template <typename T1, typename PT1>
+boost::function<void(T1)>
+AsioDispatcher::StrandDispatcher::MakeStrandCallbackWithArgs(
+    boost::function<void(T1)> callback_with_args, PT1 arg1_placeholder) {
+  return boost::bind(
+      &AsioDispatcher::StrandDispatcher::StrandCallbackWithArgs<T1>, this,
+      callback_with_args, arg1_placeholder);
+}
+
+template <typename T1, typename T2, typename PT1, typename PT2>
+boost::function<void(T1, T2)>
+AsioDispatcher::StrandDispatcher::MakeStrandCallbackWithArgs(
+    boost::function<void(T1, T2)> callback_with_args, PT1 arg1_placeholder,
+    PT2 arg2_placeholder) {
+  return boost::bind(
+      &AsioDispatcher::StrandDispatcher::StrandCallbackWithArgs<T1, T2>, this,
+      callback_with_args, arg1_placeholder, arg2_placeholder);
+}
 
 }  // namespace polar_express
 

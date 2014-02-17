@@ -130,38 +130,7 @@ class StreamConnection {
   // successfully established. By default, just invokes open_callback.
   virtual void AfterConnect(Callback open_callback);
 
-  // The following is some template magic that allows us to create
-  // callbacks for the boost TCP object methods which will be run in the
-  // appropriate strand. This requires some work, because unlike all of
-  // the internal callbacks in polar express, whcih are zero-argument
-  // and fully bound, the callbacks invoked by the boost TCP objects
-  // need to take arguments.
-  //
-  // So the following templates allow us to create a callback that takes
-  // the arguments that boost wants to pass. When it is invoked, it
-  // creates a new, fully-bound callback using those arguments and posts
-  // it to the appropriate strand.
-  //
-  // TODO: If this turns out to be more generally useful, move these
-  // templates to asio-dispatcher.h.
-  template <typename T1, typename PT1>
-  boost::function<void(T1)> MakeStrandCallbackWithArgs(
-      boost::function<void(T1)> callback_with_args, PT1 arg1_placeholder);
-
-  template <typename T1, typename T2, typename PT1, typename PT2>
-  boost::function<void(T1, T2)> MakeStrandCallbackWithArgs(
-      boost::function<void(T1, T2)> callback_with_args, PT1 arg1_placeholder,
-      PT2 arg2_placeholder);
-
  private:
-  template <typename T1, typename T2>
-  void StrandCallbackWithArgs(boost::function<void(T1, T2)> callback_with_args,
-                              T1 arg1, T2 arg2);
-
-  template <typename T1>
-  void StrandCallbackWithArgs(boost::function<void(T1)> callback_with_args,
-                              T1 arg1);
-
   bool CreateNetworkingObjects(
       AsioDispatcher::NetworkUsageType network_usage_type);
   void DestroyNetworkingObjects();
@@ -214,33 +183,6 @@ class StreamConnection {
 
   DISALLOW_COPY_AND_ASSIGN(StreamConnection);
 };
-
-template <typename T1, typename PT1>
-boost::function<void(T1)> StreamConnection::MakeStrandCallbackWithArgs(
-    boost::function<void(T1)> callback_with_args, PT1 arg1_placeholder) {
-  return boost::bind(&StreamConnection::StrandCallbackWithArgs<T1>, this,
-                     callback_with_args, arg1_placeholder);
-}
-
-template <typename T1, typename T2, typename PT1, typename PT2>
-boost::function<void(T1, T2)> StreamConnection::MakeStrandCallbackWithArgs(
-    boost::function<void(T1, T2)> callback_with_args, PT1 arg1_placeholder,
-    PT2 arg2_placeholder) {
-  return boost::bind(&StreamConnection::StrandCallbackWithArgs<T1, T2>, this,
-                     callback_with_args, arg1_placeholder, arg2_placeholder);
-}
-
-template <typename T1>
-void StreamConnection::StrandCallbackWithArgs(
-    boost::function<void(T1)> callback_with_args, T1 arg1) {
-  strand_dispatcher_->Post(boost::bind(callback_with_args, arg1));
-}
-
-template <typename T1, typename T2>
-void StreamConnection::StrandCallbackWithArgs(
-    boost::function<void(T1, T2)> callback_with_args, T1 arg1, T2 arg2) {
-  strand_dispatcher_->Post(boost::bind(callback_with_args, arg1, arg2));
-}
 
 }  // namespace polar_express
 
