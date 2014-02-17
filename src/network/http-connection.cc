@@ -10,6 +10,7 @@
 #include <boost/regex.hpp>
 #include <curl/curl.h>
 
+#include "base/make-unique.h"
 #include "network/ssl-connection.h"
 #include "network/tcp-connection.h"
 #include "proto/http.pb.h"
@@ -53,15 +54,13 @@ bool MethodRequiresContentLength(HttpRequest::Method method) {
 }  // namespace
 
 HttpConnection::HttpConnection()
-    : HttpConnection(false  /* not secure */) {
+    : HttpConnection(make_unique<TcpConnection>()) {
 }
 
-HttpConnection::HttpConnection(bool secure)
+HttpConnection::HttpConnection(unique_ptr<StreamConnection>&& stream_connection)
     : request_pending_(false),
       last_request_succeeded_(false),
-      stream_connection_(
-          secure ? static_cast<StreamConnection*>(new SslConnection)
-                 : static_cast<StreamConnection*>(new TcpConnection)),
+      stream_connection_(std::move(CHECK_NOTNULL(stream_connection))),
       curl_(curl_easy_init()) {
 }
 
@@ -575,7 +574,7 @@ void HttpConnection::CleanUpRequestState() {
 }
 
 HttpsConnection::HttpsConnection()
-    : HttpConnection(true  /* secure */) {
+    : HttpConnection(make_unique<SslConnection>()) {
 }
 
 HttpsConnection::~HttpsConnection() {

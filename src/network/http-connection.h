@@ -17,6 +17,7 @@ class StreamConnection;
 class HttpConnection {
  public:
   HttpConnection();
+  explicit HttpConnection(unique_ptr<StreamConnection>&& stream_connection);
   virtual ~HttpConnection();
 
   // These methods are synchronous but not internally synchronized.
@@ -62,9 +63,6 @@ class HttpConnection {
       const vector<const vector<byte>*>& request_sequential_payload,
       HttpResponse* response, vector<byte>* response_payload,
       Callback callback);
-
- protected:
-  explicit HttpConnection(bool secure);
 
  private:
   void SerializeRequest(const HttpRequest& request, size_t payload_size);
