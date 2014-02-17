@@ -3,6 +3,7 @@
 #include <iostream>
 #include <utility>
 
+#include <boost/filesystem.hpp>
 #include <boost/program_options/cmdline.hpp>
 #include <boost/program_options/parsers.hpp>
 #include <boost/program_options/positional_options.hpp>
@@ -16,6 +17,7 @@ namespace {
 
 const char kHelpOption[] = "help";
 const char kVersionOption[] = "version";
+const char kConfigOption[] = "config";
 
 const char kProgramName[] = "Polar Express";
 const char kProgramDescription[] =
@@ -29,6 +31,26 @@ const char kLicenseNotice[] =
     "This is free software: you are free to change and redistribute it.\n"
     "There is NO WARRANTY, to the extent permitted by law.";
 
+void LoadOptionsFromConfigFile(const string& config_file,
+                               const program_options::options_description& desc,
+                               program_options::variables_map* vm) {
+  if (config_file.empty()) {
+    return;
+  }
+
+  try {
+    program_options::store(
+        program_options::parse_config_file<char>(config_file.c_str(), desc),
+        *CHECK_NOTNULL(vm));
+  } catch (const std::exception& ex) {
+    std::cerr << "ERROR: Error reading config file '" << config_file
+              << "'. Details: " << ex.what() << std::endl;
+  } catch (...) {
+    std::cerr << "ERROR: Error reading config file '" << config_file
+              << "'. (No details)" << std::endl;
+  }
+}
+
 }  // namespace
 
 bool Init(int argc, char** argv) {
@@ -36,6 +58,8 @@ bool Init(int argc, char** argv) {
   program_options::options_description desc("Options");
   desc.add_options()(kHelpOption, "Produce this message.");
   desc.add_options()(kVersionOption, "Show version information.");
+  desc.add_options()(kConfigOption, program_options::value<string>(),
+                     "Path to file with configuration options.");
   internal::OptionDefinition::AddAllDefinedOptions(&desc);
 
   // TODO: An option should be able to define itself as positional.
@@ -44,6 +68,11 @@ bool Init(int argc, char** argv) {
 
   program_options::store(
       program_options::parse_command_line(argc, argv, desc), vm);
+
+  if (vm.count(kConfigOption)) {
+    LoadOptionsFromConfigFile(vm[kConfigOption].as<string>(), desc, &vm);
+  }
+
   program_options::notify(vm);
 
   if (vm.count(kHelpOption)) {
@@ -58,6 +87,7 @@ bool Init(int argc, char** argv) {
     std::cout << kLicenseNotice << std::endl;
     return false;
   }
+
   return true;
 }
 
