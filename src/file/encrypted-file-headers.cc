@@ -196,7 +196,7 @@ void EncryptedFileHeaders::GetHeaderBlock(vector<byte>* header_block) const {
             key_derivation_parameters_hkdf_sha256_.get()),
         reinterpret_cast<const byte*>(
             key_derivation_parameters_hkdf_sha256_.get()) +
-            sizeof(*key_derivation_parameters_pbkdf2_));
+            sizeof(*key_derivation_parameters_hkdf_sha256_));
   }
 
   if (strcmp(generic_header_fields_->encryption_type_id,
