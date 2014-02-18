@@ -8,7 +8,7 @@
 #include <boost/lexical_cast.hpp>
 #include <json_spirit.h>
 
-#include "network/http-connection.h"
+#include "network/http-client-connection.h"
 #include "proto/glacier.pb.h"
 #include "proto/http.pb.h"
 
@@ -93,32 +93,32 @@ GlacierConnection::GlacierConnection()
 }
 
 GlacierConnection::GlacierConnection(bool secure)
-    : http_connection_(secure
-                           ? static_cast<HttpConnection*>(new HttpsConnection)
-                           : static_cast<HttpConnection*>(new HttpConnection)),
+    : http_client_connection_(
+          secure
+              ? static_cast<HttpClientConnection*>(new HttpsClientConnection)
+              : static_cast<HttpClientConnection*>(new HttpClientConnection)),
       amazon_http_request_util_(new AmazonHttpRequestUtil),
       send_secure_requests_(secure),
       operation_pending_(false),
-      last_operation_succeeded_(false) {
-}
+      last_operation_succeeded_(false) {}
 
 GlacierConnection::~GlacierConnection() {
 }
 
 bool GlacierConnection::is_secure() const {
-  return http_connection_->is_secure();
+  return http_client_connection_->is_secure();
 }
 
 bool GlacierConnection::is_opening() const {
-  return http_connection_->is_opening();
+  return http_client_connection_->is_opening();
 }
 
 bool GlacierConnection::is_open() const {
-  return http_connection_->is_open();
+  return http_client_connection_->is_open();
 }
 
 AsioDispatcher::NetworkUsageType GlacierConnection::network_usage_type() const {
-  return http_connection_->network_usage_type();
+  return http_client_connection_->network_usage_type();
 }
 
 const string& GlacierConnection::aws_region_name() const {
@@ -134,7 +134,7 @@ const CryptoPP::SecByteBlock& GlacierConnection::aws_secret_key() const {
 }
 
 bool GlacierConnection::last_operation_succeeded() const {
-  return http_connection_->last_request_succeeded();
+  return http_client_connection_->last_request_succeeded();
 }
 
 bool GlacierConnection::Open(
@@ -149,7 +149,7 @@ bool GlacierConnection::Open(
   aws_access_key_ = aws_access_key;
   aws_secret_key_ = aws_secret_key;
 
-  return http_connection_->Open(
+  return http_client_connection_->Open(
       network_usage_type,
       algorithm::join<vector<string> >(
         { kAwsGlacierServiceName, aws_region_name_, kAwsDomain }, "."),
@@ -160,11 +160,11 @@ bool GlacierConnection::Reopen(Callback callback) {
   if (strand_dispatcher_ == nullptr) {
     return false;
   }
-  return http_connection_->Reopen(callback);
+  return http_client_connection_->Reopen(callback);
 }
 
 void GlacierConnection::Close() {
-  http_connection_->Close();
+  http_client_connection_->Close();
 }
 
 bool GlacierConnection::CreateVault(
@@ -179,7 +179,7 @@ bool GlacierConnection::CreateVault(
   HttpRequest request;
   request.set_is_secure(send_secure_requests_);
   request.set_method(HttpRequest::PUT);
-  request.set_hostname(http_connection_->hostname());
+  request.set_hostname(http_client_connection_->hostname());
   request.set_path(kAwsGlacierVaultPathPrefix + vault_name);
 
   SendRequest(
@@ -203,7 +203,7 @@ bool GlacierConnection::DescribeVault(
   HttpRequest request;
   request.set_is_secure(send_secure_requests_);
   request.set_method(HttpRequest::GET);
-  request.set_hostname(http_connection_->hostname());
+  request.set_hostname(http_client_connection_->hostname());
   request.set_path(kAwsGlacierVaultPathPrefix + vault_name);
 
   SendRequest(
@@ -227,7 +227,7 @@ bool GlacierConnection::ListVaults(
   HttpRequest request;
   request.set_is_secure(send_secure_requests_);
   request.set_method(HttpRequest::GET);
-  request.set_hostname(http_connection_->hostname());
+  request.set_hostname(http_client_connection_->hostname());
   request.set_path(kAwsGlacierVaultPathPrefix);
 
   KeyValue* max_vaults_param = request.add_query_parameters();
@@ -261,7 +261,7 @@ bool GlacierConnection::DeleteVault(
   HttpRequest request;
   request.set_is_secure(send_secure_requests_);
   request.set_method(HttpRequest::DELETE);
-  request.set_hostname(http_connection_->hostname());
+  request.set_hostname(http_client_connection_->hostname());
   request.set_path(kAwsGlacierVaultPathPrefix + vault_name);
 
   SendRequest(
@@ -309,7 +309,7 @@ bool GlacierConnection::UploadArchive(
   HttpRequest request;
   request.set_is_secure(send_secure_requests_);
   request.set_method(HttpRequest::POST);
-  request.set_hostname(http_connection_->hostname());
+  request.set_hostname(http_client_connection_->hostname());
   request.set_path(kAwsGlacierVaultPathPrefix + vault_name + '/' +
                    kAwsGlacierArchivesDirectory);
 
@@ -349,7 +349,7 @@ bool GlacierConnection::DeleteArchive(const string& vault_name,
   HttpRequest request;
   request.set_is_secure(send_secure_requests_);
   request.set_method(HttpRequest::DELETE);
-  request.set_hostname(http_connection_->hostname());
+  request.set_hostname(http_client_connection_->hostname());
   request.set_path(kAwsGlacierVaultPathPrefix + vault_name + '/' +
                    kAwsGlacierArchivesDirectory + '/' + archive_id);
 
@@ -389,9 +389,9 @@ bool GlacierConnection::SendRequest(
           &authorized_request)) {
     response_.reset(new HttpResponse);
     response_payload_.reset(new vector<byte>);
-    return http_connection_->SendRequest(authorized_request, sequential_payload,
-                                         response_.get(),
-                                         response_payload_.get(), callback);
+    return http_client_connection_->SendRequest(
+        authorized_request, sequential_payload, response_.get(),
+        response_payload_.get(), callback);
   }
 
   return false;
@@ -402,7 +402,7 @@ void GlacierConnection::HandleCreateVault(
     Callback create_vault_callback) {
   // Note that AWS returns "201 Created", NOT "200 OK" for success.
   *CHECK_NOTNULL(vault_created) =
-      http_connection_->last_request_succeeded() &&
+      http_client_connection_->last_request_succeeded() &&
       response_->status_code() == 201;
 
   last_operation_succeeded_ = *vault_created;
@@ -415,7 +415,7 @@ void GlacierConnection::HandleDescribeVault(
     Callback describe_vault_callback) {
   assert(vault_description != nullptr);
 
-  if (!http_connection_->last_request_succeeded() &&
+  if (!http_client_connection_->last_request_succeeded() &&
       response_->status_code() != 200) {
     HandleOperationError(describe_vault_callback);
     return;
@@ -446,7 +446,7 @@ void GlacierConnection::HandleListVaults(
     Callback list_vaults_callback) {
   assert(vault_list != nullptr);
 
-  if (!http_connection_->last_request_succeeded() &&
+  if (!http_client_connection_->last_request_succeeded() &&
       response_->status_code() != 200) {
     HandleOperationError(list_vaults_callback);
     return;
@@ -496,7 +496,7 @@ void GlacierConnection::HandleDeleteVault(
     Callback delete_vault_callback) {
   // Note that AWS returns "204 No Content", NOT "200 OK" for success.
   *CHECK_NOTNULL(vault_deleted) =
-      http_connection_->last_request_succeeded() &&
+      http_client_connection_->last_request_succeeded() &&
       response_->status_code() == 204;
 
   last_operation_succeeded_ = *vault_deleted;
@@ -510,7 +510,7 @@ void GlacierConnection::HandleUploadArchive(
   *CHECK_NOTNULL(archive_id) = "";
 
   // Note that AWS returns "201 Created", NOT "200 OK" for success.
-  if (!http_connection_->last_request_succeeded() ||
+  if (!http_client_connection_->last_request_succeeded() ||
       response_->status_code() != 201) {
     HandleOperationError(upload_archive_callback);
     return;
@@ -533,7 +533,7 @@ void GlacierConnection::HandleDeleteArchive(
     Callback delete_archive_callback) {
   // Note that AWS returns "204 No Content", NOT "200 OK" for success.
   *CHECK_NOTNULL(archive_deleted) =
-      http_connection_->last_request_succeeded() &&
+      http_client_connection_->last_request_succeeded() &&
       response_->status_code() == 204;
 
   last_operation_succeeded_ = *archive_deleted;

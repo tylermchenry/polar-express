@@ -61,12 +61,7 @@ ssl_connection_pkg = [
     ]
 
 http_connection_deplibs = mkdeps([
-    exports['proto']['http_proto'],
     exports['base']['asio_dispatcher'],
-    ssl_connection_pkg,
-    tcp_connection_pkg,
-    'boost_date_time',
-    'boost_regex',
     'curl',
     ])
 http_connection = env.StaticLibrary(
@@ -81,12 +76,32 @@ http_connection_pkg = [
     http_connection_deplibs
     ]
 
+http_client_connection_deplibs = mkdeps([
+    exports['proto']['http_proto'],
+    http_connection_pkg,
+    ssl_connection_pkg,
+    tcp_connection_pkg,
+    'boost_date_time',
+    'boost_regex',
+    ])
+http_client_connection = env.StaticLibrary(
+    target='http-client-connection',
+    source=[
+        'http-client-connection.cc',
+        ],
+    LIBS=http_client_connection_deplibs,
+    )
+http_client_connection_pkg = [
+    http_client_connection,
+    http_client_connection_deplibs
+    ]
+
 glacier_connection_deplibs = mkdeps([
     exports['proto']['http_proto'],
     exports['proto']['glacier_proto'],
     exports['base']['asio_dispatcher'],
     exports['util']['amazon_http_request_util'],
-    http_connection_pkg,
+    http_client_connection_pkg,
     'crypto++',
     'json_spirit',
     ])
@@ -104,7 +119,7 @@ glacier_connection_pkg = [
 
 # Not all targets are exported; some are private.
 network_exports = {
-    'http_connection': http_connection_pkg,
+    'http_client_connection': http_client_connection_pkg,
     'glacier_connection': glacier_connection_pkg,
 }
 Return('network_exports')
@@ -128,23 +143,23 @@ run_tcp_connection_test = Alias(
     tcp_connection_test[0].path)
 AlwaysBuild(run_tcp_connection_test)
 
-http_connection_test = env.Program(
-    target='http-connection_test',
+http_client_connection_test = env.Program(
+    target='http-client-connection_test',
     source=[
-        'http-connection_test.cc',
+        'http-client-connection_test.cc',
         ],
     LIBS=mkdeps([
-        exports['proto']['http_proto'],
+        exports['proto']['http_client_proto'],
         exports['base']['asio_dispatcher'],
-        http_connection_pkg,
+        http_client_connection_pkg,
         testlibs,
         ]),
     )
-run_http_connection_test = Alias(
-    'run_http_connection_test',
-    [http_connection_test],
-    http_connection_test[0].path)
-AlwaysBuild(run_http_connection_test)
+run_http_client_connection_test = Alias(
+    'run_http_client_connection_test',
+    [http_client_connection_test],
+    http_client_connection_test[0].path)
+AlwaysBuild(run_http_client_connection_test)
 
 glacier_connection_test = env.Program(
     target='glacier-connection_test',

@@ -1,4 +1,4 @@
-#include "network/http-connection.h"
+#include "network/http-client-connection.h"
 
 #include <memory>
 #include <vector>
@@ -26,16 +26,17 @@ namespace {
 //   return expected_serialized == actual_serialized;
 // }
 
-class HttpConnectionTest : public testing::TestWithParam<bool> {
+class HttpClientConnectionTest : public testing::TestWithParam<bool> {
  public:
-  HttpConnectionTest()
+  HttpClientConnectionTest()
       : open_callback_invoked_(false),
         expect_open_(false),
         request_callback_invoked_(false),
         expect_request_success_(false),
         http_connection_(
-            GetParam() ? static_cast<HttpConnection*>(new HttpsConnection)
-                       : static_cast<HttpConnection*>(new HttpConnection)) {}
+            GetParam() ? static_cast<HttpClientConnection*>(new HttpsConnection)
+                       : static_cast<HttpClientConnection*>(
+                             new HttpClientConnection)) {}
 
   virtual void SetUp() {
     AsioDispatcher::GetInstance()->Start();
@@ -65,21 +66,21 @@ class HttpConnectionTest : public testing::TestWithParam<bool> {
 
   Callback GetOpenCallback(Callback next_action) {
     return boost::bind(
-        &HttpConnectionTest::open_callback_function, this, next_action);
+        &HttpClientConnectionTest::open_callback_function, this, next_action);
   }
 
   Callback GetRequestCallback(Callback next_action) {
-    return boost::bind(
-        &HttpConnectionTest::request_callback_function, this, next_action);
+    return boost::bind(&HttpClientConnectionTest::request_callback_function,
+                       this, next_action);
   }
 
   Callback GetSendRequestAction(bool expect_success, Callback next_action) {
     return boost::bind(
-        &HttpConnectionTest::SendRequest, this, expect_success, next_action);
+        &HttpClientConnectionTest::SendRequest, this, expect_success, next_action);
   }
 
   Callback GetDestroyConnectionAction() {
-    return boost::bind(&HttpConnectionTest::DestroyConnection, this);
+    return boost::bind(&HttpClientConnectionTest::DestroyConnection, this);
   }
 
   bool open_callback_invoked_;
@@ -93,7 +94,7 @@ class HttpConnectionTest : public testing::TestWithParam<bool> {
   HttpResponse response_;
   vector<byte> response_payload_;
 
-  unique_ptr<HttpConnection> http_connection_;
+  unique_ptr<HttpClientConnection> http_connection_;
 
  private:
   void open_callback_function(Callback next_action) {
@@ -120,7 +121,7 @@ class HttpConnectionTest : public testing::TestWithParam<bool> {
   }
 };
 
-TEST_P(HttpConnectionTest, Open) {
+TEST_P(HttpClientConnectionTest, Open) {
   expect_open_ = true;
 
   EXPECT_TRUE(http_connection_->Open(
@@ -131,7 +132,7 @@ TEST_P(HttpConnectionTest, Open) {
   EXPECT_TRUE(open_callback_invoked_);
 }
 
-TEST_P(HttpConnectionTest, OpenAndSendRequest) {
+TEST_P(HttpClientConnectionTest, OpenAndSendRequest) {
   expect_open_ = true;
   expect_request_success_ = true;
 
@@ -183,7 +184,7 @@ TEST_P(HttpConnectionTest, OpenAndSendRequest) {
   EXPECT_FALSE(response_payload_.empty());
 }
 
-INSTANTIATE_TEST_CASE_P(SecureAndInsecureTest, HttpConnectionTest,
+INSTANTIATE_TEST_CASE_P(SecureAndInsecureTest, HttpClientConnectionTest,
                         testing::Bool());
 
 }  // namespace

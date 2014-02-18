@@ -9,7 +9,12 @@ message KeyValue {
 // Http Request, not including any payload (e.g. for POST).
 // Next tag: 8
 message HttpRequest {
-  optional string http_version = 1 [default = "1.1"];
+  // True if the client was able to communicate to the server. False
+  // if some error occurred below the HTTP protocol. Not relevent when
+  // acting as an HTTP client.
+  optional bool transport_succeeded = 1;
+
+  optional string http_version = 2 [default = "1.1"];
 
   enum Method {
     GET = 0;
@@ -17,31 +22,32 @@ message HttpRequest {
     POST = 2;
     DELETE = 3;
   };
-  optional Method method = 2;
-  optional bool is_secure = 3;
-  optional string hostname = 4;
-  optional string path = 5;
+  optional Method method = 3;
+  optional bool is_secure = 4;
+  optional string hostname = 5;
+  optional string path = 6;
 
   // Parameter keys and values should NOT be URI-encoded. This is
   // taken care of by the transport layer.
-  repeated KeyValue query_parameters = 6;
+  repeated KeyValue query_parameters = 7;
 
   // No need to include "host" header, since host is already specified
   // above.
-  repeated KeyValue request_headers = 7;
+  repeated KeyValue request_headers = 8;
 }
 
 // Http Request, not including any payload.
 // Next tag: 7
 message HttpResponse {
   // True if the client was able to communicate to the server. False
-  // if some error occurred below the HTTP protocol.
+  // if some error occurred below the HTTP protocol. Not relevent when
+  // acting as an HTTP server.
   optional bool transport_succeeded = 1;
 
   optional string http_version = 2;
   optional bool is_secure = 3;
 
-  optional int32 status_code = 4;
+  optional int32 status_code = 4 [default = 200];
   optional string status_phrase = 5;
 
   repeated KeyValue response_headers = 6;

@@ -16,7 +16,7 @@ namespace polar_express {
 
 class GlacierVaultDescription;
 class GlacierVaultList;
-class HttpConnection;
+class HttpClientConnection;
 class HttpRequest;
 class HttpResponse;
 
@@ -142,7 +142,7 @@ class GlacierConnection {
   unique_ptr<vector<byte> > response_payload_;
 
   boost::shared_ptr<AsioDispatcher::StrandDispatcher> strand_dispatcher_;
-  const unique_ptr<HttpConnection> http_connection_;
+  const unique_ptr<HttpClientConnection> http_client_connection_;
   const unique_ptr<AmazonHttpRequestUtil> amazon_http_request_util_;
   const bool send_secure_requests_;
 
