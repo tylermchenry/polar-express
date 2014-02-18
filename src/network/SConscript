@@ -62,6 +62,8 @@ ssl_connection_pkg = [
 
 http_connection_deplibs = mkdeps([
     exports['base']['asio_dispatcher'],
+    exports['proto']['http_proto'],
+    'boost_regex',
     'curl',
     ])
 http_connection = env.StaticLibrary(
@@ -82,7 +84,6 @@ http_client_connection_deplibs = mkdeps([
     ssl_connection_pkg,
     tcp_connection_pkg,
     'boost_date_time',
-    'boost_regex',
     ])
 http_client_connection = env.StaticLibrary(
     target='http-client-connection',

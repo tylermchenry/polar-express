@@ -4,10 +4,7 @@
 #include <sstream>
 
 #include <boost/algorithm/string.hpp>
-#include <boost/algorithm/string/regex.hpp>
 #include <boost/bind.hpp>
-#include <boost/lexical_cast.hpp>
-#include <boost/regex.hpp>
 
 #include "base/make-unique.h"
 #include "network/ssl-connection.h"
@@ -199,15 +196,8 @@ void HttpClientConnection::BuildQueryParameters(
 
 void HttpClientConnection::BuildRequestHeaders(
     const HttpRequest& request, string* request_headers) const {
-  vector<string> header_lines;
-  for (const auto& kv : request.request_headers()) {
-    if (iequals(kv.key(), "Host") || iequals(kv.key(), "Content-Length")) {
-      continue;
-    }
-    header_lines.push_back(kv.key() + ": " + kv.value());
-  }
-
-  *CHECK_NOTNULL(request_headers) = algorithm::join(header_lines, "\r\n");
+  SerializeHeaders(request.request_headers(), {"Host", "Content-Length"},
+                   request_headers);
 }
 
 bool HttpClientConnection::DeserializeResponse(HttpResponse* response) {
@@ -235,13 +225,8 @@ void HttpClientConnection::ParseResponseHeaders(
     vector<byte>::const_iterator begin,
     vector<byte>::const_iterator end,
     HttpResponse* response) const {
-  string header_line;
-  while (begin != end) {
-    begin = GetTextLineFromData(begin, end, &header_line);
-    if (!header_line.empty()) {
-      ParseResponseHeader(header_line, response);
-    }
-  }
+  DeserializeHeadersFromData(
+      begin, end, CHECK_NOTNULL(response)->mutable_response_headers());
 }
 
 void HttpClientConnection::ParseResponseStatus(
@@ -267,63 +252,19 @@ void HttpClientConnection::ParseResponseStatus(
           status_line_sstr.str().substr(status_line_sstr.tellg())));
 }
 
-void HttpClientConnection::ParseResponseHeader(
-    const string& header_line, HttpResponse* response) const {
-  // TODO: Regex seems heavyweight for this. Is there no simpler way
-  // to have a multi-character delimiter?
-  vector<string> header_parts;
-  split_regex(header_parts, header_line, regex(": "));
-
-  KeyValue* kv = CHECK_NOTNULL(response)->add_response_headers();
-  kv->set_key(header_parts[0]);
-  if (header_parts.size() >= 2) {
-    kv->set_value(header_parts[1]);
-  }
-}
-
 const string& HttpClientConnection::GetResponseHeaderValue(
     const HttpResponse& response, const string& key) const {
-  for (const auto& kv : response.response_headers()) {
-    if (iequals(kv.key(), key)) {
-      return kv.value();
-    }
-  }
-  return KeyValue::default_instance().value();
+  return GetHeaderValue(response.response_headers(), key);
 }
 
-bool HttpClientConnection::IsChunkedPayload(
+bool HttpClientConnection::IsResponsePayloadChunked(
     const HttpResponse& response) const {
-  return iequals(
-      GetResponseHeaderValue(response, "Transfer-Encoding"), "chunked");
+  return IsPayloadChunked(response.response_headers());
 }
 
 size_t HttpClientConnection::GetResponsePayloadSize(
     const HttpResponse& response) const {
-  try {
-    return lexical_cast<size_t>(
-        GetResponseHeaderValue(response, "Content-Length"));
-  } catch (bad_lexical_cast&) {
-    return 0;
-  }
-}
-
-size_t HttpClientConnection::GetPayloadChunkSize(
-    const vector<byte>& chunk_header) const {
-  string chunk_header_str;
-  const auto itr = find(chunk_header.begin(), chunk_header.end(), ';');
-  try {
-    // boost::lexical_cast doesn't support hexadecimal, and
-    // strtoi/strtol require that we know what fundamental type size_t
-    // maps to. So do it the roundabout way.
-    istringstream sstr(string(chunk_header.begin(), itr));
-    size_t chunk_size;
-    sstr >> hex >> chunk_size;
-    return chunk_size;
-  } catch (...) {
-    // Must use max instead of 0 or -1, since 0 is a meaningful value
-    // and size_t is unsigned.
-    return std::numeric_limits<size_t>::max();
-  }
+  return GetPayloadSize(response.response_headers());
 }
 
 void HttpClientConnection::RequestSent(
@@ -351,7 +292,7 @@ void HttpClientConnection::ResponseReceived(
   bool still_ok = false;
   if (stream_connection().last_read_succeeded() &&
       DeserializeResponse(response)) {
-    if (IsChunkedPayload(*response)) {
+    if (IsResponsePayloadChunked(*response)) {
       Callback response_payload_chunk_header_received_callback =
           CreateStrandCallback(
               boost::bind(

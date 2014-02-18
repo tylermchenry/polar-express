@@ -79,17 +79,12 @@ class HttpClientConnection : public HttpConnection {
   void ParseResponseStatus(
       const string& status_line, HttpResponse* response) const;
 
-  void ParseResponseHeader(
-      const string& header_line, HttpResponse* response) const;
-
   const string& GetResponseHeaderValue(
       const HttpResponse& response, const string& key) const;
 
-  bool IsChunkedPayload(const HttpResponse& response) const;
+  bool IsResponsePayloadChunked(const HttpResponse& response) const;
 
   size_t GetResponsePayloadSize(const HttpResponse& response) const;
-
-  size_t GetPayloadChunkSize(const vector<byte>& chunk_header) const;
 
   void RequestSent(
       HttpResponse* response, vector<byte>* response_payload,
