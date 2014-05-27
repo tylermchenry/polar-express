@@ -97,6 +97,25 @@ http_client_connection_pkg = [
     http_client_connection_deplibs
     ]
 
+http_server_connection_deplibs = mkdeps([
+    exports['proto']['http_proto'],
+    http_connection_pkg,
+    ssl_connection_pkg,
+    tcp_connection_pkg,
+    'boost_date_time',
+    ])
+http_server_connection = env.StaticLibrary(
+    target='http-server-connection',
+    source=[
+        'http-server-connection.cc',
+        ],
+    LIBS=http_server_connection_deplibs,
+    )
+http_server_connection_pkg = [
+    http_server_connection,
+    http_server_connection_deplibs
+    ]
+
 glacier_connection_deplibs = mkdeps([
     exports['proto']['http_proto'],
     exports['proto']['glacier_proto'],
@@ -121,6 +140,7 @@ glacier_connection_pkg = [
 # Not all targets are exported; some are private.
 network_exports = {
     'http_client_connection': http_client_connection_pkg,
+    'http_server_connection': http_server_connection_pkg,
     'glacier_connection': glacier_connection_pkg,
 }
 Return('network_exports')

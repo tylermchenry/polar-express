@@ -51,6 +51,22 @@ string HttpConnection::UriEncode(const string& str) const {
   return encoded_str;
 }
 
+string HttpConnection::UriDecode(const string& str) const {
+  string decoded_str;
+  int decoded_str_len = 0;
+  char* curl_decoded_str =
+      curl_easy_unescape(curl_, str.c_str(), str.size(), &decoded_str_len);
+  decoded_str.assign(curl_decoded_str, decoded_str_len);
+  curl_free(curl_decoded_str);
+  return decoded_str;
+}
+
+bool HttpConnection::ReadNextMessage(vector<byte>* data_buffer,
+                                     Callback callback) {
+  return stream_connection_->ReadUntil({'\r', '\n', '\r', '\n'}, data_buffer,
+                                       callback);
+}
+
 vector<byte>::const_iterator HttpConnection::GetTextLineFromData(
     vector<byte>::const_iterator begin,
     vector<byte>::const_iterator end,

@@ -8,8 +8,8 @@ testlibs = ['gtest', 'gtest_main', 'pthread']
 env = Environment(tools=['default'])
 env['ENV']['TERM'] = os.environ['TERM']
 env['CXX'] = 'clang++'
-env.Append(CCFLAGS='-std=c++11 -O2')
-env.Append(CPPFLAGS=('-I. -Isrc -DSQLITE_THREADSAFE -DZLIB_CONST '
+env.Append(CCFLAGS='-std=c++11 -g')
+env.Append(CPPFLAGS=('-I. -Isrc -DDEBUG -DSQLITE_THREADSAFE -DZLIB_CONST '
                      '-DBOOST_MPL_CFG_NO_PREPROCESSED_HEADERS '
                      '-DFUSION_MAX_VECTOR_SIZE=30 -DFUSION_MAX_SET_SIZE=30 '
                      '-DBOOST_MPL_LIMIT_VECTOR_SIZE=30 '
@@ -65,6 +65,9 @@ polar_express = env.Program(
         exports['base']['options'],
         exports['util']['io_util'],
         exports['util']['key_loading_util'],
+        # Temporarily depending on server connection to force it
+        # to compile into the binary.
+        exports['network']['http_server_connection'],
         exports['services']['cryptors'],
         backup_executor_pkg,
         'boost_program_options',

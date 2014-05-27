@@ -276,9 +276,8 @@ void HttpClientConnection::RequestSent(
         boost::bind(&HttpClientConnection::ResponseReceived, this,
                     response, response_payload, send_request_callback));
     serialized_response_.reset(new vector<byte>);
-    still_ok = stream_connection().ReadUntil(
-        { '\r', '\n', '\r', '\n' }, serialized_response_.get(),
-        response_received_callback);
+    still_ok =
+        ReadNextMessage(serialized_response_.get(), response_received_callback);
   }
 
   if (!still_ok) {

@@ -36,6 +36,12 @@ class HttpConnection {
 
   string UriEncode(const string& str) const;
 
+  string UriDecode(const string& str) const;
+
+  // Reads data from the stream connection up to and including the next message
+  // delimiter (two consecutive "\r\n" sequences).
+  bool ReadNextMessage(vector<byte>* data_buffer, Callback callback);
+
   // Extracts a line of text from a data buffer, consisting of all
   // bytes from begin up to encountering an "\r\n" sequence, or end,
   // whichever comes first. Returns an iterator to one byte past the
