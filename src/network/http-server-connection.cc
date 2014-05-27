@@ -43,6 +43,10 @@ HttpServerConnection::HttpServerConnection(
 HttpServerConnection::~HttpServerConnection() {
 }
 
+bool HttpServerConnection::last_operation_succeeded() const {
+  return last_operation_succeeded_;
+}
+
 bool HttpServerConnection::ReceiveRequest(
     HttpRequest* request,
     vector<byte>* request_payload, Callback callback) {

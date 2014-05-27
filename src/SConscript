@@ -65,9 +65,9 @@ polar_express = env.Program(
         exports['base']['options'],
         exports['util']['io_util'],
         exports['util']['key_loading_util'],
-        # Temporarily depending on server connection to force it
+        # Temporarily depending on server to force it
         # to compile into the binary.
-        exports['network']['http_server_connection'],
+        exports['network']['http_server'],
         exports['services']['cryptors'],
         backup_executor_pkg,
         'boost_program_options',

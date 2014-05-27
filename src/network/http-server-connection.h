@@ -24,6 +24,8 @@ class HttpServerConnection : public HttpConnection {
       unique_ptr<StreamConnection>&& stream_connection);
   virtual ~HttpServerConnection();
 
+  virtual bool last_operation_succeeded() const;
+
   // Receives an incoming request from a server, and invokes callback when the
   // request is completely recieved, including payload. Returns false if another
   // ReceiveRequest call is already pending.
