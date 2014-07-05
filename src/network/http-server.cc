@@ -206,7 +206,7 @@ void HttpServer::DestroyNetworkingObjects() {
 }
 
 void HttpServer::AsyncAccept() {
-  std::cerr << "Waiting to accept." << std::endl;
+  DLOG(std::cerr << "HTTP Server waiting to accept." << std::endl);
   auto handler = strand_dispatcher_->MakeStrandCallbackWithArgs<
     const system::error_code&>(
         boost::bind(&HttpServer::HandleAccept, this, _1),
@@ -218,14 +218,13 @@ void HttpServer::AsyncAccept() {
 }
 
 void HttpServer::HandleAccept(const boost::system::error_code& err) {
-  std::cerr << "Trying to accept." << std::endl;
+  DLOG(std::cerr << "HTTP Server trying to accept." << std::endl);
   if (!is_running_ || next_socket_.get() == nullptr || err) {
     AsyncAccept();
     return;
   }
 
-  std::cerr << "Accepting." << std::endl;
-
+  DLOG(std::cerr << "HTTP Server accepting." << std::endl);
   boost::shared_ptr<HttpServerConnection> server_connection(
       new HttpServerConnection(make_unique<TcpConnection>(
           std::move(next_socket_),
@@ -306,9 +305,9 @@ void HttpServer::AsyncSendResponse(
   copy(response_payload_str.begin(), response_payload_str.end(),
        context.response_payload_.begin());
 
-  std::cerr << "Responding with body: " << response_payload_str << std::endl;
+  DLOG(std::cerr << "HTTP Server Responding with body: " << response_payload_str
+                 << std::endl);
   response_payload_str.clear();
-  std::cerr << "Body has " << context.response_payload_.size() << " bytes." << std::endl;
 
   auto handler = strand_dispatcher_->CreateStrandCallback(
       boost::bind(&HttpServer::HandleSendResponse, this, server_connection));
@@ -337,7 +336,7 @@ void HttpServer::HandleSendResponse(
 
 void HttpServer::Close(
     boost::shared_ptr<HttpServerConnection> server_connection) {
-  std::cerr << "Closing." << std::endl;
+  DLOG(std::cerr << "HTTP Server closing." << std::endl);
   connection_contexts_.erase(server_connection);
 }
 
