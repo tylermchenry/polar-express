@@ -100,6 +100,10 @@ class StreamConnection {
   StreamConnection(bool is_secure, bool is_open,
                    const ConnectionProperties& properties);
 
+  // The template subclass calls this from its constructor to finish
+  // construction in a way that can use virtual methods.
+  void Initialize();
+
   typedef asio::buffers_iterator<asio::streambuf::const_buffers_type>
     boost_streambuf_iterator;
 
@@ -286,6 +290,7 @@ class StreamConnectionTmpl : public StreamConnection {
 template <typename AsyncStreamT>
 StreamConnectionTmpl<AsyncStreamT>::StreamConnectionTmpl(bool is_secure)
     : StreamConnection(is_secure) {
+  Initialize();
 }
 
 template <typename AsyncStreamT>
@@ -293,7 +298,9 @@ StreamConnectionTmpl<AsyncStreamT>::StreamConnectionTmpl(
     bool is_secure, unique_ptr<AsyncStreamT>&& connected_stream,
     const ConnectionProperties& properties)
     : StreamConnection(is_secure, true /* is_open */, properties),
-      stream_(std::move(CHECK_NOTNULL(connected_stream))) {}
+      stream_(std::move(CHECK_NOTNULL(connected_stream))) {
+  Initialize();
+}
 
 template <typename AsyncStreamT>
 StreamConnectionTmpl<AsyncStreamT>::~StreamConnectionTmpl() {

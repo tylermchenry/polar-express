@@ -1,5 +1,6 @@
 #include "network/http-server-connection.h"
 
+#include <iostream>
 #include <deque>
 #include <sstream>
 
@@ -53,6 +54,8 @@ bool HttpServerConnection::ReceiveRequest(
   if (waiting_for_request_) {
     return false;
   }
+
+  DLOG(std::cerr << "HTTP Server Waiting to receive." << std::endl);
 
   Callback request_received_callback = CreateStrandCallback(
       boost::bind(&HttpServerConnection::RequestReceived, this,
@@ -253,19 +256,8 @@ boost::shared_ptr<vector<byte> > HttpServerConnection::SerializeResponse(
   if (!response.status_phrase().empty()) {
     serialized_response_sstr << " " << response.status_phrase();
   }
-  serialized_response_sstr << "\r\n";
-
-  string response_headers;
-  SerializeHeaders(response.response_headers(), {"Content-Length"},
-                   &response_headers);
-  if (!response_headers.empty()) {
-    serialized_response_sstr << response_headers;
-  }
-
-  serialized_response_sstr << "Content-Length: " << payload_size << "\r\n";
-  serialized_response_sstr << "\r\n";
-
-  const string& serialized_response_str = serialized_response_sstr.str();
+  serialized_response_sstr << "\r\n\r\n";
+  const string serialized_response_str = serialized_response_sstr.str();
   return boost::shared_ptr<vector<byte> >(new vector<byte>(
       serialized_response_str.begin(), serialized_response_str.end()));
 }
@@ -275,8 +267,12 @@ void HttpServerConnection::RequestReceived(
     vector<byte>* request_payload,
     Callback receive_request_callback) {
   bool still_ok = false;
+  DLOG(std::cerr << "HTTP server received " << serialized_request_->size()
+                 << "bytes." << std::endl);
   if (stream_connection().last_read_succeeded() &&
       DeserializeRequest(request)) {
+    DLOG(std::cerr << "HTTP server got request:\n" << request->DebugString()
+                   << std::endl);
     if (IsRequestPayloadChunked(*request)) {
       // TODO: Handle chunked request payloads. Right now this will fall through
       // to failure with still_ok = false.

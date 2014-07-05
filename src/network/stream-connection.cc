@@ -22,6 +22,9 @@ StreamConnection::StreamConnection(
       properties_(properties),
       last_write_succeeded_(false),
       last_read_succeeded_(false) {
+}
+
+void StreamConnection::Initialize() {
   if (is_open_) {
     CreateNetworkingObjects(properties_.network_usage_type_);
   }

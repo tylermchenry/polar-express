@@ -17,6 +17,7 @@ namespace polar_express {
 HttpConnection::HttpConnection(unique_ptr<StreamConnection>&& stream_connection)
     : stream_connection_(std::move(CHECK_NOTNULL(stream_connection))),
       curl_(curl_easy_init()) {
+  ResetStrandDispatcher(network_usage_type());
 }
 
 HttpConnection::~HttpConnection() {

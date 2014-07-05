@@ -1,5 +1,6 @@
 #include "network/http-server.h"
 
+#include <iostream>
 #include <algorithm>
 #include <iterator>
 
@@ -15,14 +16,49 @@
 namespace polar_express {
 namespace {
 
-const char* GetStringForErrorCode(int code) {
+const char* GetPhraseForStatusCode(int code) {
   switch (code) {
-    // TODO: Fill In.
+    case 101: return "Switching Protocols";
+    case 200: return "OK";
+    case 201: return "Created";
+    case 202: return "Accepted";
+    case 203: return "Non-Authoritative Information";
+    case 204: return "No Content";
+    case 205: return "Reset Content";
+    case 206: return "Partial Content";
+    case 300: return "Multiple Choices";
+    case 301: return "Moved Permanently";
+    case 302: return "Found";
+    case 303: return "See Other";
+    case 304: return "Not Modified";
+    case 305: return "Use Proxy";
+    case 307: return "Temporary Redirect";
     case 400: return "Bad Request";
+    case 401: return "Unauthorized";
+    case 402: return "Payment Required";
+    case 403: return "Forbidden";
     case 404: return "Not Found";
+    case 405: return "Method Not Allowed";
+    case 406: return "Not Acceptable";
+    case 407: return "Proxy Authentication Required";
+    case 408: return "Request Timeout";
+    case 409: return "Conflict";
+    case 410: return "Gone";
+    case 411: return "Length Required";
+    case 412: return "Precondition Failed";
+    case 413: return "Request Entity Too Large";
+    case 414: return "Request-URI Too Long";
+    case 415: return "Unsupported Media Type";
+    case 416: return "Requested Range NOt Satisfiable";
+    case 417: return "Expectation Failed";
     case 500:
     default:
       return "Internal Server Error";
+    case 501: return "Not Implemented";
+    case 502: return "Bad Gateway";
+    case 503: return "Service Unavailable";
+    case 504: return "Gateway Timeout";
+    case 505: return "HTTP Version Not Supported";
   }
 }
 
@@ -35,7 +71,7 @@ void ProduceErrorResponse(int code, const HttpRequest& request,
 
   response_payload_stream->clear();
   *response_payload_stream << "<html><body><h1>" << code << " "
-                           << GetStringForErrorCode(code)
+                           << GetPhraseForStatusCode(code)
                            << "</h1></body></html>";
 }
 
@@ -114,6 +150,8 @@ bool HttpServer::Run(uint16_t port) {
   acceptor_->bind(endpoint);
   acceptor_->listen();
 
+  AsyncAccept();
+
   return true;
 }
 
@@ -168,6 +206,7 @@ void HttpServer::DestroyNetworkingObjects() {
 }
 
 void HttpServer::AsyncAccept() {
+  std::cerr << "Waiting to accept." << std::endl;
   auto handler = strand_dispatcher_->MakeStrandCallbackWithArgs<
     const system::error_code&>(
         boost::bind(&HttpServer::HandleAccept, this, _1),
@@ -179,10 +218,13 @@ void HttpServer::AsyncAccept() {
 }
 
 void HttpServer::HandleAccept(const boost::system::error_code& err) {
+  std::cerr << "Trying to accept." << std::endl;
   if (!is_running_ || next_socket_.get() == nullptr || err) {
     AsyncAccept();
     return;
   }
+
+  std::cerr << "Accepting." << std::endl;
 
   boost::shared_ptr<HttpServerConnection> server_connection(
       new HttpServerConnection(make_unique<TcpConnection>(
@@ -226,6 +268,7 @@ void HttpServer::HandleReceiveRequest(
   }
 
   context.response_.Clear();
+  context.response_payload_stream_.str("");
   context.response_payload_stream_.clear();
   context.response_payload_.clear();
 
@@ -251,20 +294,26 @@ void HttpServer::AsyncSendResponse(
   assert(server_connection != nullptr);
   ConnectionContext& context = connection_contexts_[server_connection];
 
-  // Kind of sucks that we have to copy this. Any way to have the stream write
-  // directly into the vector?
+  context.response_.set_http_version("1.1");
+  context.response_.set_status_phrase(
+      GetPhraseForStatusCode(context.response_.status_code()));
+
+  // Kind of sucks that we have to copy this (twice!). Any way to have the
+  // stream write directly into the vector?
   string response_payload_str = context.response_payload_stream_.str();
-  context.response_payload_stream_.clear();
-  copy(reinterpret_cast<const byte*>(response_payload_str.c_str()),
-       reinterpret_cast<const byte*>(response_payload_str.c_str()) +
-           response_payload_str.size(),
-       back_inserter(context.response_payload_));
+  context.response_payload_stream_.str("");
+  context.response_payload_.resize(response_payload_str.size());
+  copy(response_payload_str.begin(), response_payload_str.end(),
+       context.response_payload_.begin());
+
+  std::cerr << "Responding with body: " << response_payload_str << std::endl;
   response_payload_str.clear();
+  std::cerr << "Body has " << context.response_payload_.size() << " bytes." << std::endl;
 
   auto handler = strand_dispatcher_->CreateStrandCallback(
       boost::bind(&HttpServer::HandleSendResponse, this, server_connection));
   if (!server_connection->SendResponse(context.response_,
-                                       &context.request_payload_, handler)) {
+                                       &context.response_payload_, handler)) {
     Close(server_connection);
   }
 }
@@ -288,6 +337,7 @@ void HttpServer::HandleSendResponse(
 
 void HttpServer::Close(
     boost::shared_ptr<HttpServerConnection> server_connection) {
+  std::cerr << "Closing." << std::endl;
   connection_contexts_.erase(server_connection);
 }
 
